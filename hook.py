@@ -80,6 +80,37 @@ def save_outcome(session_id: str, outcome: str):
         print(f"  DB error: {e}\n")
 
 
+def embed_session(session_id: str):
+    """Embed current session silently."""
+    try:
+        import psycopg2
+        from analyzer import embed
+        conn = psycopg2.connect(dbname="claude_monitor")
+        cur = conn.cursor()
+        cur.execute(
+            "SELECT first_user_message FROM sessions WHERE session_id = %s AND embedding IS NULL",
+            (session_id,)
+        )
+        row = cur.fetchone()
+        cur.close()
+        conn.close()
+        if row and row[0]:
+            emb = embed(row[0])
+            if emb:
+                conn = psycopg2.connect(dbname="claude_monitor")
+                cur = conn.cursor()
+                cur.execute(
+                    "UPDATE sessions SET embedding = %s WHERE session_id = %s",
+                    (emb, session_id)
+                )
+                conn.commit()
+                cur.close()
+                conn.close()
+                print("  ✓ Ембединг збережено\n")
+    except Exception:
+        pass
+
+
 def run():
     session_id = get_latest_session_id()
     if not session_id:
@@ -90,6 +121,8 @@ def run():
         save_outcome(session_id, outcome)
     else:
         print("  Пропущено\n")
+
+    embed_session(session_id)
 
 
 if __name__ == "__main__":

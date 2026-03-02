@@ -39,7 +39,7 @@ def init_db():
             first_user_message TEXT,
             skills_used TEXT[],
             outcome TEXT,
-            embedding vector(384)
+            embedding vector(1024)
         );
 
         CREATE INDEX IF NOT EXISTS sessions_timestamp_idx ON sessions(timestamp);
