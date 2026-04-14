@@ -424,163 +424,84 @@ def scan_npm_audit(scan_paths: list[Path]) -> list[Finding]:
 
 
 # ---------------------------------------------------------------------------
-# System-level scanners (Python — these don't benefit from Rust)
+# System-level scanners — cross-platform via platform backend
 # ---------------------------------------------------------------------------
 
+from core.platform import get_platform
+
+
 def scan_firewall() -> list[Finding]:
-    """Check if firewall is active."""
+    """Check if firewall is active — cross-platform."""
+    platform = get_platform()
+    result = platform.check_firewall()
     findings = []
-    try:
-        result = subprocess.run(
-            ["ufw", "status"], capture_output=True, text=True, timeout=10,
-        )
-        if "inactive" in result.stdout.lower():
+    if not result["active"]:
+        tool = result["tool"]
+        details = result["details"]
+        if tool == "none":
             findings.append(Finding(
                 "system", "high",
-                "Firewall (ufw) is inactive — system is unprotected from network attacks",
-                "ufw",
-            ))
-        elif result.returncode != 0:
-            ipt = subprocess.run(
-                ["iptables", "-L", "-n"], capture_output=True, text=True, timeout=10,
-            )
-            if ipt.returncode != 0 or not ipt.stdout.strip():
-                findings.append(Finding(
-                    "system", "high",
-                    "No firewall detected (ufw/iptables) — system is open to network attacks",
-                    "firewall",
-                ))
-    except FileNotFoundError:
-        try:
-            ipt = subprocess.run(
-                ["iptables", "-L", "-n"], capture_output=True, text=True, timeout=10,
-            )
-            lines = [l for l in ipt.stdout.strip().split("\n") if l.strip() and not l.startswith("Chain") and not l.startswith("target")]
-            if not lines:
-                findings.append(Finding(
-                    "system", "medium",
-                    "Firewall has no rules configured — all traffic is allowed",
-                    "iptables",
-                ))
-        except (FileNotFoundError, subprocess.TimeoutExpired):
-            findings.append(Finding(
-                "system", "medium",
-                "Cannot check firewall status — ufw and iptables not found",
+                "No firewall detected — system is open to network attacks",
                 "firewall",
             ))
-    except subprocess.TimeoutExpired:
-        pass
+        else:
+            findings.append(Finding(
+                "system", "high",
+                f"Firewall ({tool}) is inactive — {details}",
+                tool,
+            ))
     return findings
 
 
 def scan_ssh_config() -> list[Finding]:
-    """Check SSH server configuration for common weaknesses."""
+    """Check SSH server configuration — cross-platform."""
+    platform = get_platform()
+    result = platform.check_ssh_config()
     findings = []
-    sshd_config = Path("/etc/ssh/sshd_config")
-    if not sshd_config.exists():
+    if not result["exists"]:
         return findings
-
-    try:
-        content = sshd_config.read_text()
-    except PermissionError:
-        return findings
-
-    lines = content.lower().split("\n")
-    config = {}
-    for line in lines:
-        line = line.strip()
-        if not line or line.startswith("#"):
-            continue
-        parts = line.split(None, 1)
-        if len(parts) == 2:
-            config[parts[0]] = parts[1]
-
-    if config.get("permitrootlogin") not in ("no", "prohibit-password"):
-        findings.append(Finding(
-            "system", "high",
-            "SSH allows root login — attackers can brute-force root password directly",
-            "/etc/ssh/sshd_config",
-        ))
-
-    if config.get("passwordauthentication") == "yes":
-        findings.append(Finding(
-            "system", "medium",
-            "SSH allows password authentication — key-based auth is more secure",
-            "/etc/ssh/sshd_config",
-        ))
-
-    if config.get("permitemptypasswords") == "yes":
-        findings.append(Finding(
-            "system", "critical",
-            "SSH allows empty passwords — anyone can log in without credentials",
-            "/etc/ssh/sshd_config",
-        ))
-
-    port = config.get("port", "22")
-    if port == "22":
-        findings.append(Finding(
-            "system", "low",
-            "SSH runs on default port 22 — consider changing to reduce brute-force noise",
-            "/etc/ssh/sshd_config",
-        ))
-
+    for issue in result["issues"]:
+        severity = "critical" if "empty passwords" in issue else (
+            "high" if "root login" in issue else "medium"
+        )
+        findings.append(Finding("system", severity, f"SSH: {issue}", "sshd_config"))
     return findings
 
 
 def scan_system_updates() -> list[Finding]:
-    """Check for available security updates."""
+    """Check for available security updates — cross-platform."""
+    platform = get_platform()
+    updates = platform.check_system_updates()
     findings = []
-    try:
-        result = subprocess.run(
-            ["apt", "list", "--upgradable"],
-            capture_output=True, text=True, timeout=30,
-        )
-        if result.returncode == 0:
-            lines = [l for l in result.stdout.strip().split("\n")
-                     if l and not l.startswith("Listing")]
-            security_updates = [l for l in lines if "security" in l.lower()]
-            if security_updates:
-                findings.append(Finding(
-                    "system", "high",
-                    f"{len(security_updates)} security updates available — "
-                    f"run 'sudo apt update && sudo apt upgrade'",
-                    "apt",
-                ))
-            elif len(lines) > 10:
-                findings.append(Finding(
-                    "system", "medium",
-                    f"{len(lines)} package updates available — system may have unpatched vulnerabilities",
-                    "apt",
-                ))
-    except (FileNotFoundError, subprocess.TimeoutExpired):
-        pass
+    for desc in updates:
+        severity = "high" if "security" in desc.lower() else "medium"
+        findings.append(Finding(
+            "system", severity,
+            f"{desc} — update your system",
+            "updates",
+        ))
     return findings
 
 
 def scan_sudoers() -> list[Finding]:
-    """Check for risky sudoers configurations."""
+    """Check for risky admin configurations — cross-platform."""
+    platform = get_platform()
+    result = platform.check_sudoers()
     findings = []
-    try:
-        result = subprocess.run(
-            ["sudo", "-l", "-n"],
-            capture_output=True, text=True, timeout=10,
-        )
-        if "NOPASSWD" in result.stdout and "ALL" in result.stdout:
-            findings.append(Finding(
-                "system", "medium",
-                "Current user has passwordless sudo for ALL commands — "
-                "if account is compromised, attacker gets full root access",
-                "sudoers",
-            ))
-    except (FileNotFoundError, subprocess.TimeoutExpired):
-        pass
+    if result["nopasswd_all"]:
+        findings.append(Finding(
+            "system", "medium",
+            "Current user has passwordless admin access for ALL commands",
+            "sudoers",
+        ))
     return findings
 
 
 def scan_world_writable() -> list[Finding]:
     """Check for world-writable directories in PATH."""
     findings = []
-    path_dirs = os.environ.get("PATH", "").split(":")
+    sep = ";" if os.name == "nt" else ":"
+    path_dirs = os.environ.get("PATH", "").split(sep)
     for d in path_dirs:
         p = Path(d)
         if not p.exists():

@@ -6,7 +6,6 @@ from unittest.mock import patch, MagicMock
 from plugins.security_scan.scanners import (
     scan_docker_security,
     scan_env_in_git,
-    scan_file_permissions,
     scan_exposed_ports,
     Finding,
 )
