@@ -125,3 +125,43 @@ claude-code-usage-monitor/
 ## License
 
 MIT
+
+---
+
+## Dev Monitor (v2.0)
+
+Plugin-based TUI dashboard for monitoring your local dev environment.
+
+### Features (MVP)
+
+- **Docker Monitor** — container status, CPU/RAM, health checks, restart detection
+- **Port/Service Map** — listening ports, conflict detection, project auto-discovery
+- **Security Scan** — Docker security, .env in git, dependency CVEs, exposed ports
+- **Alerts** — desktop notifications + fart sounds by severity
+
+### Quick Start
+
+```bash
+# Install dependencies
+pip install textual docker psutil aiosqlite
+
+# Optional: security scanning
+pip install pip-audit
+
+# Run
+python -m core.app
+# or
+dev-monitor  # if installed via pip
+```
+
+### Keybindings
+
+| Key | Action |
+|-----|--------|
+| `q` | Quit |
+| `r` | Force refresh all plugins |
+| `Tab` | Switch between plugin tabs |
+
+### Configuration
+
+Edit `config.toml` to customize thresholds, enable/disable plugins, set quiet hours.
