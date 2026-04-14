@@ -1,6 +1,4 @@
-//! sentinel — fart.run cross-platform host IDS
-//!
-//! Because your vibe-coded app shouldn't have a cryptominer running next to it.
+//! sentinel — cross-platform host IDS for dev environments.
 
 mod processes;
 mod network;
@@ -8,14 +6,16 @@ mod filesystem;
 mod crontab;
 mod secrets;
 mod autostart;
+mod container_escape;
+mod supply_chain;
+mod git_hooks;
+mod env_leak;
 
 use pyo3::prelude::*;
 
-/// sentinel Python module — cross-platform security scanning at native speed.
-///
-/// Because your vibe-coded app shouldn't have a cryptominer in crontab.
 #[pymodule]
 fn sentinel(m: &Bound<'_, PyModule>) -> PyResult<()> {
+    // Original scanners
     m.add_class::<processes::ProcessFinding>()?;
     m.add_function(wrap_pyfunction!(processes::scan_processes, m)?)?;
     m.add_class::<network::NetworkFinding>()?;
@@ -28,5 +28,16 @@ fn sentinel(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(secrets::scan_secrets, m)?)?;
     m.add_class::<autostart::AutostartFinding>()?;
     m.add_function(wrap_pyfunction!(autostart::scan_autostart, m)?)?;
+
+    // New scanners (Phase 4)
+    m.add_class::<container_escape::ContainerEscapeFinding>()?;
+    m.add_function(wrap_pyfunction!(container_escape::scan_container_escape, m)?)?;
+    m.add_class::<supply_chain::SupplyChainFinding>()?;
+    m.add_function(wrap_pyfunction!(supply_chain::scan_supply_chain, m)?)?;
+    m.add_class::<git_hooks::GitHookFinding>()?;
+    m.add_function(wrap_pyfunction!(git_hooks::scan_git_hooks, m)?)?;
+    m.add_class::<env_leak::EnvLeakFinding>()?;
+    m.add_function(wrap_pyfunction!(env_leak::scan_env_leaks, m)?)?;
+
     Ok(())
 }

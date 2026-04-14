@@ -103,6 +103,50 @@ def scan_sentinel_autostart() -> list[Finding]:
     return findings
 
 
+def scan_container_escape() -> list[Finding]:
+    """Detect container escape vectors — CAP_SYS_ADMIN, docker.sock."""
+    if not _sentinel_available:
+        return []
+    findings = []
+    for f in sentinel.scan_container_escape():
+        if f.severity == "info":
+            continue  # skip informational "running inside container"
+        findings.append(Finding("container", f.severity, f.description, f.evidence))
+    return findings
+
+
+def scan_supply_chain(scan_paths: list[Path]) -> list[Finding]:
+    """Scan lock files for supply chain attack indicators."""
+    if not _sentinel_available:
+        return []
+    path_strs = [str(p) for p in scan_paths]
+    findings = []
+    for f in sentinel.scan_supply_chain(path_strs):
+        findings.append(Finding("packages", f.severity, f.description, f.path))
+    return findings
+
+
+def scan_git_hooks(scan_paths: list[Path]) -> list[Finding]:
+    """Audit git hooks for suspicious scripts."""
+    if not _sentinel_available:
+        return []
+    path_strs = [str(p) for p in scan_paths]
+    findings = []
+    for f in sentinel.scan_git_hooks(path_strs):
+        findings.append(Finding("config", f.severity, f.description, f.path))
+    return findings
+
+
+def scan_env_leaks() -> list[Finding]:
+    """Detect API keys and tokens in process environment variables."""
+    if not _sentinel_available:
+        return []
+    findings = []
+    for f in sentinel.scan_env_leaks():
+        findings.append(Finding("secrets", f.severity, f.description, f.process))
+    return findings
+
+
 # ---------------------------------------------------------------------------
 # Suspicious package scanner — typosquatting + known malicious
 # ---------------------------------------------------------------------------
