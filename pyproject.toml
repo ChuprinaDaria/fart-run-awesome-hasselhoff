@@ -4,11 +4,11 @@ build-backend = "setuptools.backends._legacy:_Backend"
 
 [project]
 name = "claude-monitor"
-version = "2.0.0"
-description = "Dev environment monitoring platform with plugin architecture"
+version = "3.0.0"
+description = "Dev environment monitoring platform — Win95 style"
 requires-python = ">=3.11"
 dependencies = [
-    "textual>=0.40",
+    "PyQt5>=5.15",
     "docker>=7.0",
     "psutil>=5.9",
     "aiosqlite>=0.19",
@@ -17,10 +17,8 @@ dependencies = [
 [project.optional-dependencies]
 security = ["pip-audit>=2.6"]
 dev = ["pytest>=8.0", "pytest-asyncio>=0.23"]
-gui = ["PyQt5>=5.15"]
 
 [project.scripts]
-dev-monitor = "core.app:main"
 dev-monitor-gui = "gui.app:main"
 
 [tool.pytest.ini_options]
