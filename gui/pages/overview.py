@@ -88,6 +88,22 @@ class OverviewPage(QWidget):
         self.infra_group.setLayout(il)
         layout.addWidget(self.infra_group)
 
+        # --- Security Score ---
+        sec_layout = QHBoxLayout()
+        self.security_score = QLabel("--")
+        self.security_score.setStyleSheet(
+            "font-size: 36px; font-weight: bold; color: #000080; "
+            "border: 2px inset #808080; background: white; padding: 8px; min-width: 80px;"
+        )
+        self.security_score.setAlignment(Qt.AlignCenter)
+        sec_layout.addWidget(self.security_score)
+
+        self.security_breakdown = QLabel("Security Score")
+        self.security_breakdown.setWordWrap(True)
+        self.security_breakdown.setStyleSheet("padding: 4px; font-size: 11px;")
+        sec_layout.addWidget(self.security_breakdown, stretch=1)
+        layout.addLayout(sec_layout)
+
         # Nag message
         self.nag_label = QLabel("")
         self.nag_label.setWordWrap(True)
@@ -181,6 +197,40 @@ class OverviewPage(QWidget):
         color = "#006600" if conflicts == 0 else "#cc8800"
         self.ports_status.setText(text)
         self.ports_status.setStyleSheet(f"{_COMPACT_STYLE} color: {color};")
+
+    def update_security_score(self, findings: list[dict]) -> None:
+        """Calculate and display security score 0-100."""
+        if not findings:
+            self.security_score.setText("100")
+            self.security_score.setStyleSheet(
+                "font-size: 36px; font-weight: bold; color: #006600; "
+                "border: 2px inset #808080; background: white; padding: 8px; min-width: 80px;"
+            )
+            self.security_breakdown.setText("No issues found")
+            return
+
+        deductions = {"critical": 20, "high": 10, "medium": 3, "low": 1}
+        total_deduction = 0
+        counts: dict[str, int] = {"critical": 0, "high": 0, "medium": 0, "low": 0}
+        for f in findings:
+            sev = f.get("severity", "low")
+            counts[sev] = counts.get(sev, 0) + 1
+            total_deduction += deductions.get(sev, 1)
+
+        score = max(0, 100 - total_deduction)
+        color = "#006600" if score >= 80 else ("#cc8800" if score >= 50 else "#cc0000")
+
+        self.security_score.setText(str(score))
+        self.security_score.setStyleSheet(
+            f"font-size: 36px; font-weight: bold; color: {color}; "
+            "border: 2px inset #808080; background: white; padding: 8px; min-width: 80px;"
+        )
+
+        parts = []
+        for sev in ("critical", "high", "medium", "low"):
+            if counts[sev] > 0:
+                parts.append(f"{counts[sev]} {sev}")
+        self.security_breakdown.setText(" | ".join(parts) if parts else "No issues")
 
     def set_docker_error(self, msg: str) -> None:
         self.docker_status.setText(f"Docker: {msg}")

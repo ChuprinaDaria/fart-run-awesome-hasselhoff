@@ -371,6 +371,8 @@ class MonitorApp(QMainWindow):
                 scan_sudoers, scan_world_writable,
                 scan_sentinel_processes, scan_sentinel_network,
                 scan_sentinel_filesystem, scan_sentinel_cron,
+                scan_container_escape, scan_supply_chain,
+                scan_git_hooks, scan_env_leaks,
             )
             findings = []
 
@@ -407,6 +409,13 @@ class MonitorApp(QMainWindow):
             findings.extend(scan_sentinel_filesystem(scan_paths))
             findings.extend(scan_sentinel_cron())
 
+            # New Phase 4 scanners
+            findings.extend(scan_container_escape())
+            findings.extend(scan_supply_chain(scan_paths))
+            findings.extend(scan_git_hooks(scan_paths))
+            findings.extend(scan_env_leaks())
+
+            # System-level checks
             findings.extend(scan_firewall())
             findings.extend(scan_ssh_config())
             findings.extend(scan_system_updates())
@@ -431,6 +440,7 @@ class MonitorApp(QMainWindow):
 
         self.page_security.update_data(findings)
         self.page_security.set_scanning(False)
+        self.page_overview.update_security_score(findings)
 
         critical_count = self.page_security.critical_count()
         self.sidebar.update_alert("security", critical_count)
