@@ -152,7 +152,7 @@ STRINGS = {
     # Tips page
     "tips_header": "Tips & Recommendations",
     "no_tips": "No tips yet — use Claude to get recommendations!",
-    "tips_require": "Tips require claude_nagger module",
+    "tips_require": "Tips require core module",
 
     # Settings page
     "lang_group": "Language / Мова",
@@ -170,7 +170,7 @@ STRINGS = {
     "save_error": "Error: {}",
 
     # Usage page
-    "usage_require": "Usage data requires claude_nagger module",
+    "usage_require": "Usage data requires core module",
 
     # Hoff Wizard
     "side_hoff_wizard": "Hoff Wizard",
@@ -188,7 +188,7 @@ STRINGS = {
     "hoff_efficient": "{} sessions, only {}K tokens — efficiency king!",
     "hoff_container_up": "{} is up and running! First try!",
     "hoff_all_healthy": "All {} containers running smooth! Baywatch mode!",
-    "hoff_requires": "Hasselhoff requires claude_nagger module",
+    "hoff_requires": "Hasselhoff requires core module",
 
     # Security Guardian
     "hasselhoff_angry": "Hasselhoff is NOT happy!",

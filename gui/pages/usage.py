@@ -1,4 +1,4 @@
-"""Usage page — delegates to claude_nagger UsageTab."""
+"""Usage page — delegates to UsageTab."""
 
 from PyQt5.QtWidgets import QWidget, QVBoxLayout, QLabel
 from PyQt5.QtCore import Qt
@@ -10,11 +10,12 @@ class UsagePage(QWidget):
         layout = QVBoxLayout(self)
         self._inner = None
         try:
-            from claude_nagger.gui.usage import UsageTab
+            from gui.pages.usage_tab import UsageTab
             self._inner = UsageTab()
             layout.addWidget(self._inner)
         except ImportError:
-            label = QLabel("Usage data requires claude_nagger module")
+            from i18n import get_string as _t
+            label = QLabel(_t("usage_require"))
             label.setAlignment(Qt.AlignCenter)
             label.setStyleSheet("color: #808080; font-style: italic;")
             layout.addWidget(label)

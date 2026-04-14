@@ -5,13 +5,13 @@ Each finding type maps to a dict with:
 - risk: What an attacker could do
 - fix: Copy-paste fix command or file change
 
-Supports EN and UA via claude_nagger.i18n.
+Supports EN and UA via i18n module.
 """
 
 from __future__ import annotations
 
 import re
-from claude_nagger.i18n import get_language
+from i18n import get_language
 
 COURSERA_LINKS: dict[str, dict[str, str]] = {
     "secrets": {"url": "https://www.coursera.org/learn/packt-fundamentals-of-secure-software-dqsu3", "title": "Fundamentals of Secure Software"},

@@ -1,6 +1,6 @@
 """Tests for security finding explanations."""
 
-from gui.security_explanations import get_explanation, get_human_description, EXPLANATIONS
+from gui.security_explanations import get_explanation, get_human_description, _EXPLANATIONS_EN as EXPLANATIONS
 
 
 def test_privileged_container_explanation():
@@ -55,7 +55,8 @@ def test_all_explanations_have_required_keys():
 
 def test_human_description_privileged():
     desc = get_human_description("docker", "nginx: runs in privileged mode")
-    assert "admin" in desc.lower() or "attacker" in desc.lower()
+    # May return EN or UA text depending on language setting
+    assert "admin" in desc.lower() or "attacker" in desc.lower() or "адмін" in desc.lower()
 
 
 def test_human_description_root():

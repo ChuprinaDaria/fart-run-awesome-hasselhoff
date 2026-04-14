@@ -152,7 +152,7 @@ STRINGS = {
     # Поради
     "tips_header": "Поради та рекомендації",
     "no_tips": "Порад ще немає — попрацюйте з Claude!",
-    "tips_require": "Для порад потрібен модуль claude_nagger",
+    "tips_require": "Для порад потрібен модуль core",
 
     # Налаштування
     "lang_group": "Мова / Language",
@@ -170,7 +170,7 @@ STRINGS = {
     "save_error": "Помилка: {}",
 
     # Використання
-    "usage_require": "Для статистики потрібен модуль claude_nagger",
+    "usage_require": "Для статистики потрібен модуль core",
 
     # Хофф Візард
     "side_hoff_wizard": "Хофф Візард",
@@ -188,7 +188,7 @@ STRINGS = {
     "hoff_efficient": "{} сесій, лише {}K токенів — король ефективності!",
     "hoff_container_up": "{} запустився! З першого разу!",
     "hoff_all_healthy": "Всі {} контейнери працюють! Режим Baywatch!",
-    "hoff_requires": "Хасселхофф потребує модуль claude_nagger",
+    "hoff_requires": "Хасселхофф потребує модуль core",
 
     # Security Guardian
     "hasselhoff_angry": "Хассельхоф ДУЖЕ незадоволений!",

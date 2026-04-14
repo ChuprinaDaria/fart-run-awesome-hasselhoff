@@ -6,7 +6,7 @@ from PyQt5.QtWidgets import (
 )
 from gui.copyable_table import CopyableTableWidget
 from PyQt5.QtCore import Qt
-from claude_nagger.i18n import get_string as _t
+from i18n import get_string as _t
 
 
 def _fmt(n: int) -> str:

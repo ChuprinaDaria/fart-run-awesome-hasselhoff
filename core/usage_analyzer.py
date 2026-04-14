@@ -1,4 +1,4 @@
-from .models import TokenStats, ProjectUsage, ModelUsage
+from core.models import TokenStats, ProjectUsage, ModelUsage
 from .calculator import CostCalculator, PRICING, DEFAULT_PRICING
 
 

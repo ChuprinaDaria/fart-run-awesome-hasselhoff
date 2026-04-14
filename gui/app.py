@@ -21,7 +21,7 @@ if _project_root not in sys.path:
     sys.path.insert(0, _project_root)
 
 from core.config import load_config
-from claude_nagger.i18n import get_string as _t, set_language
+from i18n import get_string as _t, set_language
 from core.autodiscovery import discover_system, SystemState
 from core.alerts import AlertManager
 from core.plugin import Alert
@@ -35,7 +35,7 @@ from gui.pages.analytics import AnalyticsPage
 from gui.pages.tips import TipsPage
 from gui.pages.settings import SettingsPage
 from gui.pages.hasselhoff_wizard import HasselhoffWizardPage
-from claude_nagger.gui.discover import DiscoverTab
+from gui.pages.discover import DiscoverTab
 
 log = logging.getLogger(__name__)
 
@@ -277,10 +277,10 @@ class MonitorApp(QMainWindow):
         # Claude stats (if available)
         if self._state.claude_dir:
             try:
-                from claude_nagger.core.parser import TokenParser
-                from claude_nagger.core.calculator import CostCalculator
-                from claude_nagger.core.analyzer import Analyzer
-                from claude_nagger.nagger.messages import get_nag_message, get_nag_level
+                from core.token_parser import TokenParser
+                from core.calculator import CostCalculator
+                from core.usage_analyzer import Analyzer
+                from core.nagger.messages import get_nag_message, get_nag_level
 
                 parser = TokenParser()
                 stats = parser.parse_today()
@@ -528,7 +528,7 @@ class MonitorApp(QMainWindow):
     def _trigger_hasselhoff(self, message: str):
         """Hasselhoff appears when something GOOD happens."""
         try:
-            from claude_nagger.nagger.hasselhoff import get_hoff_phrase, get_hoff_image, get_victory_sound
+            from core.nagger.hasselhoff import get_hoff_phrase, get_hoff_image, get_victory_sound
             img_path = get_hoff_image()
             if img_path:
                 self.page_overview.set_hoff_image(img_path)
@@ -554,7 +554,7 @@ class MonitorApp(QMainWindow):
 
     def _do_hoff(self):
         try:
-            from claude_nagger.nagger.hasselhoff import get_hoff_phrase, get_hoff_image, get_victory_sound
+            from core.nagger.hasselhoff import get_hoff_phrase, get_hoff_image, get_victory_sound
             img_path = get_hoff_image()
             if img_path:
                 self.page_overview.set_hoff_image(img_path)

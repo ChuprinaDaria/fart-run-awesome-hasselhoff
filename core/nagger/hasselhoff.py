@@ -1,7 +1,7 @@
 import os
 import random
 import glob
-from claude_nagger.i18n import get_language
+from i18n import get_language
 
 PHRASES: dict[str, list[str]] = {
     "en": [

@@ -18,7 +18,7 @@ from PyQt5.QtWidgets import (
 from PyQt5.QtCore import Qt, QThread, pyqtSignal, QTimer, QUrl
 from PyQt5.QtGui import QFont, QDesktopServices
 
-from claude_nagger.i18n import get_string, get_language
+from i18n import get_string, get_language
 
 # ─── HASSELHOFF ASCII ART ────────────────────────────────────────────────
 HOFF_ASCII = r"""

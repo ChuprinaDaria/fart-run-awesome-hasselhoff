@@ -13,6 +13,7 @@ DEFAULTS = {
     },
     "sounds": {
         "enabled": True,
+        "mode": "classic",
         "quiet_hours_start": "23:00",
         "quiet_hours_end": "07:00",
     },
@@ -61,13 +62,22 @@ def _project_root() -> Path:
 
 
 def load_config(path: Path | None = None) -> dict:
-    """Load TOML config. Resolution: explicit path > MONITOR_CONFIG env > project root."""
+    """Load TOML config. Resolution: explicit path > MONITOR_CONFIG env > platform config dir > project root."""
     if path is None:
         env_path = os.environ.get("MONITOR_CONFIG")
         if env_path:
             path = Path(env_path)
         else:
-            path = _project_root() / "config.toml"
+            # Try platform config dir first
+            try:
+                from core.platform import get_platform
+                platform_config = get_platform().config_dir() / "config.toml"
+                if platform_config.exists():
+                    path = platform_config
+            except Exception:
+                pass
+            if path is None:
+                path = _project_root() / "config.toml"
 
     user_config = {}
     if path.exists():

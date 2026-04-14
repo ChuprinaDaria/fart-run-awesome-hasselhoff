@@ -5,7 +5,7 @@ from PyQt5.QtWidgets import (
     QComboBox, QCheckBox, QLabel, QPushButton, QSpinBox,
 )
 from PyQt5.QtCore import pyqtSignal
-from claude_nagger.i18n import get_string as _t
+from i18n import get_string as _t
 
 
 class SettingsPage(QWidget):
@@ -87,9 +87,8 @@ class SettingsPage(QWidget):
         layout.addStretch()
 
     def _apply(self):
-        """Save settings to config.toml."""
-        import toml
-        from pathlib import Path
+        """Save settings to config.toml — cross-platform."""
+        from core.platform import get_platform
 
         self._config["general"]["language"] = self.lang_combo.currentText()
         self._config["sounds"]["enabled"] = self.sound_enabled.isChecked()
@@ -103,12 +102,23 @@ class SettingsPage(QWidget):
         self._config["alert_filters"]["ports"] = self.alert_ports.isChecked()
         self._config["alert_filters"]["usage"] = self.alert_usage.isChecked()
 
-        # Write config
-        config_path = Path(__file__).resolve().parent.parent.parent / "config.toml"
+        # Write config — platform config dir with fallback to project root
+        platform = get_platform()
+        config_dir = platform.config_dir()
+        config_dir.mkdir(parents=True, exist_ok=True)
+        config_path = config_dir / "config.toml"
+
         try:
-            with open(config_path, "w") as f:
-                toml.dump(self._config, f)
+            try:
+                import tomli_w
+                with open(config_path, "wb") as f:
+                    tomli_w.dump(self._config, f)
+            except ImportError:
+                import toml
+                with open(config_path, "w") as f:
+                    toml.dump(self._config, f)
             self.status_label.setText(_t("saved_ok"))
+            self.status_label.setStyleSheet("color: #006600; font-style: italic; padding: 4px;")
             self.settings_changed.emit(self._config)
         except Exception as e:
             self.status_label.setText(_t("save_error").format(e))
