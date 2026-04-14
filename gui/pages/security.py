@@ -10,7 +10,7 @@ from PyQt5.QtCore import Qt, pyqtSignal, QThread
 from PyQt5.QtGui import QColor
 
 from gui.security_explanations import get_explanation, get_human_description, get_course_link
-from claude_nagger.i18n import get_string as _t
+from i18n import get_string as _t
 
 
 SEVERITY_COLORS = {

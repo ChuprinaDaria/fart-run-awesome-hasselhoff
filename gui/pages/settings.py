@@ -5,7 +5,7 @@ from PyQt5.QtWidgets import (
     QComboBox, QCheckBox, QLabel, QPushButton, QSpinBox,
 )
 from PyQt5.QtCore import pyqtSignal
-from claude_nagger.i18n import get_string as _t
+from i18n import get_string as _t
 
 
 class SettingsPage(QWidget):

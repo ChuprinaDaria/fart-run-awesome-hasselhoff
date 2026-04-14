@@ -1,6 +1,6 @@
 from PyQt5.QtWidgets import QWidget, QVBoxLayout, QLabel, QScrollArea
 from PyQt5.QtCore import Qt
-from claude_nagger.i18n import get_language
+from i18n import get_language
 
 DISCOVER_RESOURCES = [
     # === Skills & Plugins ===

@@ -1,5 +1,5 @@
-from .models import TokenStats, CostBreakdown, Tip
-from .analyzer import Analyzer
+from core.models import TokenStats, CostBreakdown, Tip
+from core.usage_analyzer import Analyzer
 
 
 class TipsEngine:
@@ -63,7 +63,7 @@ class TipsEngine:
             # Calculate potential savings
             calc_savings = 0
             if cost.total_cost > 0:
-                from .calculator import CostCalculator
+                from core.calculator import CostCalculator
                 sonnet_cost = CostCalculator().what_if_model(stats, "claude-sonnet-4-6")
                 calc_savings = cost.total_cost - sonnet_cost.total_cost
 

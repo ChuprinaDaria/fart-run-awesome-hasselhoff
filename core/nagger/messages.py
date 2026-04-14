@@ -1,5 +1,5 @@
 import random
-from claude_nagger.i18n import get_language
+from i18n import get_language
 
 MESSAGES: dict[str, dict[int, list[str]]] = {
     "en": {

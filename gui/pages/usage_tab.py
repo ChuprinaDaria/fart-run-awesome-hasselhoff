@@ -4,10 +4,10 @@ from PyQt5.QtWidgets import (QWidget, QVBoxLayout, QLabel, QGroupBox,
                               QFormLayout)
 from PyQt5.QtCore import Qt
 
-from claude_nagger.core.parser import TokenParser
-from claude_nagger.core.calculator import CostCalculator
-from claude_nagger.core.analyzer import Analyzer
-from claude_nagger.i18n import get_string, get_language
+from core.token_parser import TokenParser
+from core.calculator import CostCalculator
+from core.usage_analyzer import Analyzer
+from i18n import get_string, get_language
 
 
 def _fmt(n: int) -> str:
