@@ -17,9 +17,11 @@ dependencies = [
 [project.optional-dependencies]
 security = ["pip-audit>=2.6"]
 dev = ["pytest>=8.0", "pytest-asyncio>=0.23"]
+gui = ["PyQt5>=5.15"]
 
 [project.scripts]
 dev-monitor = "core.app:main"
+dev-monitor-gui = "gui.app:main"
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
