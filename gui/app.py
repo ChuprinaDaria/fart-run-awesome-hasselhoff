@@ -34,7 +34,6 @@ from gui.pages.tips import TipsPage
 from gui.pages.settings import SettingsPage
 from gui.pages.hasselhoff_wizard import HasselhoffWizardPage
 from gui.pages.discover import DiscoverTab
-from gui.win95_popup import Win95Popup
 
 log = logging.getLogger(__name__)
 
@@ -207,8 +206,8 @@ class MonitorApp(QMainWindow):
         # Collector thread
         self._collector_thread = None
         self._collecting = False
-        self._history_saved_today = False
         self._last_security_score = 100
+        self._history_db = None
 
         # Initial refresh
         self._refresh_all()
@@ -289,9 +288,10 @@ class MonitorApp(QMainWindow):
                 try:
                     from core.history import HistoryDB
                     from datetime import date
-                    db = HistoryDB()
-                    db.init()
-                    db.save_daily_stats(
+                    if self._history_db is None:
+                        self._history_db = HistoryDB()
+                        self._history_db.init()
+                    self._history_db.save_daily_stats(
                         date=date.today().isoformat(),
                         tokens=stats.total_billable,
                         cost=cost.total_cost,
@@ -299,8 +299,7 @@ class MonitorApp(QMainWindow):
                         sessions=len(stats.sessions),
                         security_score=self._last_security_score,
                     )
-                    history = db.get_daily_stats(7)
-                    db.close()
+                    history = self._history_db.get_daily_stats(7)
                     self.page_analytics.update_trends(history)
                 except Exception as e:
                     log.error("History save error: %s", e)
@@ -483,11 +482,6 @@ class MonitorApp(QMainWindow):
                         title=f"[{f['type']}] {f['description'][:50]}",
                         message=f["description"],
                     ))
-
-    def _show_win95_alert(self, title: str, message: str, severity: str):
-        """Show Win95-style popup for important alerts."""
-        popup = Win95Popup(title, message, severity=severity, parent=self)
-        popup.show()
 
     def _trigger_hasselhoff(self, message: str):
         """Hasselhoff — only from Wizard page and manual trigger."""

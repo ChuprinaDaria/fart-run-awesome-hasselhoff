@@ -10,6 +10,11 @@ from pathlib import Path
 log = logging.getLogger(__name__)
 
 
+def _escape_ps(s: str) -> str:
+    """Escape string for safe use in PowerShell double-quoted strings."""
+    return s.replace("`", "``").replace('"', '`"').replace("$", "`$")
+
+
 def _appdata() -> Path:
     return Path(os.environ.get("APPDATA", Path.home() / "AppData" / "Roaming"))
 
@@ -29,6 +34,8 @@ class WindowsBackend:
         return _localappdata() / "claude-monitor" / "data"
 
     def notify(self, title: str, message: str, urgency: str = "normal") -> None:
+        safe_title = _escape_ps(title)
+        safe_message = _escape_ps(message)
         ps_script = (
             '[Windows.UI.Notifications.ToastNotificationManager, '
             'Windows.UI.Notifications, ContentType = WindowsRuntime] > $null; '
@@ -36,8 +43,8 @@ class WindowsBackend:
             '[Windows.UI.Notifications.ToastNotificationManager]::GetTemplateContent('
             '[Windows.UI.Notifications.ToastTemplateType]::ToastText02)); '
             '$textNodes = $template.GetElementsByTagName("text"); '
-            f'$textNodes.Item(0).AppendChild($template.CreateTextNode("{title}")) > $null; '
-            f'$textNodes.Item(1).AppendChild($template.CreateTextNode("{message}")) > $null; '
+            f'$textNodes.Item(0).AppendChild($template.CreateTextNode("{safe_title}")) > $null; '
+            f'$textNodes.Item(1).AppendChild($template.CreateTextNode("{safe_message}")) > $null; '
             '[Windows.UI.Notifications.ToastNotificationManager]::CreateToastNotifier('
             '"claude-monitor").Show($template)'
         )
@@ -51,7 +58,8 @@ class WindowsBackend:
             log.warning("powershell not found")
 
     def play_sound(self, path: Path) -> None:
-        ps_cmd = f'(New-Object Media.SoundPlayer "{path}").PlaySync()'
+        safe_path = _escape_ps(str(path))
+        ps_cmd = f'(New-Object Media.SoundPlayer "{safe_path}").PlaySync()'
         try:
             subprocess.Popen(
                 ["powershell", "-WindowStyle", "Hidden", "-Command", ps_cmd],
@@ -140,8 +148,9 @@ class WindowsBackend:
             return {"nopasswd_all": False}
 
     def elevate_command(self, cmd: list[str]) -> list[str]:
-        args_str = " ".join(cmd[1:]) if len(cmd) > 1 else ""
+        safe_exe = cmd[0].replace("'", "''")
+        safe_args = " ".join(cmd[1:]).replace("'", "''") if len(cmd) > 1 else ""
         return [
             "powershell", "-Command",
-            f"Start-Process -Verb RunAs -FilePath '{cmd[0]}' -ArgumentList '{args_str}'",
+            f"Start-Process -Verb RunAs -FilePath '{safe_exe}' -ArgumentList '{safe_args}'",
         ]

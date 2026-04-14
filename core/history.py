@@ -20,6 +20,10 @@ class HistoryDB:
             self._path = str(data_dir / "history.db")
         self._conn: sqlite3.Connection | None = None
 
+    def _ensure_conn(self) -> None:
+        if self._conn is None:
+            self.init()
+
     def init(self) -> None:
         self._conn = sqlite3.connect(self._path)
         self._conn.execute("""
@@ -37,6 +41,7 @@ class HistoryDB:
     def save_daily_stats(self, date: str, tokens: int, cost: float,
                          cache_efficiency: float, sessions: int,
                          security_score: int) -> None:
+        self._ensure_conn()
         self._conn.execute("""
             INSERT OR REPLACE INTO daily_stats
             (date, tokens, cost, cache_efficiency, sessions, security_score)
@@ -45,6 +50,7 @@ class HistoryDB:
         self._conn.commit()
 
     def get_daily_stats(self, days: int = 30) -> list[dict]:
+        self._ensure_conn()
         cursor = self._conn.execute("""
             SELECT date, tokens, cost, cache_efficiency, sessions, security_score
             FROM daily_stats
