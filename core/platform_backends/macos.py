@@ -9,6 +9,11 @@ from pathlib import Path
 log = logging.getLogger(__name__)
 
 
+def _escape_applescript(s: str) -> str:
+    """Escape string for safe use in AppleScript double-quoted strings."""
+    return s.replace("\\", "\\\\").replace('"', '\\"')
+
+
 class MacOSBackend:
     def config_dir(self) -> Path:
         return Path.home() / "Library" / "Application Support" / "claude-monitor"
@@ -20,7 +25,9 @@ class MacOSBackend:
         return Path.home() / "Library" / "Application Support" / "claude-monitor"
 
     def notify(self, title: str, message: str, urgency: str = "normal") -> None:
-        script = f'display notification "{message}" with title "{title}"'
+        safe_title = _escape_applescript(title)
+        safe_message = _escape_applescript(message)
+        script = f'display notification "{safe_message}" with title "{safe_title}"'
         try:
             subprocess.Popen(
                 ["osascript", "-e", script],
@@ -129,8 +136,8 @@ class MacOSBackend:
             return {"nopasswd_all": False}
 
     def elevate_command(self, cmd: list[str]) -> list[str]:
-        cmd_str = " ".join(cmd)
+        safe_cmd = _escape_applescript(" ".join(cmd))
         return [
             "osascript", "-e",
-            f'do shell script "{cmd_str}" with administrator privileges',
+            f'do shell script "{safe_cmd}" with administrator privileges',
         ]

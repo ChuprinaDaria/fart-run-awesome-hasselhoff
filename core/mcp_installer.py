@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 import re
 import subprocess
 from dataclasses import dataclass, field
@@ -56,9 +57,25 @@ def read_settings() -> dict:
 
 
 def write_settings(settings: dict) -> None:
-    """Write ~/.claude/settings.json."""
+    """Write ~/.claude/settings.json atomically."""
+    import tempfile
     _CLAUDE_SETTINGS.parent.mkdir(parents=True, exist_ok=True)
-    _CLAUDE_SETTINGS.write_text(json.dumps(settings, indent=2))
+    content = json.dumps(settings, indent=2)
+    # Write to temp file first, then atomic rename
+    fd, tmp_path = tempfile.mkstemp(
+        dir=str(_CLAUDE_SETTINGS.parent), suffix=".tmp", prefix=".settings_"
+    )
+    try:
+        with os.fdopen(fd, "w") as f:
+            f.write(content)
+        os.replace(tmp_path, str(_CLAUDE_SETTINGS))
+    except Exception:
+        # Clean up temp file on failure
+        try:
+            os.unlink(tmp_path)
+        except OSError:
+            pass
+        raise
 
 
 def install_mcp_server(config: MCPServerConfig) -> bool:

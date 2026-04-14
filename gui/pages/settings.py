@@ -52,20 +52,22 @@ class SettingsPage(QWidget):
         alerts_group = QGroupBox(_t("alerts_group"))
         ag = QFormLayout()
 
+        filters = config.get("alert_filters", {})
+
         self.alert_docker = QCheckBox(_t("alert_docker"))
-        self.alert_docker.setChecked(True)
+        self.alert_docker.setChecked(filters.get("docker", True))
         ag.addRow(self.alert_docker)
 
         self.alert_security = QCheckBox(_t("alert_security"))
-        self.alert_security.setChecked(True)
+        self.alert_security.setChecked(filters.get("security", True))
         ag.addRow(self.alert_security)
 
         self.alert_ports = QCheckBox(_t("alert_ports"))
-        self.alert_ports.setChecked(True)
+        self.alert_ports.setChecked(filters.get("ports", True))
         ag.addRow(self.alert_ports)
 
         self.alert_usage = QCheckBox(_t("alert_usage"))
-        self.alert_usage.setChecked(True)
+        self.alert_usage.setChecked(filters.get("usage", True))
         ag.addRow(self.alert_usage)
 
         self.cooldown_spin = QSpinBox()

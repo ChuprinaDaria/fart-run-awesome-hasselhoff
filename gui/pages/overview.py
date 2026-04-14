@@ -7,14 +7,7 @@ from PyQt5.QtWidgets import (
 from PyQt5.QtCore import Qt, pyqtSignal
 from PyQt5.QtGui import QPixmap
 from i18n import get_string as _t
-
-
-def _fmt(n: int) -> str:
-    if n >= 1_000_000:
-        return f"{n / 1_000_000:.1f}M"
-    if n >= 1_000:
-        return f"{n / 1_000:.1f}K"
-    return str(n)
+from gui.fmt_utils import fmt_tokens as _fmt
 
 
 _COMPACT_STYLE = (
