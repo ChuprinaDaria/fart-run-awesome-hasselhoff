@@ -22,6 +22,20 @@ from gui.monitor_alerts import MonitorAlertManager
 from core.plugin import Alert
 from core.config import load_config
 
+# Claude Nagger tabs (token tracking, Hasselhoff, tips)
+from claude_nagger.core.parser import TokenParser
+from claude_nagger.core.calculator import CostCalculator
+from claude_nagger.core.analyzer import Analyzer
+from claude_nagger.core.tips import TipsEngine
+from claude_nagger.core.sounds import SoundPlayer
+from claude_nagger.nagger.messages import get_nag_message, get_nag_level
+from claude_nagger.nagger.hasselhoff import get_hoff_phrase, get_hoff_image, get_victory_sound
+from claude_nagger.i18n import get_string, set_language, get_language
+from claude_nagger.gui.popup import NaggerPopup
+from claude_nagger.gui.app import OverviewTab, AnalyticsTab, CalculatorTab, TipsTab
+from claude_nagger.gui.usage import UsageTab
+from claude_nagger.gui.discover import DiscoverTab
+
 
 WIN95_STYLE = """
 QMainWindow, QWidget { background-color: #c0c0c0; font-family: "MS Sans Serif", "Liberation Sans", Arial, sans-serif; font-size: 12px; }
@@ -71,8 +85,32 @@ class MonitorDashboard(QMainWindow):
             cooldown=self._config["alerts"]["cooldown_seconds"]
         )
 
+        # Nagger state
+        self.sounds = SoundPlayer()
+        self.budget = 5.0
+        self._stats = None
+        self._cost = None
+        self._popups = []
+
         # Tabs
         self.tabs = QTabWidget()
+
+        # Claude Nagger tabs (token tracking)
+        self.tab_overview = OverviewTab()
+        self.tab_usage = UsageTab()
+        self.tab_analytics = AnalyticsTab()
+        self.tab_calculator = CalculatorTab()
+        self.tab_tips = TipsTab()
+        self.tab_discover = DiscoverTab()
+
+        self.tabs.addTab(self.tab_overview, "💰 " + get_string("tab_overview"))
+        self.tabs.addTab(self.tab_usage, "📊 " + get_string("tab_usage"))
+        self.tabs.addTab(self.tab_analytics, "📈 " + get_string("tab_analytics"))
+        self.tabs.addTab(self.tab_calculator, "🧮 " + get_string("tab_calculator"))
+        self.tabs.addTab(self.tab_tips, "💡 " + get_string("tab_tips"))
+        self.tabs.addTab(self.tab_discover, "🔍 " + get_string("tab_discover"))
+
+        # Dev Monitor tabs
         self.docker_tab = DockerTab()
         self.ports_tab = PortsTab()
         self.security_tab = SecurityTab()
@@ -82,6 +120,12 @@ class MonitorDashboard(QMainWindow):
         self.tabs.addTab(self.security_tab, "🛡 Security")
 
         self.setCentralWidget(self.tabs)
+
+        # Nagger button connections
+        self.tab_overview.btn_refresh.clicked.connect(self._refresh_nagger)
+        self.tab_overview.btn_nag.clicked.connect(self._show_nag)
+        self.tab_overview.btn_hoff.clicked.connect(self._hoff_mode)
+        self.tab_overview.lang_combo.currentTextChanged.connect(self._change_language)
 
         # Status bar
         self.statusBar().showMessage("fart.run & awesome Hasselhoff — ready 💨")
@@ -110,10 +154,114 @@ class MonitorDashboard(QMainWindow):
         self._security_timer.timeout.connect(self._run_security_scan)
         self._security_timer.start(3600000)  # 1 hour
 
+        # Nagger refresh timer
+        self._nagger_timer = QTimer(self)
+        self._nagger_timer.timeout.connect(self._refresh_nagger)
+        self._nagger_timer.start(60000)  # 60 sec
+
         # Initial refresh
+        self._refresh_nagger()
         self._refresh_docker()
         self._refresh_ports()
         self._run_security_scan()
+
+    def _refresh_nagger(self) -> None:
+        """Refresh Claude Code token usage data."""
+        try:
+            parser = TokenParser()
+            self._stats = parser.parse()
+            calc = CostCalculator()
+            self._cost = calc.calculate_cost(self._stats)
+
+            # Overview tab
+            pct = min(100, int((self._cost.total_cost / self.budget) * 100)) if self.budget else 0
+            self.tab_overview.budget_label.setText(f"Budget: ${self._cost.total_cost:.2f} / ${self.budget:.2f}")
+            self.tab_overview.budget_bar.setValue(pct)
+            color = "#00cc00" if pct < 33 else "#ffcc00" if pct < 66 else "#ff3333"
+            self.tab_overview.budget_bar.setStyleSheet(f"QProgressBar::chunk {{ background: {color}; }}")
+            self.tab_overview.cost_label.setText(f"${self._cost.total_cost:.4f}")
+
+            def _fmt(n):
+                if n >= 1_000_000: return f"{n/1_000_000:.1f}M"
+                if n >= 1_000: return f"{n/1_000:.1f}K"
+                return str(n)
+
+            self.tab_overview.lbl_sessions.setText(str(self._stats.session_count))
+            self.tab_overview.lbl_input.setText(_fmt(self._stats.input_tokens))
+            self.tab_overview.lbl_output.setText(_fmt(self._stats.output_tokens))
+            self.tab_overview.lbl_cache_read.setText(_fmt(self._stats.cache_read_tokens))
+            self.tab_overview.lbl_cache_write.setText(_fmt(self._stats.cache_creation_tokens))
+            billable = self._stats.input_tokens + self._stats.output_tokens
+            self.tab_overview.lbl_billable.setText(_fmt(billable))
+
+            if self._stats.input_tokens > 0:
+                eff = (self._stats.cache_read_tokens / self._stats.input_tokens) * 100
+                self.tab_overview.lbl_cache_eff.setText(f"{eff:.1f}%")
+
+            # Tips
+            self.tab_tips.update_data(self._stats, self._cost)
+
+            # Calculator
+            self.tab_calculator._stats = self._stats
+
+            # Usage
+            if hasattr(self.tab_usage, 'update_data'):
+                self.tab_usage.update_data(self._stats, self._cost)
+
+            # Analytics
+            analyzer = Analyzer()
+            if hasattr(self.tab_analytics, 'cache_bar'):
+                if self._stats.input_tokens > 0:
+                    eff = int((self._stats.cache_read_tokens / self._stats.input_tokens) * 100)
+                    self.tab_analytics.cache_label.setText(f"Cache Efficiency: {eff}%")
+                    self.tab_analytics.cache_bar.setValue(eff)
+
+        except Exception as e:
+            self.statusBar().showMessage(f"Nagger: {e}")
+
+    def _show_nag(self) -> None:
+        """Show a nag popup with fart sound."""
+        try:
+            level = get_nag_level(self._cost.total_cost if self._cost else 0, self.budget)
+            msg = get_nag_message(level, get_language())
+            self.tab_overview.nag_label.setText(msg)
+            self.sounds.play_fart()
+            popup = NaggerPopup("💨 NAG TIME", msg)
+            popup.show()
+            self._popups.append(popup)
+        except Exception:
+            pass
+
+    def _hoff_mode(self) -> None:
+        """Hasselhoff victory mode!"""
+        try:
+            phrase = get_hoff_phrase(get_language())
+            image = get_hoff_image()
+            self.tab_overview.nag_label.setText(phrase)
+
+            if image:
+                pixmap = QPixmap(image)
+                if not pixmap.isNull():
+                    self.tab_overview.hoff_label.setPixmap(
+                        pixmap.scaledToHeight(120, Qt.SmoothTransformation)
+                    )
+
+            popup = NaggerPopup("🏖 HASSELHOFF MODE", phrase, image_path=image)
+            popup.show()
+            self._popups.append(popup)
+
+            victory = get_victory_sound()
+            if victory:
+                self.sounds.play_file(victory)
+            else:
+                self.sounds.play_fart()
+        except Exception:
+            pass
+
+    def _change_language(self, lang_text: str) -> None:
+        lang = "ua" if lang_text == "UA" else "en"
+        set_language(lang)
+        self.tab_overview.retranslate()
 
     def _refresh_docker(self) -> None:
         if not self._docker_client:
