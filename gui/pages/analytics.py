@@ -47,6 +47,22 @@ class AnalyticsPage(QWidget):
         self.project_table.setEditTriggers(CopyableTableWidget.NoEditTriggers)
         layout.addWidget(self.project_table)
 
+        # --- Weekly Trends ---
+        from PyQt5.QtWidgets import QGroupBox
+        self.trends_group = QGroupBox("Weekly Trends")
+        tl = QVBoxLayout()
+        self.trend_labels: list[QLabel] = []
+        for _ in range(7):
+            lbl = QLabel("")
+            lbl.setStyleSheet("padding: 2px 4px; font-size: 11px; font-family: monospace;")
+            tl.addWidget(lbl)
+            self.trend_labels.append(lbl)
+        self.trend_summary = QLabel("")
+        self.trend_summary.setStyleSheet("padding: 4px; font-weight: bold;")
+        tl.addWidget(self.trend_summary)
+        self.trends_group.setLayout(tl)
+        layout.addWidget(self.trends_group)
+
         layout.addStretch()
 
     def update_data(self, stats, cache_eff: float, savings: float,
@@ -73,6 +89,32 @@ class AnalyticsPage(QWidget):
             self.project_table.setItem(i, 0, QTableWidgetItem(p.project))
             self.project_table.setItem(i, 1, QTableWidgetItem(_fmt(p.total_billable)))
             self.project_table.setItem(i, 2, QTableWidgetItem(str(p.sessions)))
+
+    def update_trends(self, history: list[dict]) -> None:
+        """Show last 7 days as text-based bar chart."""
+        if not history:
+            return
+
+        max_tokens = max((h["tokens"] for h in history), default=1) or 1
+        for i, h in enumerate(history[:7]):
+            if i >= len(self.trend_labels):
+                break
+            bar_len = int(h["tokens"] / max_tokens * 20)
+            bar = "\u2588" * bar_len + "\u2591" * (20 - bar_len)
+            self.trend_labels[i].setText(
+                f"{h['date'][-5:]}  {bar}  {h['tokens']/1000:.0f}K  ${h['cost']:.2f}"
+            )
+
+        if len(history) >= 2:
+            today = history[0]["tokens"]
+            yesterday = history[1]["tokens"]
+            if yesterday > 0:
+                change = (today - yesterday) / yesterday * 100
+                arrow = "\u2191" if change > 0 else "\u2193"
+                avg_cache = sum(h["cache_efficiency"] for h in history) / len(history)
+                self.trend_summary.setText(
+                    f"{arrow} {abs(change):.0f}% vs yesterday | Avg cache: {avg_cache:.0f}%"
+                )
 
     def set_no_claude(self) -> None:
         self.cache_label.setText(_t("no_analytics"))
