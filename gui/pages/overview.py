@@ -1,4 +1,4 @@
-"""Overview page — budget, tokens, nag messages, hasselhoff."""
+"""Overview page — budget, tokens, nag messages, compact Docker/Ports."""
 
 from PyQt5.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QProgressBar,
@@ -15,6 +15,11 @@ def _fmt(n: int) -> str:
     if n >= 1_000:
         return f"{n / 1_000:.1f}K"
     return str(n)
+
+
+_COMPACT_STYLE = (
+    "padding: 4px 8px; background: white; border: 2px inset #808080; font-size: 11px;"
+)
 
 
 class OverviewPage(QWidget):
@@ -43,6 +48,7 @@ class OverviewPage(QWidget):
         self.cost_label.setAlignment(Qt.AlignCenter)
         layout.addWidget(self.cost_label)
 
+        # Token stats
         self.stats_group = QGroupBox(_t("tokens"))
         sl = QFormLayout()
         self.lbl_sessions = QLabel("0")
@@ -67,6 +73,22 @@ class OverviewPage(QWidget):
         self.stats_group.setLayout(sl)
         layout.addWidget(self.stats_group)
 
+        # --- Compact Docker/Ports ---
+        self.infra_group = QGroupBox("Infrastructure")
+        il = QVBoxLayout()
+
+        self.docker_status = QLabel("Docker: --")
+        self.docker_status.setStyleSheet(_COMPACT_STYLE)
+        il.addWidget(self.docker_status)
+
+        self.ports_status = QLabel("Ports: --")
+        self.ports_status.setStyleSheet(_COMPACT_STYLE)
+        il.addWidget(self.ports_status)
+
+        self.infra_group.setLayout(il)
+        layout.addWidget(self.infra_group)
+
+        # Nag message
         self.nag_label = QLabel("")
         self.nag_label.setWordWrap(True)
         self.nag_label.setStyleSheet(
@@ -75,11 +97,13 @@ class OverviewPage(QWidget):
         )
         layout.addWidget(self.nag_label)
 
+        # Hasselhoff image (shown on manual trigger only)
         self.hoff_label = QLabel()
         self.hoff_label.setAlignment(Qt.AlignCenter)
         self.hoff_label.setFixedHeight(120)
         layout.addWidget(self.hoff_label)
 
+        # Buttons
         btn_layout = QHBoxLayout()
         self.btn_refresh = QPushButton(_t("refresh"))
         self.btn_nag = QPushButton(_t("nag_me"))
@@ -102,18 +126,15 @@ class OverviewPage(QWidget):
         sub_type = (self._subscription or {}).get("type", "unknown")
 
         if is_api:
-            # API key — show cost
             self.budget_label.setText(_t("api_cost_today").format(f"{cost.total_cost:.2f}"))
             self.cost_label.setText(f"${cost.total_cost:.2f}")
-            pct = min(cost.total_cost / 10.0 * 100, 100)  # $10 soft cap for bar
+            pct = min(cost.total_cost / 10.0 * 100, 100)
         else:
-            # Pro/Max/Team — show session usage, no dollar budget
             plan_name = sub_type.capitalize() if sub_type != "unknown" else "Plan"
             self.budget_label.setText(
                 _t("session_info").format(plan_name, len(stats.sessions), _fmt(stats.total_billable))
             )
             self.cost_label.setText(f"{_fmt(stats.total_billable)} tok")
-            # Progress bar: rough usage level (1M tokens = moderate day)
             pct = min(stats.total_billable / 1_000_000 * 100, 100)
 
         self.budget_bar.setValue(int(pct))
@@ -132,6 +153,38 @@ class OverviewPage(QWidget):
         self.lbl_cache_eff.setText(f"{cache_eff:.1f}%")
         self.lbl_cache_saved.setText(f"~${savings:.2f}")
         self.nag_label.setText(f'"{nag_msg}"')
+
+    def update_docker_compact(self, infos: list[dict]) -> None:
+        """Compact Docker status line."""
+        running = sum(1 for i in infos if i.get("status") == "running")
+        stopped = len(infos) - running
+        alerts = 0
+        for i in infos:
+            if i.get("status") == "exited" and i.get("exit_code", 0) != 0:
+                alerts += 1
+            if i.get("cpu_percent", 0) > 80:
+                alerts += 1
+
+        text = f"Docker: {running} running | {stopped} stopped"
+        if alerts:
+            text += f" | {alerts} alerts"
+
+        color = "#006600" if alerts == 0 else "#cc0000"
+        self.docker_status.setText(text)
+        self.docker_status.setStyleSheet(f"{_COMPACT_STYLE} color: {color};")
+
+    def update_ports_compact(self, ports: list[dict]) -> None:
+        """Compact Ports status line."""
+        total = len(ports)
+        conflicts = sum(1 for p in ports if p.get("conflict"))
+        text = f"Ports: {total} listening | {conflicts} conflicts"
+        color = "#006600" if conflicts == 0 else "#cc8800"
+        self.ports_status.setText(text)
+        self.ports_status.setStyleSheet(f"{_COMPACT_STYLE} color: {color};")
+
+    def set_docker_error(self, msg: str) -> None:
+        self.docker_status.setText(f"Docker: {msg}")
+        self.docker_status.setStyleSheet(f"{_COMPACT_STYLE} color: #999999;")
 
     def set_hoff_image(self, path: str) -> None:
         pixmap = QPixmap(path).scaledToHeight(100, Qt.SmoothTransformation)

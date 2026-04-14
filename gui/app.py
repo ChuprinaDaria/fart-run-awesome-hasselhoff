@@ -1,4 +1,4 @@
-"""fart.run & awesome Hasselhoff — Dev Monitor GUI.
+"""Claude Monitor — Dev Monitor GUI.
 
 Win95 Explorer-style sidebar layout with unified refresh loop.
 """
@@ -27,8 +27,6 @@ from core.alerts import AlertManager
 from core.plugin import Alert
 from gui.sidebar import Sidebar, SidebarItem
 from gui.pages.overview import OverviewPage
-from gui.pages.docker import DockerPage
-from gui.pages.ports import PortsPage
 from gui.pages.security import SecurityPage, SecurityScanThread
 from gui.pages.usage import UsagePage
 from gui.pages.analytics import AnalyticsPage
@@ -36,13 +34,14 @@ from gui.pages.tips import TipsPage
 from gui.pages.settings import SettingsPage
 from gui.pages.hasselhoff_wizard import HasselhoffWizardPage
 from gui.pages.discover import DiscoverTab
+from gui.win95_popup import Win95Popup
 
 log = logging.getLogger(__name__)
 
 
 class DataCollectorThread(QThread):
     """Collect Docker + Ports data in background to avoid blocking GUI."""
-    data_ready = pyqtSignal(dict)  # {"docker": [...], "ports": [...]}
+    data_ready = pyqtSignal(dict)
 
     def __init__(self, docker_client, parent=None):
         super().__init__(parent)
@@ -51,7 +50,6 @@ class DataCollectorThread(QThread):
     def run(self):
         result = {"docker": [], "ports": []}
 
-        # Docker
         if self._docker_client:
             try:
                 from plugins.docker_monitor.collector import collect_containers
@@ -60,7 +58,6 @@ class DataCollectorThread(QThread):
             except Exception as e:
                 log.error("Docker collect error: %s", e)
 
-        # Ports
         try:
             from plugins.port_map.collector import collect_ports
             result["ports"] = collect_ports()
@@ -102,7 +99,7 @@ def _make_tray_icon(color: str = "green") -> QIcon:
     painter.drawEllipse(2, 2, 28, 28)
     painter.setPen(QColor(255, 255, 255))
     painter.setFont(QFont("Arial", 14, QFont.Bold))
-    painter.drawText(pixmap.rect(), Qt.AlignCenter, "F")
+    painter.drawText(pixmap.rect(), Qt.AlignCenter, "M")
     painter.end()
     return QIcon(pixmap)
 
@@ -120,10 +117,8 @@ class MonitorApp(QMainWindow):
         self.setMinimumSize(950, 650)
         self.setStyleSheet(WIN95_STYLE)
 
-        # Set language
         set_language(config.get("general", {}).get("language", "en"))
 
-        # Menu bar
         self._create_menu_bar()
 
         # Central widget: sidebar + content stack
@@ -132,13 +127,9 @@ class MonitorApp(QMainWindow):
         main_layout.setContentsMargins(0, 0, 0, 0)
         main_layout.setSpacing(0)
 
-        # Sidebar
+        # Sidebar — no Docker/Ports, Hoff Wizard at end
         sidebar_items = [
-            SidebarItem("Hoff Wizard", "hoff_wizard"),
-            SidebarItem("", "", is_separator=True),
             SidebarItem(_t("side_overview"), "overview"),
-            SidebarItem(_t("side_docker"), "docker"),
-            SidebarItem(_t("side_ports"), "ports"),
             SidebarItem(_t("side_security"), "security"),
             SidebarItem(_t("side_usage"), "usage"),
             SidebarItem(_t("side_analytics"), "analytics"),
@@ -146,6 +137,8 @@ class MonitorApp(QMainWindow):
             SidebarItem(_t("side_tips"), "tips"),
             SidebarItem(_t("side_discover"), "discover"),
             SidebarItem(_t("side_settings"), "settings"),
+            SidebarItem("", "", is_separator=True),
+            SidebarItem("Hoff Wizard", "hoff_wizard"),
         ]
         self.sidebar = Sidebar(sidebar_items)
         self.sidebar.page_selected.connect(self._on_page_selected)
@@ -155,10 +148,8 @@ class MonitorApp(QMainWindow):
         self.stack = QStackedWidget()
         self._pages: dict[str, QWidget] = {}
 
-        # Create pages
+        # Create pages (no Docker/Ports pages)
         self.page_overview = OverviewPage()
-        self.page_docker = DockerPage(system_state.docker_client)
-        self.page_ports = PortsPage()
         self.page_security = SecurityPage()
         self.page_usage = UsagePage()
         self.page_analytics = AnalyticsPage()
@@ -169,8 +160,6 @@ class MonitorApp(QMainWindow):
 
         for key, page in [
             ("overview", self.page_overview),
-            ("docker", self.page_docker),
-            ("ports", self.page_ports),
             ("security", self.page_security),
             ("usage", self.page_usage),
             ("analytics", self.page_analytics),
@@ -185,29 +174,23 @@ class MonitorApp(QMainWindow):
         main_layout.addWidget(self.stack)
         self.setCentralWidget(central)
 
-        # Status bar
         self.statusBar().showMessage(_t("ready"))
 
         # Connect signals
         self.page_overview.refresh_requested.connect(self._refresh_all)
         self.page_overview.nag_requested.connect(self._do_nag)
         self.page_overview.hoff_requested.connect(self._do_hoff)
-        self.page_docker.fart_off_triggered.connect(self._on_fart_off)
-        self.page_docker.container_count_changed.connect(
-            lambda n: self.sidebar.update_counter("docker", n)
-        )
         self.page_security.scan_requested.connect(self._run_security_scan)
         self.page_hoff_wizard.hoff_event.connect(self._trigger_hasselhoff)
         self.page_settings.settings_changed.connect(self._on_settings_changed)
 
         # Apply autodiscovery state
         if not system_state.docker_available:
-            self.page_docker.set_docker_error(system_state.docker_error or "Docker not available")
+            self.page_overview.set_docker_error(
+                system_state.docker_error or "Docker not available")
         if not system_state.claude_dir:
             self.page_overview.set_no_claude()
             self.page_analytics.set_no_claude()
-        if system_state.psutil_limited:
-            self.page_ports.set_psutil_warning(True)
 
         # Unified refresh timer
         refresh_interval = config["general"]["refresh_interval"] * 1000
@@ -215,7 +198,7 @@ class MonitorApp(QMainWindow):
         self._refresh_timer.timeout.connect(self._refresh_all)
         self._refresh_timer.start(refresh_interval)
 
-        # Security scan timer (separate, longer interval)
+        # Security scan timer
         scan_interval = config["plugins"]["security_scan"]["scan_interval"] * 1000
         self._security_timer = QTimer(self)
         self._security_timer.timeout.connect(self._run_security_scan)
@@ -250,20 +233,16 @@ class MonitorApp(QMainWindow):
             self.stack.setCurrentWidget(self._pages[key])
 
     def _on_settings_changed(self, new_config: dict):
-        """Apply changed settings live."""
         self._config = new_config
         self._alert_manager = AlertManager(new_config)
         set_language(new_config.get("general", {}).get("language", "en"))
         self.statusBar().showMessage("Settings applied", 3000)
 
     def _is_alert_enabled(self, source: str) -> bool:
-        """Check if alerts for this source are enabled in settings."""
         filters = self._config.get("alert_filters", {})
         return filters.get(source, True)
 
     def _refresh_all(self):
-        """Single refresh loop — heavy I/O in background thread."""
-        # Skip if previous collection still running
         if self._collecting:
             return
         self._collecting = True
@@ -274,7 +253,7 @@ class MonitorApp(QMainWindow):
         self._collector_thread.data_ready.connect(self._on_data_ready)
         self._collector_thread.start()
 
-        # Claude stats (if available)
+        # Claude stats
         if self._state.claude_dir:
             try:
                 from core.token_parser import TokenParser
@@ -301,27 +280,23 @@ class MonitorApp(QMainWindow):
                 self.page_usage.update_data(stats, cost, sub)
                 self.page_tips.update_tips(stats, cost, sub)
 
-                # Alert on high usage
                 if self._is_alert_enabled("usage"):
                     self._check_usage_alerts(stats, sub)
             except Exception as e:
                 log.error("Claude stats error: %s", e)
 
     def _on_data_ready(self, data: dict):
-        """Handle collected data from background thread — update GUI."""
         self._collecting = False
 
-        # Docker
+        # Docker → compact widget on Overview
         infos = data.get("docker", [])
-        if infos:
-            self.page_docker.update_data(infos)
-            if self._is_alert_enabled("docker"):
-                self._check_docker_alerts(infos)
+        self.page_overview.update_docker_compact(infos)
+        if self._is_alert_enabled("docker"):
+            self._check_docker_alerts(infos)
 
-        # Ports
+        # Ports → compact widget on Overview
         ports = data.get("ports", [])
-        self.page_ports.update_data(ports)
-        self.sidebar.update_counter("ports", len(ports))
+        self.page_overview.update_ports_compact(ports)
         if self._is_alert_enabled("ports"):
             for p in ports:
                 if p.get("conflict"):
@@ -331,37 +306,24 @@ class MonitorApp(QMainWindow):
                         message=f"Port {p['port']} used by multiple processes",
                     ))
 
-        self.statusBar().showMessage(
-            f"Docker: {self.sidebar.item_text('docker')} | "
-            f"Ports: {self.sidebar.item_text('ports')} | "
-            f"Ready"
-        )
+        self.statusBar().showMessage(_t("ready"))
 
     def _check_docker_alerts(self, infos: list[dict]):
+        """Docker alerts — no Hasselhoff, just problems."""
         cpu_thresh = self._config["plugins"]["docker_monitor"]["cpu_threshold"]
         ram_thresh = self._config["plugins"]["docker_monitor"]["ram_threshold"]
 
-        prev_statuses = getattr(self, "_prev_docker_statuses", {})
-        all_healthy = True
-
         for info in infos:
             name = info["name"]
-            prev = prev_statuses.get(name)
 
             if info["status"] == "exited" and info.get("exit_code", 0) != 0:
-                all_healthy = False
                 self._alert_manager.process(Alert(
                     source="docker", severity="critical",
                     title=f"{name} crashed (exit {info['exit_code']})",
                     message=f"Container {name} exited with code {info['exit_code']}",
                 ))
             elif info["status"] == "running":
-                # === HASSELHOFF: container just started successfully ===
-                if prev and prev != "running":
-                    self._trigger_hasselhoff(f"{name} is up and running! First try!")
-
                 if info["cpu_percent"] > cpu_thresh:
-                    all_healthy = False
                     self._alert_manager.process(Alert(
                         source="docker", severity="warning",
                         title=f"{name} CPU {info['cpu_percent']:.0f}%",
@@ -370,32 +332,18 @@ class MonitorApp(QMainWindow):
                 if info["mem_limit"] > 0:
                     ram_pct = (info["mem_usage"] / info["mem_limit"]) * 100
                     if ram_pct > ram_thresh:
-                        all_healthy = False
                         self._alert_manager.process(Alert(
                             source="docker", severity="critical",
                             title=f"{name} RAM {ram_pct:.0f}%",
                             message=f"RAM at {ram_pct:.1f}%",
                         ))
 
-        # Save statuses for next check
-        self._prev_docker_statuses = {info["name"]: info["status"] for info in infos}
-
-        # === HASSELHOFF: all containers healthy ===
-        running = [i for i in infos if i["status"] == "running"]
-        if len(running) >= 3 and all_healthy:
-            if not getattr(self, "_hoff_docker_triggered", False):
-                self._hoff_docker_triggered = True
-                self._trigger_hasselhoff(
-                    f"All {len(running)} containers running smooth! Baywatch mode!"
-                )
-
     def _check_usage_alerts(self, stats, sub: dict):
-        """Alert when session usage is getting high. Fart for bad, Hasselhoff for good."""
+        """Alert on high token usage — no Hasselhoff."""
         is_api = sub.get("is_paid_tokens")
         if is_api:
             return
 
-        # === FART: burning through tokens ===
         if stats.total_billable > 800_000:
             self._alert_manager.process(Alert(
                 source="usage", severity="warning",
@@ -411,35 +359,16 @@ class MonitorApp(QMainWindow):
                         "Rate limits may hit soon!",
             ))
 
-        # === HASSELHOFF: great cache efficiency ===
-        if stats.total_cache_read > 0 and stats.total_input > 0:
-            cache_ratio = stats.total_cache_read / (stats.total_input + stats.total_cache_read)
-            if cache_ratio > 0.7 and stats.total_billable > 50_000:
-                # Only trigger once per session
-                if not getattr(self, "_hoff_cache_triggered", False):
-                    self._hoff_cache_triggered = True
-                    self._trigger_hasselhoff(
-                        f"Cache hit {cache_ratio:.0%}! You're saving tokens like Hasselhoff saves the beach!"
-                    )
-
-        # === HASSELHOFF: low usage day ===
-        if len(stats.sessions) >= 3 and stats.total_billable < 200_000:
-            if not getattr(self, "_hoff_efficient_triggered", False):
-                self._hoff_efficient_triggered = True
-                self._trigger_hasselhoff(
-                    f"{len(stats.sessions)} sessions, only {stats.total_billable/1000:.0f}K tokens — efficiency king!"
-                )
-
     def _run_security_scan(self):
         self.page_security.set_scanning(True)
 
         def scan():
             from plugins.security_scan.scanners import (
+                Finding,
                 scan_docker_security, scan_env_in_git,
                 scan_exposed_ports,
                 scan_firewall, scan_ssh_config, scan_system_updates,
                 scan_sudoers, scan_world_writable,
-                # Rust-powered sentinel scanners
                 scan_sentinel_processes, scan_sentinel_network,
                 scan_sentinel_filesystem, scan_sentinel_cron,
             )
@@ -462,16 +391,22 @@ class MonitorApp(QMainWindow):
                 from plugins.port_map.collector import collect_ports
                 ports = collect_ports()
                 findings.extend(scan_exposed_ports(ports))
+                # Port conflicts as security findings
+                for p in ports:
+                    if p.get("conflict"):
+                        findings.append(Finding(
+                            "network", "warning",
+                            f"Port {p['port']} conflict — multiple processes listening",
+                            f"port:{p['port']}",
+                        ))
             except Exception:
                 pass
 
-            # Rust sentinel — processes, network, filesystem, cron
             findings.extend(scan_sentinel_processes())
             findings.extend(scan_sentinel_network())
             findings.extend(scan_sentinel_filesystem(scan_paths))
             findings.extend(scan_sentinel_cron())
 
-            # System-level (Python — config checks, not CPU-bound)
             findings.extend(scan_firewall())
             findings.extend(scan_ssh_config())
             findings.extend(scan_system_updates())
@@ -489,7 +424,6 @@ class MonitorApp(QMainWindow):
         self._scan_thread.start()
 
     def _on_scan_done(self, findings: list[dict]):
-        # Detect NEW findings only (not seen in previous scan)
         prev_keys = getattr(self, "_prev_security_keys", set())
         curr_keys = {f"{f['type']}:{f['description']}" for f in findings}
         new_keys = curr_keys - prev_keys
@@ -501,32 +435,24 @@ class MonitorApp(QMainWindow):
         critical_count = self.page_security.critical_count()
         self.sidebar.update_alert("security", critical_count)
 
-        # Count serious findings (sentinel-detected threats)
-        threat_types = {"process", "network", "cron", "filesystem"}
-        serious = [f for f in findings if f["type"] in threat_types and f["severity"] in ("critical", "high")]
-        all_critical = [f for f in findings if f["severity"] in ("critical", "high")]
-
-        # === HASSELHOFF: clean scan — no critical/high findings ===
-        if not all_critical and findings:
-            self._trigger_hasselhoff(_t("hoff_clean_scan"))
-
-        # === FART: new threats detected ===
+        # Win95 popups for new critical/high findings
         if self._is_alert_enabled("security"):
             for f in findings:
                 key = f"{f['type']}:{f['description']}"
                 if key in new_keys and f["severity"] in ("critical", "high"):
-                    # Extra loud fart for sentinel-detected threats
-                    severity = f["severity"]
-                    if f["type"] in ("process", "network"):
-                        severity = "critical"  # always max fart for malware/C2
                     self._alert_manager.process(Alert(
-                        source="security", severity=severity,
+                        source="security", severity=f["severity"],
                         title=f"[{f['type']}] {f['description'][:50]}",
                         message=f["description"],
                     ))
 
+    def _show_win95_alert(self, title: str, message: str, severity: str):
+        """Show Win95-style popup for important alerts."""
+        popup = Win95Popup(title, message, severity=severity, parent=self)
+        popup.show()
+
     def _trigger_hasselhoff(self, message: str):
-        """Hasselhoff appears when something GOOD happens."""
+        """Hasselhoff — only from Wizard page and manual trigger."""
         try:
             from core.nagger.hasselhoff import get_hoff_phrase, get_hoff_image, get_victory_sound
             img_path = get_hoff_image()
@@ -534,18 +460,11 @@ class MonitorApp(QMainWindow):
                 self.page_overview.set_hoff_image(img_path)
             victory = get_victory_sound()
             if victory:
-                self._alert_manager._play_file(Path(victory))
+                self._alert_manager.play_file(Path(victory))
             phrase = get_hoff_phrase()
             self.statusBar().showMessage(f"HASSELHOFF: {message} — {phrase}", 8000)
         except ImportError:
             self.statusBar().showMessage(f"HASSELHOFF: {message}", 5000)
-
-    def _on_fart_off(self, container_name: str):
-        self._alert_manager.play_sound(Alert(
-            source="docker", severity="warning",
-            title=f"Fart Off: {container_name}",
-            message=f"Stopping {container_name}",
-        ))
 
     def _do_nag(self):
         self._alert_manager.play_sound(Alert(
@@ -553,18 +472,7 @@ class MonitorApp(QMainWindow):
         ))
 
     def _do_hoff(self):
-        try:
-            from core.nagger.hasselhoff import get_hoff_phrase, get_hoff_image, get_victory_sound
-            img_path = get_hoff_image()
-            if img_path:
-                self.page_overview.set_hoff_image(img_path)
-            victory = get_victory_sound()
-            if victory:
-                self._alert_manager._play_file(Path(victory))
-            phrase = get_hoff_phrase()
-            self.statusBar().showMessage(f"HASSELHOFF: {phrase}", 5000)
-        except ImportError:
-            self.statusBar().showMessage(_t("hoff_requires"), 3000)
+        self._trigger_hasselhoff("Manual Hasselhoff!")
 
     def _show_about(self):
         QMessageBox.about(
@@ -583,7 +491,7 @@ class MonitorTrayApp:
         self.dashboard = MonitorApp(config, system_state)
 
         self.tray = QSystemTrayIcon(_make_tray_icon("green"), self.app)
-        self.tray.setToolTip("fart.run & awesome Hasselhoff")
+        self.tray.setToolTip("Claude Monitor")
         self.tray.activated.connect(self._on_tray_click)
 
         self.menu = QMenu()
