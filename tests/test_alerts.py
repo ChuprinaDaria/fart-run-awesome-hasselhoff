@@ -10,15 +10,10 @@ from core.plugin import Alert
 @pytest.fixture
 def manager(tmp_path):
     config = {
+        "sounds": {"enabled": True, "quiet_hours_start": "23:00", "quiet_hours_end": "07:00"},
         "alerts": {
             "cooldown_seconds": 5,
             "desktop_notifications": True,
-            "sound_enabled": True,
-            "quiet_hours_start": "23:00",
-            "quiet_hours_end": "07:00",
-        },
-        "general": {
-            "sound_dir": "",
         },
     }
     return AlertManager(config)
@@ -64,7 +59,7 @@ def test_send_desktop_notification(mock_subprocess, manager):
     mock_subprocess.Popen.assert_called_once()
     args = mock_subprocess.Popen.call_args[0][0]
     assert args[0] == "notify-send"
-    assert "Container down" in args
+    assert "[docker] Container down" in args
 
 
 @patch("core.alerts.subprocess")
@@ -73,3 +68,20 @@ def test_no_sound_in_quiet_hours(mock_subprocess, manager):
         alert = Alert(source="docker", severity="critical", title="down", message="msg", sound="fart1.mp3")
         manager.play_sound(alert)
         mock_subprocess.Popen.assert_not_called()
+
+
+def test_alert_manager_finds_local_sounds(tmp_path):
+    """AlertManager uses project-root sounds/ directory."""
+    from unittest.mock import patch
+    sounds_dir = tmp_path / "sounds" / "farts"
+    sounds_dir.mkdir(parents=True)
+    (sounds_dir / "fart1.mp3").touch()
+
+    config = {
+        "sounds": {"enabled": True, "quiet_hours_start": "23:00", "quiet_hours_end": "07:00"},
+        "alerts": {"cooldown_seconds": 300, "desktop_notifications": False},
+    }
+    with patch("core.alerts._project_root", return_value=tmp_path):
+        from core.alerts import AlertManager as AM
+        mgr = AM(config)
+    assert mgr._sound_dir == sounds_dir
