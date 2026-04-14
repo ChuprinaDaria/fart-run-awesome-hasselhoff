@@ -70,7 +70,7 @@ Reply in ONE short sentence. Example: "Use Sonnet — similar tasks worked well 
         r = requests.post(
             f"{OLLAMA_URL}/api/generate",
             json={"model": LLM_MODEL, "prompt": prompt, "stream": False},
-            timeout=60,
+            timeout=120,
         )
         r.raise_for_status()
         return r.json().get("response", "").strip()
