@@ -12,7 +12,7 @@ from PyQt5.QtWidgets import (
     QStackedWidget, QLabel, QSystemTrayIcon, QMenu,
     QMessageBox,
 )
-from PyQt5.QtCore import QTimer, Qt
+from PyQt5.QtCore import QTimer, Qt, QThread, pyqtSignal
 from PyQt5.QtGui import QIcon, QPixmap, QColor, QPainter, QFont
 
 # Ensure project root is in sys.path for direct script execution
@@ -33,6 +33,36 @@ from gui.pages.usage import UsagePage
 from gui.pages.analytics import AnalyticsPage
 
 log = logging.getLogger(__name__)
+
+
+class DataCollectorThread(QThread):
+    """Collect Docker + Ports data in background to avoid blocking GUI."""
+    data_ready = pyqtSignal(dict)  # {"docker": [...], "ports": [...]}
+
+    def __init__(self, docker_client, parent=None):
+        super().__init__(parent)
+        self._docker_client = docker_client
+
+    def run(self):
+        result = {"docker": [], "ports": []}
+
+        # Docker
+        if self._docker_client:
+            try:
+                from plugins.docker_monitor.collector import collect_containers
+                containers = self._docker_client.containers.list(all=True)
+                result["docker"] = collect_containers(containers)
+            except Exception as e:
+                log.error("Docker collect error: %s", e)
+
+        # Ports
+        try:
+            from plugins.port_map.collector import collect_ports
+            result["ports"] = collect_ports()
+        except Exception as e:
+            log.error("Ports collect error: %s", e)
+
+        self.data_ready.emit(result)
 
 WIN95_STYLE = """
 QMainWindow, QWidget { background-color: #c0c0c0; font-family: "MS Sans Serif", "Liberation Sans", Arial, sans-serif; font-size: 12px; }
@@ -170,6 +200,10 @@ class MonitorApp(QMainWindow):
         self._security_timer.timeout.connect(self._run_security_scan)
         self._security_timer.start(scan_interval)
 
+        # Collector thread
+        self._collector_thread = None
+        self._collecting = False
+
         # Initial refresh
         self._refresh_all()
         self._run_security_scan()
@@ -195,34 +229,17 @@ class MonitorApp(QMainWindow):
             self.stack.setCurrentWidget(self._pages[key])
 
     def _refresh_all(self):
-        """Single refresh loop — collects data from all sources."""
-        # Docker
-        if self._state.docker_available and self._state.docker_client:
-            try:
-                from plugins.docker_monitor.collector import collect_containers
-                containers = self._state.docker_client.containers.list(all=True)
-                infos = collect_containers(containers)
-                self.page_docker.update_data(infos)
-                self._check_docker_alerts(infos)
-            except Exception as e:
-                log.error("Docker refresh error: %s", e)
+        """Single refresh loop — heavy I/O in background thread."""
+        # Skip if previous collection still running
+        if self._collecting:
+            return
+        self._collecting = True
 
-        # Ports
-        try:
-            from plugins.port_map.collector import collect_ports
-            ports = collect_ports()
-            self.page_ports.update_data(ports)
-            self.sidebar.update_counter("ports", len(ports))
-
-            for p in ports:
-                if p.get("conflict"):
-                    self._alert_manager.process(Alert(
-                        source="ports", severity="warning",
-                        title=f"Port {p['port']} conflict",
-                        message=f"Port {p['port']} used by multiple processes",
-                    ))
-        except Exception as e:
-            log.error("Ports refresh error: %s", e)
+        # Docker + Ports in background thread
+        client = self._state.docker_client if self._state.docker_available else None
+        self._collector_thread = DataCollectorThread(client, self)
+        self._collector_thread.data_ready.connect(self._on_data_ready)
+        self._collector_thread.start()
 
         # Claude stats (if available)
         if self._state.claude_dir:
@@ -251,6 +268,28 @@ class MonitorApp(QMainWindow):
                 self.page_usage.update_data(stats, cost, sub)
             except Exception as e:
                 log.error("Claude stats error: %s", e)
+
+    def _on_data_ready(self, data: dict):
+        """Handle collected data from background thread — update GUI."""
+        self._collecting = False
+
+        # Docker
+        infos = data.get("docker", [])
+        if infos:
+            self.page_docker.update_data(infos)
+            self._check_docker_alerts(infos)
+
+        # Ports
+        ports = data.get("ports", [])
+        self.page_ports.update_data(ports)
+        self.sidebar.update_counter("ports", len(ports))
+        for p in ports:
+            if p.get("conflict"):
+                self._alert_manager.process(Alert(
+                    source="ports", severity="warning",
+                    title=f"Port {p['port']} conflict",
+                    message=f"Port {p['port']} used by multiple processes",
+                ))
 
         self.statusBar().showMessage(
             f"Docker: {self.sidebar.item_text('docker')} | "
