@@ -40,126 +40,144 @@ Ten compiled Rust modules that scan fast and scan deep:
 - **git_hooks** — finds pre-commit/post-commit hooks with curl|sh, wget, base64, download-and-execute patterns
 - **env_leak** — hunts for API keys and tokens leaked into process environment variables across all running processes
 
-### 🐍 Python Scanners
+### 🐍 Python Scanners (the sidekick)
 
-- **Docker security** — privileged containers, docker.sock mounts, host network, root user, :latest tags
-- **Git config** — .env files committed to git
-- **Dependencies** — pip-audit, npm-audit integration
-- **Typosquatting** — Levenshtein distance detection against popular packages + known malicious package database
-- **System** — firewall status, SSH config weaknesses, available security updates, sudoers audit, world-writable PATH dirs
+Because not everything needs to be compiled at the speed of sound:
 
-### 💰 Token Usage Monitor (for the budget-conscious vibe coder)
+- **Docker security** — privileged containers, docker.sock mounts, host network, root user, `:latest` tags (the "I'll pin the version later" crowd, we see you)
+- **Git config** — `.env` files committed to git. Yes, people still do this. In 2026.
+- **Dependencies** — pip-audit, npm-audit. Because `npm install left-pad` was a warning, not an instruction.
+- **Typosquatting** — Levenshtein distance against popular packages + known malicious DB. `requsets` is not `requests`. One will steal your cookies. The other makes HTTP calls.
+- **System** — firewall status, SSH config, security updates, sudoers, world-writable PATH dirs. The stuff you configured once in 2019 and never touched again.
 
-Because vibe coding isn't free. Someone pays. Usually you.
+### 💰 Token Usage Monitor (the accountant nobody asked for)
 
-- **Real-time token tracking** — parses Claude Code JSONL sessions from `~/.claude/projects/`
-- **Cost calculator** — per-model pricing (Opus $5/$25, Sonnet $3/$15, Haiku $1/$5 per M tokens), cache read/write costs
-- **Cache efficiency analysis** — shows how much you're saving (or wasting) with prompt caching
-- **Model comparison** — "100% Opus today = $X. With Sonnet: $Y. Save $Z. Think about it."
-- **Session analytics** — which project is eating your tokens, output/input ratio (is Claude too chatty?), session batching
-- **Budget forecasting** — daily average, weekly trends, "you're 50% above average today" warnings
-- **What-if analysis** — "what if you used Sonnet for everything?" with actual dollar amounts
+Vibe coding isn't free. Someone pays. Usually you. Usually more than you think.
 
-### 🧠 AI-Powered Tips (optional, Claude Haiku)
+- **Real-time token tracking** — parses Claude Code JSONL sessions from `~/.claude/projects/`. Yes, we read your diaries. Locally.
+- **Cost calculator** — Opus $5/$25, Sonnet $3/$15, Haiku $1/$5 per M tokens. Cache read/write costs included because Anthropic isn't running a charity.
+- **Cache efficiency** — "Your cache hit rate is 47%. That's like buying a gym membership and going once." Tells you exactly how many dollars you're flushing.
+- **Model comparison** — "100% Opus today = $4.20. With Sonnet: $1.80. You could've bought a coffee with the difference. Two coffees if you used Haiku."
+- **Session analytics** — which project is eating your tokens, is Claude writing novels instead of code (output/input ratio), are you starting 15 sessions instead of using /continue
+- **Budget forecasting** — weekly trends with text-based bar charts that look like they were rendered on a Commodore 64. "You're 50% above your average. Maybe take a walk."
+- **What-if analysis** — "What if you used Sonnet for everything?" Spoiler: you'd save enough for a nice dinner. Monthly.
 
-Set `ANTHROPIC_API_KEY` and get personalized advice for ~$0.001 per tip:
+### 🧠 AI-Powered Tips (the expensive fortune cookie)
 
-- **Smart tips** — Haiku analyzes your actual usage patterns and gives ONE specific, actionable recommendation
-- **Model advisor** — "For this task, Sonnet is enough. Save ~$0.15."
-- **Security explanations** — plain-language explanations of findings in YOUR project's context
+Set `ANTHROPIC_API_KEY` and get personalized advice for ~$0.001 per tip. That's cheaper than any advice you've ever received from a human, and probably more useful:
 
-No API key? No problem. Falls back to a rules-based engine with 15+ dynamic tips based on cache efficiency, model selection, session patterns, output verbosity, and project switching.
+- **Smart tips** — Haiku analyzes your actual patterns. Not generic "use caching" — actual "your project X is eating 60% of tokens, use /compact in that session"
+- **Model advisor** — "This looks like a refactoring task. Sonnet handles those fine. Save $0.15 and your dignity."
+- **Security explanations** — "You have a Django project with SECRET_KEY in .env that's in git. This means anyone with repo access can forge sessions. Fix: `git rm --cached .env`"
 
-### 😤 Nag Messages (the passive-aggressive part)
+No API key? The rules-based engine has 15+ dynamic tips. It's like having a backseat driver for your token spending. Free. Annoying. Correct.
 
-Four escalation levels based on token consumption. Bilingual (EN/UA). Examples from Level 4:
+### 😤 Nag Messages (the emotional support you didn't want)
 
-> *"You're like while(true) without break. That's not a feature, it's a bug."*
+Four escalation levels. Because gentle reminders don't work on developers.
+
+**Level 1** (< 50K tokens) — mild concern:
+> *"Tokens spent: 45K. Calories burned: 0. Priorities?"*
+
+**Level 2** (< 150K tokens) — growing worry:
+> *"Even vim users exit sometimes. At least accidentally."*
+
+**Level 3** (< 500K tokens) — disappointment:
+> *"For these tokens you could've hired a junior. A living one. With legs."*
+
+**Level 4** (> 500K tokens) — intervention:
+> *"SYSTEM ALERT: Carbon-based prompt wrapper detected. Needs reboot (sleep)."*
 >
-> *"Ти як cron job без sleep interval. Зупинись."*
+> *"Ти як while(true) без break. Це не фіча, це баг."*
 >
 > *"GG. 1.2M tokens. Stand up. Go out. Touch grass. Find a girlfriend. In that order."*
 
-The messages get more aggressive as your token count rises. This is a feature, not a bug.
+All messages available in English and Ukrainian. Because passive-aggression transcends language barriers.
 
 ### 🔍 Scan Engine
 
 - **MCP Server** — use from Claude, Cursor, or any MCP-compatible assistant: `npx fartrun`
-- **Security Score** — 0-100 rating on the Overview page with severity breakdown (critical=-20, high=-10, medium=-3, low=-1)
-- **Quick Fix suggestions** — "Fix" buttons for common findings (.env in git, firewall inactive, Docker root)
-- **SQLite History** — persistent daily stats with weekly trend tracking and text-based bar charts
-- **GitHub/Local MD Fetcher** — pulls and caches security advisories, curated tool lists, education resources
+- **Security Score** — 0-100 on the Overview page. Critical finding? That's -20 points. You start at 100. Most vibe-coded projects end up somewhere around... let's not talk about it.
+- **Quick Fix buttons** — ".env in git? Click Fix. Firewall off? Click Fix. Docker running as root? Click Fix. Existential dread about your code quality? We're working on that one."
+- **SQLite History** — tracks your security score over time. The graph usually goes up. If it goes down, that means you installed something. Check what.
+- **MD Fetcher** — pulls curated resources from GitHub. Updates itself. Unlike your dependencies.
 
-### 🖥️ GUI (the unserious part)
+### 🖥️ GUI (Windows 95 called. It wants its UI back.)
 
-A PyQt5 desktop app styled as Windows 95. Because nothing says "your code is insecure" like a dialog box from 1995.
+A PyQt5 desktop app that looks like it escaped from 1995. This is intentional. We studied UX extensively and concluded that the most effective way to communicate "your code has problems" is through the aesthetic of an era when code always had problems.
 
 **Pages:**
 
-| Page | What it does |
-|------|-------------|
-| **Overview** | Token budget bar, cost display, session stats, compact Docker/Ports status, Security Score, nag messages |
-| **Security** | Findings table with severity, type, source. Detail panel with explanations and fix instructions |
-| **Usage** | Per-session breakdown, daily/weekly stats, model distribution |
-| **Analytics** | Cache efficiency bar, model comparison table, project breakdown, weekly trend chart |
-| **Tips** | Dynamic recommendations sorted by relevance. AI-powered tip at the top if API key is set |
-| **Discover** | Resources and education links from `data/*.md` — no hardcoded content |
-| **Settings** | Language (EN/UA), sound mode (Classic/Fart), alert filters, cooldown, notification toggles |
-| **Hoff Wizard** | Hasselhoff-themed tool installer. The only page where Hasselhoff appears uninvited |
+| Page | What it does | Secret purpose |
+|------|-------------|----------------|
+| **Overview** | Token budget, costs, Docker/Ports compact, Security Score | Making you feel things about your spending habits |
+| **Security** | Findings table, detail panel, fix instructions | The page you should look at but won't |
+| **Usage** | Session breakdown, model distribution | Evidence for your therapist |
+| **Analytics** | Cache efficiency, trends, weekly bar chart | Proof that Monday you is different from Friday you |
+| **Tips** | AI + rules-based recommendations | Unsolicited advice, ranked by how much you need it |
+| **Discover** | Resources, courses, community links | All the things you'll bookmark and never read |
+| **Settings** | Language, sound mode, alert filters | The Classic/Fart toggle. You know which one you'll pick. |
+| **Hoff Wizard** | MCP/Skills installer with Hasselhoff theme | The only page where Hasselhoff appears uninvited |
 
 **Sound modes:**
-  - 🎵 **Classic** — severity-based alert sounds (critical = sirens, warning = chime, info = gentle ping)
-  - 💨 **Fart** — severity-based flatulence (critical = earth-shattering, warning = thunderclap, info = silent but deadly)
+- 🎵 **Classic** — sirens, chimes, pings. Professional. Boring. Your manager would approve.
+- 💨 **Fart** — The Devastator (critical), The Thunderclap (high), The Squeaker (medium), The Whisper (low), The Silent But Deadly (info). Your manager would not approve. Choose this one.
 
-**Win95 Popup Notifications** — critical and warning findings get a proper Win95-style dialog with severity icon (✖ / ⚠ / ℹ), auto-close timer, and an OK button your grandfather would recognize.
+**Win95 Popup Notifications** — critical findings get a proper dialog with ✖ icon. Warning gets ⚠. Info gets ℹ. There's an OK button. It auto-closes in 8 seconds. Just like your attention span for security warnings.
 
-**Hasselhoff** — appears in the Setup Wizard and via manual trigger. We reduced his appearances after beta testers reported "Hasselhoff fatigue syndrome." He's still there. Watching. Like your vulnerabilities.
+**Hasselhoff** — used to appear for everything. Container started? Hasselhoff. Cache hit rate good? Hasselhoff. You blinked? Hasselhoff. Beta testers staged an intervention. Now he only shows up in the Wizard and when you explicitly summon him. He's still watching though. Always watching.
 
-### 📚 Resources & Education
+### 📚 Learn Security (or at least bookmark the links)
 
-Dynamic content loaded from `data/*.md` files — update the repo, update the resources. No code changes needed.
+Everything loaded from `data/*.md` — update the file, update the app. No releases needed. No PRs for "fixed typo in education link" touching 400 lines of Python.
 
-**Security courses:**
+**For Ukrainian developers** (because cybersecurity education shouldn't require English):
 
-| Language | Platforms |
-|----------|-----------|
-| 🇺🇦 Ukrainian | Prometheus, Projector, Mate Academy, DOU |
-| 🇬🇧 English | Coursera, HackTheBox, TryHackMe, Snyk Learn, OWASP |
+| Platform | What you'll learn | What you'll actually do |
+|----------|------------------|------------------------|
+| Prometheus | Cybersecurity fundamentals, Linux, networking | Start the course, finish 30%, feel good about yourself |
+| Projector | DevOps, DevSecOps, infrastructure | Add to bookmarks. Forever. |
+| Mate Academy | Security basics | Tell yourself "next month" |
+| DOU | Practical articles | Read during standup |
 
-**Topics covered:** Docker security, Network security, System hardening, Supply chain attacks, Secrets management
+**For English speakers:**
 
-**Also in Discover:**
-- Token optimization guides (18 hacks, prompt caching deep dive)
-- Claude Code documentation (CLAUDE.md, hooks, slash commands, Agent SDK)
-- API & pricing reference (models, batch pricing, fast mode)
-- Community links (r/ClaudeCode, Awesome Claude Skills, MCP Servers Directory)
+| Platform | Style | Pain level |
+|----------|-------|-----------|
+| Coursera | Academic, certificates | Low (video lectures, pajamas) |
+| HackTheBox | Hands-on, CTF-style | Medium (you will feel stupid, this is normal) |
+| TryHackMe | Guided labs | Medium-low (hand-holding with purpose) |
+| Snyk Learn | Interactive, short | Low (bite-sized guilt trips) |
+| OWASP | Reference docs | High (reading OWASP Top 10 is a rite of passage) |
 
-### 🛠️ MCP/Skills Installer
+**Topics:** Docker security, Network security, System hardening, Supply chain attacks, Secrets management. Everything you need to know to feel slightly less anxious about your `docker run --privileged` habits.
 
-Drop a GitHub URL. Get a security scan. Install with one click.
+### 🛠️ MCP/Skills Installer (drop link, pray, install)
 
-- **Drop-link install** — paste a GitHub URL for any MCP server or Skill
-- **Pre-install security scan** — checks for malicious postinstall scripts, suspicious binaries, obfuscated JS, typosquatting deps
-- **API key detection** — auto-detects required env vars from README, shows input fields
-- **Curated catalog** — `data/curated.md` with recommended MCP servers and Skills, "Install" button next to each
-- **Settings.json integration** — writes directly to `~/.claude/settings.json` with atomic writes (no corruption on crash)
+The Hasselhoff Wizard, but useful:
 
-### 🖥️ Cross-Platform
+1. **Paste a GitHub URL** — any MCP server or Claude Code skill
+2. **Fartrun scans it first** — because installing unscanned code from the internet is how we got here in the first place. Checks for malicious postinstall scripts, suspicious binaries, obfuscated JS (if your dependency is one long line, we have questions), typosquatting
+3. **API key detection** — reads the README, finds `OPENAI_API_KEY` or whatever, shows you input fields. Like a concierge, but for environment variables
+4. **One-click install** — writes to `~/.claude/settings.json`. Atomically. Because the last thing you need is a corrupted settings file after a crash during install of a tool called "fartrun"
+5. **Curated catalog** — `data/curated.md` has recommended MCP servers and Skills with "Install" buttons. We vetted these. We scanned these. We still don't fully trust these. Neither should you.
 
-Native support for Linux, macOS, and Windows:
+### 🖥️ Cross-Platform (yes, even Windows)
 
-| Feature | Linux | macOS | Windows |
-|---------|-------|-------|---------|
+Because bad code doesn't discriminate by operating system:
+
+| What we check | Linux | macOS | Windows |
+|--------------|-------|-------|---------|
 | Notifications | notify-send | osascript | PowerShell toast |
-| Sound playback | pw-play / paplay / ffplay / aplay | afplay | PowerShell SoundPlayer |
-| Firewall check | ufw / nftables / iptables | socketfilterfw / pf | netsh advfirewall |
-| System updates | apt / dnf / pacman | softwareupdate | winget |
+| Fart delivery | pw-play / paplay / aplay | afplay | PowerShell SoundPlayer |
+| Firewall | ufw / nftables / iptables | socketfilterfw / pf | netsh advfirewall |
+| "You have updates" | apt / dnf / pacman | softwareupdate | winget |
 | SSH audit | /etc/ssh/sshd_config | /etc/ssh/sshd_config | %ProgramData%\ssh\sshd_config |
-| Admin elevation | pkexec / sudo | osascript with privileges | PowerShell RunAs |
-| Config dir | ~/.config/claude-monitor/ | ~/Library/Application Support/ | %APPDATA%\claude-monitor\ |
-| Docker | unix socket | unix socket | npipe |
+| Sudo/admin | pkexec / sudo | osascript privileges | PowerShell RunAs |
+| Config lives in | ~/.config/claude-monitor/ | ~/Library/Application Support/ | %APPDATA%\claude-monitor\ |
+| Docker talks via | unix socket | unix socket | named pipe (npipe) |
 
-All strings sanitized against command injection. Because a security scanner with command injection would be... ironic.
+All user-facing strings are sanitized against command injection. We tested this. A security scanner with command injection would be the kind of irony that ends careers.
 
 -----
 
@@ -221,91 +239,78 @@ Now your Python scanners use compiled Rust modules. 10x faster than regex in Pyt
 
 -----
 
-## Architecture
+## Architecture (for people who actually read this section)
 
 ```
 fartrun/
-├── core/                          # Brain
-│   ├── platform.py                # OS detection + backend dispatch
-│   ├── platform_backends/         # Linux, macOS, Windows implementations
-│   ├── alerts.py                  # Deduplication, cooldown, severity routing
-│   ├── calculator.py              # Token cost math (all Claude models)
-│   ├── usage_analyzer.py          # Cache efficiency, model comparison
-│   ├── tips.py                    # 15+ dynamic tips + optional Haiku AI
-│   ├── haiku_client.py            # Claude Haiku API (optional, ~$0.001/call)
-│   ├── history.py                 # SQLite daily stats + trends
-│   ├── token_parser.py            # JSONL session log parser
-│   ├── md_fetcher.py              # GitHub/local MD fetcher with cache
-│   ├── mcp_installer.py           # MCP/Skill installer (atomic settings.json)
-│   ├── repo_scanner.py            # Pre-install security scan
-│   └── nagger/                    # Nag messages + Hasselhoff personality
-├── gui/                           # Win95 PyQt5 frontend
-│   ├── app.py                     # Main window, sidebar, refresh loop
-│   ├── win95_popup.py             # Win95-style notification dialogs
-│   ├── fmt_utils.py               # Shared formatting
-│   └── pages/                     # Overview, Security, Usage, Analytics, Tips, Discover, Settings, Hoff Wizard
-├── plugins/                       # Plugin system
-│   ├── docker_monitor/            # Container metrics collector
-│   ├── port_map/                  # Port scanner (psutil)
-│   └── security_scan/             # Python scanners + Rust sentinel wrappers
-├── crates/sentinel/               # Rust security modules (PyO3)
-│   └── src/
-│       ├── processes.rs           # Cryptominers, reverse shells
-│       ├── network.rs             # C2 connections, mining pools
-│       ├── filesystem.rs          # Sensitive files, SUID, malware paths
-│       ├── crontab.rs             # Suspicious scheduled tasks
-│       ├── secrets.rs             # Hardcoded API keys and tokens
-│       ├── autostart.rs           # Persistence mechanisms
-│       ├── container_escape.rs    # Docker breakout vectors
-│       ├── supply_chain.rs        # Lock file integrity
-│       ├── git_hooks.rs           # Malicious hook scripts
-│       └── env_leak.rs            # Secrets in environment variables
-├── data/                          # Dynamic content (update without code changes)
-│   ├── curated.md                 # Recommended MCP servers + Skills
-│   ├── resources.md               # Docs, guides, community links
-│   └── education.md               # Security courses (EN + UA)
-├── sounds/                        # Audio feedback
-│   ├── classic/                   # Professional alert sounds
-│   └── fart/                      # ...you know what these are
-├── i18n/                          # Bilingual support (EN / UA)
-│   ├── en.py
-│   └── ua.py
-└── tests/                         # 118 tests
+├── core/                          # The brain. Doesn't fart. Just thinks.
+│   ├── platform.py                # "What OS am I on?" → dispatch
+│   ├── platform_backends/         # Linux, macOS, Windows. All equally vulnerable.
+│   ├── alerts.py                  # Deduplication, cooldown. Prevents fart storms.
+│   ├── calculator.py              # Token cost math. The bad news machine.
+│   ├── usage_analyzer.py          # Cache efficiency. The "I told you so" module.
+│   ├── tips.py                    # 15+ tips. Optional Haiku AI. Unsolicited advice.
+│   ├── haiku_client.py            # Claude Haiku API. ~$0.001/call. Cheapest therapist.
+│   ├── history.py                 # SQLite. Remembers everything. Forgives nothing.
+│   ├── token_parser.py            # Reads your Claude JSONL diaries. Judges silently.
+│   ├── md_fetcher.py              # Fetches MD from GitHub. Caches 24h. Self-updating.
+│   ├── mcp_installer.py           # Installs MCP servers. Atomically. Unlike your decisions.
+│   ├── repo_scanner.py            # Scans repos before install. Trust but verify.
+│   └── nagger/                    # Nag messages + Hasselhoff. The emotional core.
+├── gui/                           # Win95 PyQt5. Peak aesthetic.
+│   ├── app.py                     # Main window. Sidebar. Refresh loop. God object (forgive us).
+│   ├── win95_popup.py             # ✖ ⚠ ℹ — the holy trinity of 1995.
+│   ├── fmt_utils.py               # "1234567" → "1.2M". Shared. DRY. We learned.
+│   └── pages/                     # 8 pages. Each a unique flavor of "you should fix this."
+├── plugins/                       # Plugin system. Enterprise word for "folders with code."
+│   ├── docker_monitor/            # Watches your containers. They're running as root, aren't they.
+│   ├── port_map/                  # Finds open ports. 0.0.0.0 is not a security strategy.
+│   └── security_scan/             # Python wrappers around Rust modules. The diplomatic layer.
+├── crates/sentinel/               # 🦀 Rust. Fast. Compiled. Doesn't need pip install.
+│   └── src/                       # 10 modules. Each finds a different way you messed up.
+├── data/                          # MD files. Edit here, not in Python. We learned this the hard way.
+│   ├── curated.md                 # MCP servers + Skills we semi-trust
+│   ├── resources.md               # Links you'll bookmark and never click
+│   └── education.md               # Courses in EN + UA. Knowledge is power. Ignorance is 0.0.0.0.
+├── sounds/
+│   ├── classic/                   # Beeps your manager approves of
+│   └── fart/                      # Beeps your manager does not approve of
+├── i18n/                          # EN + UA. Passive-aggression is multilingual.
+└── tests/                         # 118 tests. More tests than some projects have lines of code.
 ```
 
 -----
 
 ## Configuration
 
-`config.toml` — lives in your platform config dir (`~/.config/claude-monitor/` on Linux):
+`config.toml` lives in your platform config dir. On Linux that's `~/.config/claude-monitor/`. On macOS it's somewhere in `~/Library/` because Apple likes hiding things. On Windows it's `%APPDATA%` because Microsoft likes hiding things differently.
 
 ```toml
 [general]
-refresh_interval = 5
-language = "ua"            # "en" or "ua"
+refresh_interval = 5       # seconds. Your anxiety refreshes faster.
+language = "ua"            # "en" or "ua". Nag messages hit different in Ukrainian.
 
 [sounds]
-enabled = true
-mode = "fart"              # "classic" or "fart"
+enabled = true             # set to false if you value your marriage
+mode = "fart"              # "classic" or "fart". We know which one you picked.
 quiet_hours_start = "23:00"
-quiet_hours_end = "07:00"
+quiet_hours_end = "07:00"  # because a critical-severity fart at 2 AM wakes up
+                           # more than just the developer. We learned this.
 
 [alerts]
-cooldown_seconds = 300
+cooldown_seconds = 300     # minimum time between farts for the same finding
 desktop_notifications = true
 
 [plugins.docker_monitor]
 enabled = true
-cpu_threshold = 80
-ram_threshold = 85
+cpu_threshold = 80         # percent. Your container is sweating.
+ram_threshold = 85         # percent. Your container is drowning.
 
 [plugins.security_scan]
 enabled = true
-scan_interval = 3600
-scan_paths = ["~"]
+scan_interval = 3600       # seconds between full scans. Paranoia is configurable.
+scan_paths = ["~"]         # where to look. "~" means everywhere. Brave.
 ```
-
-Quiet hours exist because we learned the hard way that a critical-severity fart at 2 AM wakes up more than just the developer.
 
 -----
 
@@ -327,15 +332,14 @@ The Hasselhoff is there because every project needs a spiritual guardian. David 
 |-------------------------------------------|--------|--------|-------|-----------|
 |Scans locally (no code leaves your machine)|❌       |❌       |❌      |✅          |
 |Custom Rust security modules               |❌       |❌       |❌      |✅          |
-|10 compiled Rust scanners                  |❌       |❌       |❌      |✅          |
-|Token usage monitoring                     |❌       |❌       |❌      |✅          |
-|AI-powered tips (Haiku)                    |❌       |❌       |❌      |✅          |
-|Passive-aggressive nag messages            |❌       |❌       |❌      |✅          |
+|Tells you how much money you're burning    |❌       |❌       |❌      |✅          |
+|AI tips that cost less than a gumball      |❌       |❌       |❌      |✅          |
+|Insults you in Ukrainian                   |❌       |❌       |❌      |✅          |
 |Fart sounds                                |❌       |❌       |❌      |✅          |
 |Hasselhoff                                 |❌       |❌       |❌      |✅          |
 |MCP integration                            |❌       |✅       |❌      |✅          |
 |Win95 GUI                                  |❌       |❌       |❌      |✅          |
-|Education links (UA + EN)                  |❌       |❌       |❌      |✅          |
+|Teaches you security (UA + EN)             |❌       |❌       |❌      |✅          |
 |Free                                       |partial |partial |partial|**forever**|
 |Sends your code to someone's server        |✅       |✅       |✅      |**never**  |
 
@@ -377,6 +381,7 @@ PRs welcome. Especially if you:
 - Spotted a bug (ironic, for a security scanner)
 - Can translate nag messages to a new language (bonus points for maximum passive-aggression)
 - Want to add security courses for your country to `data/education.md`
+- Think the nag messages aren't aggressive enough (we have a Level 5 branch. It's... a lot.)
 
 -----
 
@@ -401,6 +406,8 @@ sublicense it, subject to the following conditions:
    are not guaranteed in all runtime environments.
 5. Nag messages are a feature. Disabling them voids your warranty
    (you never had one).
+6. The "Silent But Deadly" sound mode is exactly what it sounds like.
+   And doesn't sound like.
 
 THE AUTHORS SHALL NOT BE LIABLE FOR ANY EMBARRASSMENT, TERMINATED
 EMPLOYMENT, OR SOCIAL CONSEQUENCES ARISING FROM FART SOUNDS PLAYING
