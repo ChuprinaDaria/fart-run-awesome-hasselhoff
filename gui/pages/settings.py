@@ -35,6 +35,12 @@ class SettingsPage(QWidget):
         self.sound_enabled.setChecked(config.get("sounds", {}).get("enabled", True))
         sg.addRow(self.sound_enabled)
 
+        self.sound_mode = QComboBox()
+        self.sound_mode.addItems(["classic", "fart"])
+        current_mode = config.get("sounds", {}).get("mode", "classic")
+        self.sound_mode.setCurrentText(current_mode)
+        sg.addRow(_t("sound_mode") + ":", self.sound_mode)
+
         self.notif_enabled = QCheckBox(_t("enable_notif"))
         self.notif_enabled.setChecked(config.get("alerts", {}).get("desktop_notifications", True))
         sg.addRow(self.notif_enabled)
@@ -92,6 +98,7 @@ class SettingsPage(QWidget):
 
         self._config["general"]["language"] = self.lang_combo.currentText()
         self._config["sounds"]["enabled"] = self.sound_enabled.isChecked()
+        self._config["sounds"]["mode"] = self.sound_mode.currentText()
         self._config["alerts"]["desktop_notifications"] = self.notif_enabled.isChecked()
         self._config["alerts"]["cooldown_seconds"] = self.cooldown_spin.value()
 
