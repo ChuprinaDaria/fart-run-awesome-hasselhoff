@@ -6,6 +6,7 @@ from PyQt5.QtWidgets import (
 )
 from PyQt5.QtCore import Qt, pyqtSignal
 from PyQt5.QtGui import QPixmap
+from claude_nagger.i18n import get_string as _t
 
 
 def _fmt(n: int) -> str:
@@ -23,9 +24,10 @@ class OverviewPage(QWidget):
 
     def __init__(self):
         super().__init__()
+        self._subscription = None
         layout = QVBoxLayout(self)
 
-        self.budget_label = QLabel("Budget: $0.00 / $5.00")
+        self.budget_label = QLabel(_t("session_usage"))
         self.budget_label.setStyleSheet("font-size: 16px; font-weight: bold;")
         layout.addWidget(self.budget_label)
 
@@ -33,7 +35,7 @@ class OverviewPage(QWidget):
         self.budget_bar.setMaximum(100)
         layout.addWidget(self.budget_bar)
 
-        self.cost_label = QLabel("$0.00")
+        self.cost_label = QLabel("--")
         self.cost_label.setStyleSheet(
             "font-size: 28px; font-weight: bold; color: #000080; "
             "border: 2px inset #808080; background: white; padding: 8px;"
@@ -41,7 +43,7 @@ class OverviewPage(QWidget):
         self.cost_label.setAlignment(Qt.AlignCenter)
         layout.addWidget(self.cost_label)
 
-        self.stats_group = QGroupBox("Tokens")
+        self.stats_group = QGroupBox(_t("tokens"))
         sl = QFormLayout()
         self.lbl_sessions = QLabel("0")
         self.lbl_input = QLabel("0")
@@ -52,14 +54,14 @@ class OverviewPage(QWidget):
         self.lbl_cache_eff = QLabel("0%")
         self.lbl_cache_saved = QLabel("$0.00")
         for label_text, widget in [
-            ("Sessions:", self.lbl_sessions),
-            ("Input tokens:", self.lbl_input),
-            ("Output tokens:", self.lbl_output),
-            ("Cache read:", self.lbl_cache_read),
-            ("Cache write:", self.lbl_cache_write),
-            ("Billable:", self.lbl_billable),
-            ("Cache efficiency:", self.lbl_cache_eff),
-            ("Cache saved:", self.lbl_cache_saved),
+            (_t("lbl_sessions"), self.lbl_sessions),
+            (_t("lbl_input_tokens"), self.lbl_input),
+            (_t("lbl_output_tokens"), self.lbl_output),
+            (_t("lbl_cache_read"), self.lbl_cache_read),
+            (_t("lbl_cache_write"), self.lbl_cache_write),
+            (_t("lbl_billable"), self.lbl_billable),
+            (_t("lbl_cache_eff"), self.lbl_cache_eff),
+            (_t("lbl_cache_saved"), self.lbl_cache_saved),
         ]:
             sl.addRow(QLabel(label_text), widget)
         self.stats_group.setLayout(sl)
@@ -79,9 +81,9 @@ class OverviewPage(QWidget):
         layout.addWidget(self.hoff_label)
 
         btn_layout = QHBoxLayout()
-        self.btn_refresh = QPushButton("Refresh")
-        self.btn_nag = QPushButton("Nag Me")
-        self.btn_hoff = QPushButton("Hasselhoff!")
+        self.btn_refresh = QPushButton(_t("refresh"))
+        self.btn_nag = QPushButton(_t("nag_me"))
+        self.btn_hoff = QPushButton(_t("btn_hasselhoff"))
         self.btn_refresh.clicked.connect(self.refresh_requested.emit)
         self.btn_nag.clicked.connect(self.nag_requested.emit)
         self.btn_hoff.clicked.connect(self.hoff_requested.emit)
@@ -91,14 +93,32 @@ class OverviewPage(QWidget):
         layout.addLayout(btn_layout)
         layout.addStretch()
 
+    def set_subscription(self, sub: dict) -> None:
+        self._subscription = sub
+
     def update_data(self, stats, cost, cache_eff: float, savings: float,
-                    nag_msg: str, budget: float = 5.0) -> None:
-        pct = min(cost.total_cost / budget * 100, 100) if budget > 0 else 0
-        self.budget_label.setText(f"Budget: ${cost.total_cost:.2f} / ${budget:.2f}")
+                    nag_msg: str) -> None:
+        is_api = self._subscription and self._subscription.get("is_paid_tokens")
+        sub_type = (self._subscription or {}).get("type", "unknown")
+
+        if is_api:
+            # API key — show cost
+            self.budget_label.setText(_t("api_cost_today").format(f"{cost.total_cost:.2f}"))
+            self.cost_label.setText(f"${cost.total_cost:.2f}")
+            pct = min(cost.total_cost / 10.0 * 100, 100)  # $10 soft cap for bar
+        else:
+            # Pro/Max/Team — show session usage, no dollar budget
+            plan_name = sub_type.capitalize() if sub_type != "unknown" else "Plan"
+            self.budget_label.setText(
+                _t("session_info").format(plan_name, len(stats.sessions), _fmt(stats.total_billable))
+            )
+            self.cost_label.setText(f"{_fmt(stats.total_billable)} tok")
+            # Progress bar: rough usage level (1M tokens = moderate day)
+            pct = min(stats.total_billable / 1_000_000 * 100, 100)
+
         self.budget_bar.setValue(int(pct))
         cc = "#00cc00" if pct < 33 else ("#ffcc00" if pct < 66 else "#ff3333")
         self.budget_bar.setStyleSheet(f"QProgressBar::chunk {{ background: {cc}; }}")
-        self.cost_label.setText(f"${cost.total_cost:.2f}")
         self.cost_label.setStyleSheet(
             f"font-size: 28px; font-weight: bold; color: {cc}; "
             "border: 2px inset #808080; background: white; padding: 8px;"
@@ -118,6 +138,6 @@ class OverviewPage(QWidget):
         self.hoff_label.setPixmap(pixmap)
 
     def set_no_claude(self) -> None:
-        self.budget_label.setText("Claude not found")
+        self.budget_label.setText(_t("claude_not_found"))
         self.cost_label.setText("--")
-        self.nag_label.setText("Set Claude path in Settings to see token stats")
+        self.nag_label.setText(_t("set_claude_path"))

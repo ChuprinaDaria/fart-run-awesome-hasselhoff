@@ -15,8 +15,9 @@ from core.plugin import Alert
 log = logging.getLogger(__name__)
 
 SEVERITY_SOUNDS = {
-    "critical": "farts",
-    "warning": "farts",
+    "critical": "farts",   # big dramatic fart
+    "warning": "farts",    # regular fart
+    "info": None,          # silence — hasselhoff handles good news
 }
 
 URGENCY_MAP = {

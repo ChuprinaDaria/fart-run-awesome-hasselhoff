@@ -1,4 +1,5 @@
 STRINGS = {
+    # === Claude Nagger (legacy) ===
     "app_title": "fart.run & amazing Hasselhoff",
     "tab_overview": "Overview",
     "tab_analytics": "Analytics",
@@ -53,4 +54,146 @@ STRINGS = {
     "no_weekly_data": "No data for this week yet",
     "discover_title": "Discover New Claude Features",
     "discover_desc": "Useful resources, skills, and tools",
+
+    # === Dev Monitor GUI ===
+    # Main window
+    "window_title": "fart.run & awesome Hasselhoff — Dev Monitor",
+    "ready": "Ready",
+    "about_text": "fart.run & awesome Hasselhoff\nDev Environment Monitor v3.0\n\nWin95 style, fart-powered alerts,\nand David Hasselhoff supervision.",
+    "menu_file": "File",
+    "menu_tools": "Tools",
+    "menu_help": "Help",
+    "menu_refresh": "Refresh",
+    "menu_quit": "Quit",
+    "menu_scan_security": "Scan Security",
+    "menu_nag_me": "Nag Me",
+    "menu_hasselhoff": "Hasselhoff!",
+    "menu_about": "About",
+
+    # Sidebar
+    "side_overview": "Overview",
+    "side_docker": "Docker",
+    "side_ports": "Ports",
+    "side_security": "Security",
+    "side_usage": "Usage",
+    "side_analytics": "Analytics",
+    "side_tips": "Tips",
+    "side_discover": "Discover",
+    "side_settings": "Settings",
+
+    # Overview page
+    "session_usage": "Session Usage",
+    "api_cost_today": "API Cost Today: ${}",
+    "session_info": "{} — Session: {} | Billable: {} tokens",
+    "claude_not_found": "Claude not found",
+    "set_claude_path": "Set Claude path in Settings to see token stats",
+    "lbl_sessions": "Sessions:",
+    "lbl_input_tokens": "Input tokens:",
+    "lbl_output_tokens": "Output tokens:",
+    "lbl_cache_read": "Cache read:",
+    "lbl_cache_write": "Cache write:",
+    "lbl_billable": "Billable:",
+    "lbl_cache_eff": "Cache efficiency:",
+    "lbl_cache_saved": "Cache saved:",
+    "btn_hasselhoff": "Hasselhoff!",
+
+    # Docker page
+    "docker_name": "NAME",
+    "docker_status": "STATUS",
+    "docker_cpu": "CPU%",
+    "docker_ram": "RAM",
+    "docker_ports": "PORTS",
+    "docker_health": "HEALTH",
+    "fart_off": "Fart Off",
+    "start": "Start",
+    "stop": "Stop",
+    "restart": "Restart",
+    "logs": "Logs",
+    "remove": "Remove",
+    "mcp_servers": "MCP Servers",
+    "mcp_name": "NAME",
+    "mcp_command": "COMMAND",
+    "mcp_status": "STATUS",
+    "mcp_args": "ARGS",
+    "events": "Events",
+    "no_events": "No events yet",
+    "remove_confirm_title": "Remove Container",
+    "remove_confirm_msg": "Remove container '{}'? This cannot be undone.",
+    "close": "Close",
+
+    # Ports page
+    "port": "PORT",
+    "proto": "PROTO",
+    "process": "PROCESS",
+    "ip": "IP",
+    "status": "STATUS",
+    "ports_summary": "{} ports listening | {} conflicts | {} exposed",
+    "psutil_warning": "Some processes hidden — limited permissions. Run with sudo or add CAP_NET_ADMIN for full port info.",
+
+    # Security page
+    "sev": "SEV",
+    "type": "TYPE",
+    "description": "DESCRIPTION",
+    "source": "SOURCE",
+    "details": "Details",
+    "what_is_this": "What is this:",
+    "risk": "Risk:",
+    "how_to_fix": "How to fix:",
+    "scan_now": "Scan Now",
+    "scanning": "Scanning...",
+    "last_scan": "Last scan: {}",
+    "last_scan_never": "Last scan: never",
+
+    # Analytics page
+    "cache_eff_pct": "Cache Efficiency: {}%",
+    "cache_saved_usd": "Cache saved: ~${}",
+    "no_analytics": "Claude not found — no analytics",
+
+    # Tips page
+    "tips_header": "Tips & Recommendations",
+    "no_tips": "No tips yet — use Claude to get recommendations!",
+    "tips_require": "Tips require claude_nagger module",
+
+    # Settings page
+    "lang_group": "Language / Мова",
+    "sound_group": "Sound / Звук",
+    "alerts_group": "Alerts / Алерти",
+    "enable_fart": "Enable fart sounds",
+    "enable_notif": "Enable desktop notifications",
+    "alert_docker": "Docker container alerts (CPU/RAM/crash)",
+    "alert_security": "Security vulnerability alerts",
+    "alert_ports": "Port conflict alerts",
+    "alert_usage": "High usage alerts",
+    "alert_cooldown": "Alert cooldown:",
+    "apply_save": "Apply & Save",
+    "saved_ok": "Saved! Changes apply immediately.",
+    "save_error": "Error: {}",
+
+    # Usage page
+    "usage_require": "Usage data requires claude_nagger module",
+
+    # Hoff Wizard
+    "side_hoff_wizard": "Hoff Wizard",
+    "hoff_wizard_title": "HASSELHOFF VIBECODE WIZARD",
+    "hoff_wizard_subtitle": "Hasselhoff will help you become a vibecoder! Check what's installed and set up what's missing.",
+    "hoff_wizard_baywatch_mode": "BAYWATCH MODE — Install ALL Missing",
+    "hoff_wizard_all_done": "ALL INSTALLED — The Hoff is proud of you!",
+    "hoff_wizard_install_now": "Install now!",
+    "hoff_wizard_download": "Download",
+    "hoff_wizard_installed": "Installed — Hoff approves!",
+
+    # Hasselhoff triggers
+    "hoff_clean_scan": "All clear! No threats detected. Hasselhoff is proud of your clean system!",
+    "hoff_cache_hit": "Cache hit {}! You're saving tokens like Hasselhoff saves the beach!",
+    "hoff_efficient": "{} sessions, only {}K tokens — efficiency king!",
+    "hoff_container_up": "{} is up and running! First try!",
+    "hoff_all_healthy": "All {} containers running smooth! Baywatch mode!",
+    "hoff_requires": "Hasselhoff requires claude_nagger module",
+
+    # Security Guardian
+    "hasselhoff_angry": "Hasselhoff is NOT happy!",
+    "understood": "Got it, I'll fix it",
+    "learn_more": "Learn more (free course)",
+    "learn_more_label": "Learn more:",
+    "critical_found": "CRITICAL issue found!",
 }

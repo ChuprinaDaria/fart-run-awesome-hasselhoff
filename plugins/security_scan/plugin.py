@@ -11,10 +11,16 @@ from core.plugin import Plugin, Alert
 from plugins.security_scan.scanners import (
     scan_docker_security,
     scan_env_in_git,
-    scan_file_permissions,
     scan_exposed_ports,
     scan_pip_audit,
     scan_npm_audit,
+    scan_sentinel_processes,
+    scan_sentinel_network,
+    scan_sentinel_filesystem,
+    scan_sentinel_cron,
+    scan_sentinel_secrets,
+    scan_sentinel_autostart,
+    scan_suspicious_packages,
     Finding,
 )
 from plugins.security_scan.widget import SecurityWidget
@@ -77,7 +83,6 @@ class SecurityScanPlugin(Plugin):
             pass
 
         all_findings.extend(scan_env_in_git(self._scan_paths))
-        all_findings.extend(scan_file_permissions(self._scan_paths))
 
         try:
             from plugins.port_map.collector import collect_ports
@@ -85,6 +90,17 @@ class SecurityScanPlugin(Plugin):
             all_findings.extend(scan_exposed_ports(ports))
         except Exception:
             pass
+
+        # Rust sentinel scanners
+        all_findings.extend(scan_sentinel_processes())
+        all_findings.extend(scan_sentinel_network())
+        all_findings.extend(scan_sentinel_filesystem(self._scan_paths))
+        all_findings.extend(scan_sentinel_cron())
+
+        # New security guardian scanners
+        all_findings.extend(scan_sentinel_secrets(self._scan_paths))
+        all_findings.extend(scan_sentinel_autostart())
+        all_findings.extend(scan_suspicious_packages(self._scan_paths))
 
         all_findings.extend(scan_pip_audit(self._scan_paths))
         all_findings.extend(scan_npm_audit(self._scan_paths))

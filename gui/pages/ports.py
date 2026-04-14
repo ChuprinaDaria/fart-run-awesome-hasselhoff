@@ -1,11 +1,13 @@
 """Ports page — listening ports, conflicts, project mapping."""
 
 from PyQt5.QtWidgets import (
-    QWidget, QVBoxLayout, QTableWidget, QTableWidgetItem,
+    QWidget, QVBoxLayout, QTableWidgetItem,
     QHeaderView, QLabel,
 )
+from gui.copyable_table import CopyableTableWidget
 from PyQt5.QtCore import Qt
 from PyQt5.QtGui import QColor
+from claude_nagger.i18n import get_string as _t
 
 
 class PortsPage(QWidget):
@@ -22,14 +24,14 @@ class PortsPage(QWidget):
         self.warning_banner.hide()
         layout.addWidget(self.warning_banner)
 
-        self.table = QTableWidget()
+        self.table = CopyableTableWidget()
         self.table.setColumnCount(6)
         self.table.setHorizontalHeaderLabels(
-            ["PORT", "PROTO", "PROCESS", "PROJECT", "IP", "STATUS"]
+            [_t("port"), _t("proto"), _t("process"), _t("project"), _t("ip"), _t("status")]
         )
         self.table.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
-        self.table.setSelectionBehavior(QTableWidget.SelectRows)
-        self.table.setEditTriggers(QTableWidget.NoEditTriggers)
+        self.table.setSelectionBehavior(CopyableTableWidget.SelectRows)
+        self.table.setEditTriggers(CopyableTableWidget.NoEditTriggers)
         self.table.setAlternatingRowColors(True)
         self.table.setStyleSheet("QTableWidget { alternate-background-color: #e8e8e8; }")
         layout.addWidget(self.table)
@@ -41,8 +43,8 @@ class PortsPage(QWidget):
     def set_psutil_warning(self, limited: bool) -> None:
         if limited:
             self.warning_banner.setText(
-                "Some processes hidden \u2014 limited permissions. "
-                "Run with sudo or add CAP_NET_ADMIN for full port info."
+                _t("psutil_warning")  #
+                
             )
             self.warning_banner.show()
         else:
@@ -87,8 +89,7 @@ class PortsPage(QWidget):
                     item.setForeground(color)
 
         self.summary.setText(
-            f"{len(ports)} ports listening | "
-            f"{conflicts} conflicts | {exposed} exposed"
+            _t("ports_summary").format(len(ports), conflicts, exposed)
         )
 
     def port_count(self) -> int:

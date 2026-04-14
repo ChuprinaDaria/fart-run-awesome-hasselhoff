@@ -1,4 +1,14 @@
-import json
+try:
+    import orjson as _json
+
+    def _loads(s):
+        return _json.loads(s)
+except ImportError:
+    import json as _json
+
+    def _loads(s):
+        return _json.loads(s)
+
 import glob
 import os
 from datetime import datetime, timedelta
@@ -16,8 +26,8 @@ class TokenParser:
         if not os.path.exists(creds_file):
             return result
         try:
-            with open(creds_file) as f:
-                data = json.load(f)
+            with open(creds_file, "rb") as f:
+                data = _loads(f.read())
             oauth = data.get("claudeAiOauth", {})
             sub_type = oauth.get("subscriptionType", "free")
             rate_tier = oauth.get("rateLimitTier", "")
@@ -26,7 +36,7 @@ class TokenParser:
             # Pro/Max/Team subscriptions pay monthly fee, not per-token
             # API keys pay per-token
             result["is_paid_tokens"] = "apiKey" in data
-        except (json.JSONDecodeError, OSError):
+        except (ValueError, OSError):
             pass
         return result
 
@@ -43,14 +53,14 @@ class TokenParser:
         with open(history_file) as f:
             for line in f:
                 try:
-                    entry = json.loads(line.strip())
+                    entry = _loads(line.strip())
                     ts = entry.get("timestamp", 0)
                     if day_start_ms <= ts <= day_end_ms:
                         sid = entry.get("sessionId", "")
                         proj = entry.get("project", "")
                         if sid:
                             sessions[sid] = proj
-                except (json.JSONDecodeError, KeyError):
+                except (ValueError, KeyError):
                     continue
         return sessions
 
@@ -60,7 +70,7 @@ class TokenParser:
             with open(jsonl_path) as f:
                 for line in f:
                     try:
-                        entry = json.loads(line.strip())
+                        entry = _loads(line.strip())
                         if entry.get("type") != "assistant":
                             continue
                         msg = entry.get("message", {})
@@ -77,7 +87,7 @@ class TokenParser:
                         mu.cache_read += usage.get("cache_read_input_tokens", 0)
                         mu.cache_write += usage.get("cache_creation_input_tokens", 0)
                         mu.calls += 1
-                    except (json.JSONDecodeError, KeyError):
+                    except (ValueError, KeyError):
                         continue
         except OSError:
             pass
