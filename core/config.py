@@ -2,22 +2,25 @@
 
 from __future__ import annotations
 
+import os
 import tomllib
 from pathlib import Path
 
 DEFAULTS = {
     "general": {
         "refresh_interval": 5,
-        "sound_enabled": True,
-        "sound_dir": "",
+        "language": "en",
+    },
+    "sounds": {
+        "enabled": True,
+        "quiet_hours_start": "23:00",
+        "quiet_hours_end": "07:00",
     },
     "alerts": {
         "cooldown_seconds": 300,
         "desktop_notifications": True,
-        "sound_enabled": True,
-        "quiet_hours_start": "23:00",
-        "quiet_hours_end": "07:00",
     },
+    "paths": {},
     "plugins": {
         "docker_monitor": {
             "enabled": True,
@@ -48,10 +51,23 @@ def _deep_merge(base: dict, override: dict) -> dict:
     return result
 
 
+def _project_root() -> Path:
+    """Find project root (directory containing pyproject.toml or config.toml)."""
+    current = Path(__file__).resolve().parent
+    for parent in [current, current.parent, current.parent.parent]:
+        if (parent / "pyproject.toml").exists() or (parent / "config.toml").exists():
+            return parent
+    return current.parent
+
+
 def load_config(path: Path | None = None) -> dict:
-    """Load TOML config, falling back to defaults for missing keys."""
+    """Load TOML config. Resolution: explicit path > MONITOR_CONFIG env > project root."""
     if path is None:
-        path = Path(__file__).parent.parent / "config.toml"
+        env_path = os.environ.get("MONITOR_CONFIG")
+        if env_path:
+            path = Path(env_path)
+        else:
+            path = _project_root() / "config.toml"
 
     user_config = {}
     if path.exists():

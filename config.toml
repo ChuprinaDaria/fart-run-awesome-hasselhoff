@@ -1,14 +1,21 @@
 [general]
 refresh_interval = 5
-sound_enabled = true
-sound_dir = ""
+language = "en"
+
+[sounds]
+enabled = true
+quiet_hours_start = "23:00"
+quiet_hours_end = "07:00"
 
 [alerts]
 cooldown_seconds = 300
 desktop_notifications = true
-sound_enabled = true
-quiet_hours_start = "23:00"
-quiet_hours_end = "07:00"
+
+[paths]
+# Auto-detected by default. Override here:
+# claude_dir = "~/.claude"
+# docker_socket = "/var/run/docker.sock"
+# scan_paths = ["~/projects"]
 
 [plugins.docker_monitor]
 enabled = true

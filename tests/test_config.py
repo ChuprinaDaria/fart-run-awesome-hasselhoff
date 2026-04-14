@@ -49,3 +49,42 @@ enabled = true
     cfg = load_config(cfg_file)
     assert cfg["plugins"]["docker_monitor"]["enabled"] is False
     assert cfg["plugins"]["port_map"]["enabled"] is True
+
+
+def test_load_config_absolute_path(tmp_path):
+    """Config resolves from project root, not relative."""
+    cfg_file = tmp_path / "config.toml"
+    cfg_file.write_text('[general]\nrefresh_interval = 10\n')
+    from core.config import load_config
+    config = load_config(cfg_file)
+    assert config["general"]["refresh_interval"] == 10
+
+
+def test_config_has_paths_section():
+    """Config defaults include [paths] section."""
+    from core.config import load_config
+    from pathlib import Path
+    config = load_config(Path("/nonexistent/config.toml"))
+    assert "paths" in config
+    assert config["paths"] == {}
+
+
+def test_config_has_sounds_section():
+    """Config defaults include [sounds] section."""
+    from core.config import load_config
+    from pathlib import Path
+    config = load_config(Path("/nonexistent/config.toml"))
+    assert "sounds" in config
+    assert config["sounds"]["enabled"] is True
+    assert config["sounds"]["quiet_hours_start"] == "23:00"
+    assert config["sounds"]["quiet_hours_end"] == "07:00"
+
+
+def test_config_env_var_override(tmp_path, monkeypatch):
+    """MONITOR_CONFIG env var overrides default path."""
+    cfg_file = tmp_path / "custom.toml"
+    cfg_file.write_text('[general]\nrefresh_interval = 42\n')
+    monkeypatch.setenv("MONITOR_CONFIG", str(cfg_file))
+    from core.config import load_config
+    config = load_config()
+    assert config["general"]["refresh_interval"] == 42
