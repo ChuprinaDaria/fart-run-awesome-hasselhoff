@@ -182,5 +182,27 @@ class TipsEngine:
             message_ua="\U0001f517 MCP Сервери \u2014 підключи Claude до БД, API, браузерів: https://github.com/modelcontextprotocol/servers",
         ))
 
+        # --- AI-powered tip (optional, requires API key) ---
+        try:
+            from core.haiku_client import HaikuClient
+            haiku = HaikuClient()
+            if haiku.is_available():
+                summary = (
+                    f"Cache efficiency: {cache_eff:.0f}%, "
+                    f"Sessions: {len(stats.sessions)}, "
+                    f"Models: {list(stats.model_totals.keys())}, "
+                    f"Total billable: {stats.total_billable}, "
+                    f"Cost: ${cost.total_cost:.2f}"
+                )
+                ai_tip = haiku.get_tip(summary)
+                if ai_tip:
+                    tips.append(Tip(
+                        category="ai", relevance=0.99,
+                        message_en=f"AI: {ai_tip}",
+                        message_ua=f"AI: {ai_tip}",
+                    ))
+        except ImportError:
+            pass
+
         tips.sort(key=lambda t: t.relevance, reverse=True)
         return tips

@@ -207,6 +207,8 @@ class MonitorApp(QMainWindow):
         # Collector thread
         self._collector_thread = None
         self._collecting = False
+        self._history_saved_today = False
+        self._last_security_score = 100
 
         # Initial refresh
         self._refresh_all()
@@ -282,6 +284,27 @@ class MonitorApp(QMainWindow):
 
                 if self._is_alert_enabled("usage"):
                     self._check_usage_alerts(stats, sub)
+
+                # Save to history DB (once per refresh, upserts today's row)
+                try:
+                    from core.history import HistoryDB
+                    from datetime import date
+                    db = HistoryDB()
+                    db.init()
+                    db.save_daily_stats(
+                        date=date.today().isoformat(),
+                        tokens=stats.total_billable,
+                        cost=cost.total_cost,
+                        cache_efficiency=cache_eff,
+                        sessions=len(stats.sessions),
+                        security_score=self._last_security_score,
+                    )
+                    history = db.get_daily_stats(7)
+                    db.close()
+                    self.page_analytics.update_trends(history)
+                except Exception as e:
+                    log.error("History save error: %s", e)
+
             except Exception as e:
                 log.error("Claude stats error: %s", e)
 
@@ -441,6 +464,11 @@ class MonitorApp(QMainWindow):
         self.page_security.update_data(findings)
         self.page_security.set_scanning(False)
         self.page_overview.update_security_score(findings)
+
+        # Track score for history
+        deductions = {"critical": 20, "high": 10, "medium": 3, "low": 1}
+        total_ded = sum(deductions.get(f.get("severity", "low"), 1) for f in findings)
+        self._last_security_score = max(0, 100 - total_ded)
 
         critical_count = self.page_security.critical_count()
         self.sidebar.update_alert("security", critical_count)

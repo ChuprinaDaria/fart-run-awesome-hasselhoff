@@ -1,0 +1,62 @@
+"""SQLite persistence for usage trends and history."""
+
+from __future__ import annotations
+
+import sqlite3
+from pathlib import Path
+
+from core.platform import get_platform
+
+
+class HistoryDB:
+    def __init__(self, db_path: str | None = None):
+        if db_path and db_path != ":memory:":
+            self._path = db_path
+        elif db_path == ":memory:":
+            self._path = ":memory:"
+        else:
+            data_dir = get_platform().data_dir()
+            data_dir.mkdir(parents=True, exist_ok=True)
+            self._path = str(data_dir / "history.db")
+        self._conn: sqlite3.Connection | None = None
+
+    def init(self) -> None:
+        self._conn = sqlite3.connect(self._path)
+        self._conn.execute("""
+            CREATE TABLE IF NOT EXISTS daily_stats (
+                date TEXT PRIMARY KEY,
+                tokens INTEGER,
+                cost REAL,
+                cache_efficiency REAL,
+                sessions INTEGER,
+                security_score INTEGER
+            )
+        """)
+        self._conn.commit()
+
+    def save_daily_stats(self, date: str, tokens: int, cost: float,
+                         cache_efficiency: float, sessions: int,
+                         security_score: int) -> None:
+        self._conn.execute("""
+            INSERT OR REPLACE INTO daily_stats
+            (date, tokens, cost, cache_efficiency, sessions, security_score)
+            VALUES (?, ?, ?, ?, ?, ?)
+        """, (date, tokens, cost, cache_efficiency, sessions, security_score))
+        self._conn.commit()
+
+    def get_daily_stats(self, days: int = 30) -> list[dict]:
+        cursor = self._conn.execute("""
+            SELECT date, tokens, cost, cache_efficiency, sessions, security_score
+            FROM daily_stats
+            ORDER BY date DESC
+            LIMIT ?
+        """, (days,))
+        return [
+            {"date": r[0], "tokens": r[1], "cost": r[2],
+             "cache_efficiency": r[3], "sessions": r[4], "security_score": r[5]}
+            for r in cursor.fetchall()
+        ]
+
+    def close(self) -> None:
+        if self._conn:
+            self._conn.close()
