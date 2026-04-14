@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import sys
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -54,18 +55,22 @@ def _find_docker(config_socket: str | None = None) -> tuple[bool, str | None, ob
     try:
         kwargs = {}
         if config_socket:
-            kwargs["base_url"] = f"unix://{config_socket}"
+            kwargs["base_url"] = config_socket
+        elif sys.platform == "win32":
+            kwargs["base_url"] = "npipe:////./pipe/docker_engine"
         client = docker.from_env(**kwargs)
         client.ping()
         return True, None, client
     except PermissionError:
+        if sys.platform == "win32":
+            return False, "Permission denied. Run as Administrator or add user to docker-users group", None
         return False, "Permission denied. Fix: sudo usermod -aG docker $USER && newgrp docker", None
     except Exception as e:
         err = str(e)
         if "FileNotFoundError" in err or "No such file" in err:
             return False, "Docker socket not found. Is Docker running?", None
         if "Connection refused" in err:
-            return False, "Docker daemon not responding. Start: sudo systemctl start docker", None
+            return False, "Docker daemon not responding. Start Docker Desktop or docker service", None
         return False, f"Docker error: {err}", None
 
 
