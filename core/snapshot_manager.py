@@ -91,6 +91,7 @@ def create_snapshot(
     db: HistoryDB,
     docker_data: list[dict] | None = None,
     port_data: list[dict] | None = None,
+    haiku_label: str = "",
 ) -> EnvironmentSnapshot:
     branch, last_commit, tracked_count, dirty_files = _collect_git_state(project_dir)
     checksums = _collect_config_checksums(project_dir)
@@ -106,6 +107,7 @@ def create_snapshot(
         containers=docker_data or [],
         listening_ports=port_data or [],
         config_checksums=checksums,
+        haiku_label=haiku_label,
     )
 
     db._ensure_conn()
@@ -113,8 +115,9 @@ def create_snapshot(
         """
         INSERT INTO snapshots
         (timestamp, label, project_dir, git_branch, git_last_commit,
-         git_tracked_count, git_dirty_files, containers, listening_ports, config_checksums)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+         git_tracked_count, git_dirty_files, containers, listening_ports, config_checksums,
+         haiku_label)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """,
         (
             snapshot.timestamp,
@@ -127,6 +130,7 @@ def create_snapshot(
             json.dumps(snapshot.containers),
             json.dumps(snapshot.listening_ports),
             json.dumps(snapshot.config_checksums),
+            snapshot.haiku_label,
         ),
     )
     db._conn.commit()
@@ -141,7 +145,8 @@ def load_snapshots(db: HistoryDB, project_dir: str, limit: int = 50) -> list[Env
     cursor = db._conn.execute(
         """
         SELECT id, timestamp, label, project_dir, git_branch, git_last_commit,
-               git_tracked_count, git_dirty_files, containers, listening_ports, config_checksums
+               git_tracked_count, git_dirty_files, containers, listening_ports, config_checksums,
+               COALESCE(haiku_label, '') as haiku_label
         FROM snapshots
         WHERE project_dir = ?
         ORDER BY id DESC
@@ -155,6 +160,7 @@ def load_snapshots(db: HistoryDB, project_dir: str, limit: int = 50) -> list[Env
             git_branch=row[4], git_last_commit=row[5], git_tracked_count=row[6],
             git_dirty_files=json.loads(row[7]), containers=json.loads(row[8]),
             listening_ports=json.loads(row[9]), config_checksums=json.loads(row[10]),
+            haiku_label=row[11],
         )
         for row in cursor.fetchall()
     ]

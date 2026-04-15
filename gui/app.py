@@ -167,6 +167,7 @@ class MonitorApp(QMainWindow):
         self.page_activity = ActivityPage()
         self.page_activity.set_config(config)
         self.page_snapshots = SnapshotsPage()
+        self.page_snapshots.set_config(config)
         self.page_health = HealthPage()
         self.page_health.set_config(config)
         self.page_settings = SettingsPage(config)

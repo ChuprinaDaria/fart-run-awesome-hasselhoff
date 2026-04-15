@@ -122,6 +122,7 @@ class EnvironmentSnapshot:
     containers: list[dict] = field(default_factory=list)
     listening_ports: list[dict] = field(default_factory=list)
     config_checksums: dict[str, str] = field(default_factory=dict)
+    haiku_label: str = ""
 
 
 @dataclass

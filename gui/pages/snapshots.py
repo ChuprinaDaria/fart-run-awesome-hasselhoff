@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 from pathlib import Path
 
 from PyQt5.QtWidgets import (
@@ -9,15 +10,55 @@ from PyQt5.QtWidgets import (
     QGroupBox, QScrollArea, QFileDialog, QCheckBox,
     QInputDialog, QFrame, QMessageBox,
 )
-from PyQt5.QtCore import pyqtSignal, Qt
+from PyQt5.QtCore import pyqtSignal, Qt, QThread
 from PyQt5.QtGui import QFont
 
-from i18n import get_string as _t
+from i18n import get_string as _t, get_language
 from core.models import EnvironmentSnapshot, SnapshotDiff
 from core.history import HistoryDB
 from core.snapshot_manager import (
     create_snapshot, load_snapshots, delete_snapshot, compare_snapshots,
 )
+from gui.copyable_widgets import make_copy_all_button
+
+log = logging.getLogger(__name__)
+
+
+class HaikuSnapshotThread(QThread):
+    """Ask Haiku to explain what changed between two snapshots."""
+    result_ready = pyqtSignal(str)
+
+    def __init__(self, diff_text: str, config: dict, parent=None):
+        super().__init__(parent)
+        self._diff_text = diff_text
+        self._config = config
+
+    def run(self):
+        try:
+            api_key = self._config.get("haiku", {}).get("api_key", "")
+            if not api_key:
+                self.result_ready.emit("")
+                return
+            from core.haiku_client import HaikuClient
+            client = HaikuClient(api_key)
+            lang = get_language()
+            if lang == "ua":
+                prompt = (
+                    "Ти — помічник для vibe-кодерів. Поясни що змінилось у середовищі "
+                    "між двома знімками. Говори простою мовою, одним-двома реченнями, "
+                    "без технічного жаргону. Ось різниця:\n\n" + self._diff_text
+                )
+            else:
+                prompt = (
+                    "You're an assistant for vibe coders. Explain in plain English what "
+                    "changed in the environment between two snapshots. Keep it to 1-2 sentences, "
+                    "no tech jargon. Here's the diff:\n\n" + self._diff_text
+                )
+            explanation = client.explain(prompt)
+            self.result_ready.emit(explanation or "")
+        except Exception as e:
+            log.debug("HaikuSnapshotThread error: %s", e)
+            self.result_ready.emit("")
 
 
 class SnapshotsPage(QWidget):
@@ -31,7 +72,13 @@ class SnapshotsPage(QWidget):
         self._db: HistoryDB | None = None
         self._snapshots: list[EnvironmentSnapshot] = []
         self._checkboxes: list[tuple[QCheckBox, int]] = []
+        self._config: dict = {}
+        self._haiku_thread: HaikuSnapshotThread | None = None
+        self._compare_group: QGroupBox | None = None
         self._build_ui()
+
+    def set_config(self, config: dict) -> None:
+        self._config = config
 
     def _get_db(self) -> HistoryDB:
         if self._db is None:
@@ -79,7 +126,21 @@ class SnapshotsPage(QWidget):
         self._btn_compare.setEnabled(False)
         actions.addWidget(self._btn_compare)
         actions.addStretch()
+
+        # Copy all button
+        copy_btn = make_copy_all_button(self._get_all_text)
+        actions.addWidget(copy_btn)
+
         layout.addLayout(actions)
+
+        # Hint label — "game saves" explanation for vibe coders
+        hint = QLabel(_t("snap_hint"))
+        hint.setWordWrap(True)
+        hint.setStyleSheet(
+            "color: #666; font-style: italic; font-size: 11px; "
+            "padding: 4px 8px; background: #f8f8ff; border: 1px solid #d0d0d0;"
+        )
+        layout.addWidget(hint)
 
         # Scroll area
         scroll = QScrollArea()
@@ -94,6 +155,19 @@ class SnapshotsPage(QWidget):
         layout.addWidget(scroll)
         self._show_placeholder(_t("snap_select_dir"))
 
+    def _get_all_text(self) -> str:
+        """Collect all visible text from content area for clipboard."""
+        texts = []
+        for i in range(self._content_layout.count()):
+            item = self._content_layout.itemAt(i)
+            if item and item.widget():
+                w = item.widget()
+                for lbl in w.findChildren(QLabel):
+                    text = lbl.text().strip()
+                    if text:
+                        texts.append(text)
+        return "\n".join(texts)
+
     def _show_placeholder(self, text: str) -> None:
         self._clear_content()
         lbl = QLabel(text)
@@ -107,6 +181,7 @@ class SnapshotsPage(QWidget):
             if child.widget():
                 child.widget().deleteLater()
         self._checkboxes.clear()
+        self._compare_group = None
 
     def _on_select_dir(self) -> None:
         dir_path = QFileDialog.getExistingDirectory(
@@ -201,9 +276,17 @@ class SnapshotsPage(QWidget):
         time_lbl.setFixedWidth(130)
         layout.addWidget(time_lbl)
 
-        label_lbl = QLabel(f'"{snap.label}"')
+        # Show haiku_label if available, fallback to user label
+        if snap.haiku_label:
+            label_text = snap.haiku_label
+            label_style = "color: #5500aa; font-style: italic;"
+        else:
+            label_text = f'"{snap.label}"'
+            label_style = "color: #333; font-style: italic;"
+
+        label_lbl = QLabel(label_text)
         label_lbl.setTextFormat(Qt.PlainText)
-        label_lbl.setStyleSheet("color: #333; font-style: italic;")
+        label_lbl.setStyleSheet(label_style)
         layout.addWidget(label_lbl)
 
         layout.addStretch()
@@ -245,9 +328,16 @@ class SnapshotsPage(QWidget):
             return
 
         diff = compare_snapshots(old_snap, new_snap)
-        self._render_compare(old_id, new_id, diff)
+        self._render_compare(old_id, new_id, diff, old_snap, new_snap)
 
-    def _render_compare(self, old_id: int, new_id: int, diff: SnapshotDiff) -> None:
+    def _render_compare(
+        self,
+        old_id: int,
+        new_id: int,
+        diff: SnapshotDiff,
+        old_snap: EnvironmentSnapshot | None = None,
+        new_snap: EnvironmentSnapshot | None = None,
+    ) -> None:
         # Remove previous compare results
         for i in range(self._content_layout.count() - 1, -1, -1):
             item = self._content_layout.itemAt(i)
@@ -263,11 +353,21 @@ class SnapshotsPage(QWidget):
             "QGroupBox::title { subcontrol-origin: margin; left: 10px; padding: 0 4px; }"
         )
         gl = QVBoxLayout(group)
+        self._compare_group = group
 
         if diff.total_changes == 0:
             gl.addWidget(QLabel(f"  {_t('snap_no_changes')}"))
             self._content_layout.insertWidget(self._content_layout.count() - 1, group)
             return
+
+        # Haiku loading placeholder — will be replaced by thread result
+        self._haiku_compare_label = QLabel(_t("snap_haiku_loading"))
+        self._haiku_compare_label.setStyleSheet(
+            "color: #5500aa; font-style: italic; font-size: 11px; "
+            "padding: 4px 8px; background: #f8f8ff; border: 1px solid #d0d0d0;"
+        )
+        self._haiku_compare_label.setWordWrap(True)
+        gl.addWidget(self._haiku_compare_label)
 
         # Git
         if diff.branch_changed or diff.dirty_added or diff.dirty_removed:
@@ -314,6 +414,58 @@ class SnapshotsPage(QWidget):
         gl.addWidget(summary)
 
         self._content_layout.insertWidget(self._content_layout.count() - 1, group)
+
+        # Trigger Haiku explanation in background
+        diff_text = self._build_diff_text(diff, old_snap, new_snap)
+        if diff_text and self._config.get("haiku", {}).get("api_key", ""):
+            self._haiku_thread = HaikuSnapshotThread(diff_text, self._config, self)
+            self._haiku_thread.result_ready.connect(self._on_haiku_compare_ready)
+            self._haiku_thread.start()
+        else:
+            self._haiku_compare_label.hide()
+
+    def _build_diff_text(
+        self,
+        diff: SnapshotDiff,
+        old_snap: EnvironmentSnapshot | None,
+        new_snap: EnvironmentSnapshot | None,
+    ) -> str:
+        lines = []
+        if old_snap and new_snap:
+            lines.append(f"Before: {old_snap.label} ({old_snap.timestamp[:16]})")
+            lines.append(f"After:  {new_snap.label} ({new_snap.timestamp[:16]})")
+            lines.append("")
+        if diff.branch_changed:
+            lines.append(f"Branch changed: {diff.old_branch} -> {diff.new_branch}")
+        for f in diff.dirty_added:
+            lines.append(f"File became dirty: {f}")
+        for f in diff.dirty_removed:
+            lines.append(f"File cleaned up: {f}")
+        for c in diff.containers_added:
+            lines.append(f"Container added: {c}")
+        for c in diff.containers_removed:
+            lines.append(f"Container removed: {c}")
+        for name, old_s, new_s in diff.containers_status_changed:
+            lines.append(f"Container {name}: {old_s} -> {new_s}")
+        for p in diff.ports_opened:
+            lines.append(f"Port opened: {p}")
+        for p in diff.ports_closed:
+            lines.append(f"Port closed: {p}")
+        for c in diff.configs_changed:
+            lines.append(f"Config changed: {c}")
+        for c in diff.configs_added:
+            lines.append(f"Config added: {c}")
+        for c in diff.configs_removed:
+            lines.append(f"Config removed: {c}")
+        return "\n".join(lines)
+
+    def _on_haiku_compare_ready(self, text: str) -> None:
+        if not text:
+            if hasattr(self, "_haiku_compare_label"):
+                self._haiku_compare_label.hide()
+            return
+        if hasattr(self, "_haiku_compare_label"):
+            self._haiku_compare_label.setText(f"\U0001f916 {text}")
 
     def _on_delete(self, snapshot_id: int) -> None:
         reply = QMessageBox.question(

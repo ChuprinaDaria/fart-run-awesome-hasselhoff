@@ -303,6 +303,8 @@ STRINGS = {
     "snap_total_changes": "Всього: {} змін",
     "snap_auto_label": "Авто",
     "snap_start_label": "Старт додатку",
+    "snap_hint": "Знімки = збереження в грі. Зроби знімок перед тим як AI почне щось міняти. Потім порівняй що було і що стало.",
+    "snap_haiku_loading": "AI розбирається що змінилось...",
 
     # Hasselhoff — Snapshots
     "hoff_snap_header": "Полароїд Хоффа",

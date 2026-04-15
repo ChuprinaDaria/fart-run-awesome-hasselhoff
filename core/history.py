@@ -69,6 +69,12 @@ class HistoryDB:
         """)
         self._conn.commit()
 
+        try:
+            self._conn.execute("SELECT haiku_label FROM snapshots LIMIT 1")
+        except sqlite3.OperationalError:
+            self._conn.execute("ALTER TABLE snapshots ADD COLUMN haiku_label TEXT DEFAULT ''")
+            self._conn.commit()
+
     def get_state(self, key: str) -> str | None:
         self._ensure_conn()
         cursor = self._conn.execute(
