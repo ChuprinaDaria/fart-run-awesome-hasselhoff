@@ -295,4 +295,10 @@ STRINGS = {
     # Hasselhoff — Snapshots
     "hoff_snap_header": "Hoff's Polaroid",
     "hoff_snap_no_changes": "Same beach, same Hoff. Nothing changed.",
+
+    # Tech Debt
+    "health_section_missing_types": "Missing Type Hints",
+    "health_section_error_gaps": "Error Handling Gaps",
+    "health_section_hardcoded": "Hardcoded Values",
+    "health_section_todos": "TODOs / FIXMEs",
 }

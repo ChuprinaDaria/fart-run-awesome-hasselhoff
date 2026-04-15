@@ -144,6 +144,10 @@ class HealthPage(QWidget):
             "dead.unused_definitions": (_t("health_section_unused_defs"), []),
             "dead.orphan_files": (_t("health_section_orphans"), []),
             "dead.commented_code": (_t("health_section_commented"), []),
+            "debt.no_types": (_t("health_section_missing_types"), []),
+            "debt.error_handling": (_t("health_section_error_gaps"), []),
+            "debt.hardcoded": (_t("health_section_hardcoded"), []),
+            "debt.todos": (_t("health_section_todos"), []),
             "system": ("System", []),
         }
 
@@ -247,7 +251,10 @@ class HealthPage(QWidget):
             self._content_layout.addWidget(group)
 
         # Dead Code sections
-        for dead_key in ["dead.unused_imports", "dead.unused_definitions", "dead.orphan_files", "dead.commented_code"]:
+        for dead_key in [
+            "dead.unused_imports", "dead.unused_definitions", "dead.orphan_files", "dead.commented_code",
+            "debt.no_types", "debt.error_handling", "debt.hardcoded", "debt.todos",
+        ]:
             dead_findings = sections.get(dead_key, ("", []))[1]
             if dead_findings:
                 section_title = sections[dead_key][0]

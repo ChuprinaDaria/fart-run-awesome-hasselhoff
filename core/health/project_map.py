@@ -211,6 +211,13 @@ def run_all_checks(project_dir: str) -> HealthReport:
         except Exception as e:
             log.error("dead_code scan error: %s", e)
 
+        # Phase 3: Tech Debt
+        try:
+            from core.health.tech_debt import run_tech_debt_checks
+            run_tech_debt_checks(report, health_rs, project_dir)
+        except Exception as e:
+            log.error("tech_debt scan error: %s", e)
+
     # Check 1.5 — Config Inventory (always Python)
     try:
         config_result = scan_config_inventory(project_dir)

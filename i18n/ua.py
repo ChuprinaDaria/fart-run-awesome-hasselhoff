@@ -295,4 +295,10 @@ STRINGS = {
     # Hasselhoff — Snapshots
     "hoff_snap_header": "Полароїд Хоффа",
     "hoff_snap_no_changes": "Той самий пляж, той самий Хофф. Нічого не змінилось.",
+
+    # Tech Debt
+    "health_section_missing_types": "Відсутні типи",
+    "health_section_error_gaps": "Проблеми обробки помилок",
+    "health_section_hardcoded": "Захардкоджені значення",
+    "health_section_todos": "TODO / FIXME",
 }
