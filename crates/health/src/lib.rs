@@ -1,6 +1,7 @@
 //! health — project health scanner for vibe coders.
 
 mod common;
+mod dead_code;
 mod entry_points;
 mod file_tree;
 mod module_map;
@@ -24,6 +25,12 @@ fn health(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<module_map::ModuleInfo>()?;
     m.add_class::<module_map::ModuleMapResult>()?;
     m.add_function(wrap_pyfunction!(module_map::scan_module_map, m)?)?;
+
+    m.add_class::<dead_code::UnusedImport>()?;
+    m.add_class::<dead_code::UnusedDefinition>()?;
+    m.add_class::<dead_code::CommentedBlock>()?;
+    m.add_class::<dead_code::DeadCodeResult>()?;
+    m.add_function(wrap_pyfunction!(dead_code::scan_dead_code, m)?)?;
 
     Ok(())
 }

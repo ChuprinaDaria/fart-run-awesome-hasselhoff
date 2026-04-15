@@ -168,6 +168,7 @@ dependencies = [
  "ignore",
  "pyo3",
  "rayon",
+ "regex",
  "tempfile",
  "tree-sitter",
  "tree-sitter-javascript",
