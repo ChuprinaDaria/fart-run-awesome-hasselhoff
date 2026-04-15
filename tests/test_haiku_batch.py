@@ -1,9 +1,5 @@
 """Tests for HaikuClient batch_explain and config support."""
 
-import time
-
-import pytest
-
 from core.haiku_client import HaikuClient
 
 
@@ -14,11 +10,19 @@ def test_batch_explain_no_key_returns_empty():
     assert result == {}
 
 
-def test_batch_explain_returns_dict():
+def test_batch_explain_empty_items_returns_empty():
     """Empty items list returns empty dict."""
     client = HaikuClient(api_key="sk-ant-test")
     result = client.batch_explain([], context="test", language="en")
     assert result == {}
+
+
+def test_batch_explain_parses_response(monkeypatch):
+    client = HaikuClient(api_key="sk-ant-test")
+    client._min_interval = 0
+    monkeypatch.setattr(client, "ask", lambda prompt, **kw: "1. first explanation\n2. second explanation\n")
+    result = client.batch_explain(["foo", "bar"], context="ctx", language="en")
+    assert result == {"foo": "first explanation", "bar": "second explanation"}
 
 
 def test_config_fallback():

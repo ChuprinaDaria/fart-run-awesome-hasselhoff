@@ -9,6 +9,7 @@ from __future__ import annotations
 import hashlib
 import logging
 import os
+import re
 import time
 
 log = logging.getLogger(__name__)
@@ -96,17 +97,20 @@ class HaikuClient:
         if not response:
             return {}
 
+        # Build index map: 1-based number → item
+        index_map = {i + 1: item for i, item in enumerate(items)}
+
         result: dict[str, str] = {}
         for line in response.splitlines():
             line = line.strip()
             if not line:
                 continue
-            for i, item in enumerate(items):
-                prefix = f"{i + 1}."
-                if line.startswith(prefix):
-                    explanation = line[len(prefix):].strip()
-                    result[item] = explanation
-                    break
+            m = re.match(r"^(\d+)\.\s*(.+)", line)
+            if m:
+                num = int(m.group(1))
+                explanation = m.group(2).strip()
+                if num in index_map:
+                    result[index_map[num]] = explanation
 
         return result
 
@@ -114,6 +118,8 @@ class HaikuClient:
         """General purpose human-language summary of the given text."""
         if not text or not self.is_available():
             return None
+
+        text = text[:5000]
 
         prompt = (
             f"Summarize the following in plain human language ({language}). "
