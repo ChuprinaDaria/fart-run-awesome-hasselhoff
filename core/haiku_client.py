@@ -16,7 +16,7 @@ log = logging.getLogger(__name__)
 
 
 class HaikuClient:
-    def __init__(self, api_key: str | None = None, config: dict | None = None):
+    def __init__(self, api_key: str | None = None, config: dict | None = None, on_api_error=None):
         # Resolution: explicit param → env var → config dict → None
         resolved = api_key or os.environ.get("ANTHROPIC_API_KEY")
         if not resolved and config:
@@ -27,6 +27,7 @@ class HaikuClient:
         self._last_call: float = 0
         self._min_interval: int = 5
         self._client = None
+        self._on_api_error = on_api_error
 
     def is_available(self) -> bool:
         return self._api_key is not None
@@ -70,6 +71,8 @@ class HaikuClient:
             return result
         except Exception as e:
             log.error("Haiku API error: %s", e)
+            if self._on_api_error:
+                self._on_api_error(str(e))
             return None
 
     def batch_explain(
