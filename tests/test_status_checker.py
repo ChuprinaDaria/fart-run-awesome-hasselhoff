@@ -261,3 +261,75 @@ class TestStatusTransitions:
         # Should be: none → minor → major → none (4 transitions)
         assert indicators == ["none", "minor", "major", "none"]
         db.close()
+
+
+class TestIntegration:
+    def test_full_cycle(self):
+        """Full cycle: check OK → check Degraded → verify get_last_status returns latest → verify get_status_history returns 2 transitions."""
+        db = HistoryDB(":memory:")
+        db.init()
+        checker = StatusChecker(db)
+
+        # First check: OK
+        body_ok = _make_status_json("none", "All Systems Operational")
+        with patch("core.status_checker.urlopen", return_value=_mock_urlopen(body_ok)):
+            with patch("core.status_checker.get_claude_version", return_value="1.0.20"):
+                result_ok = checker.check_now()
+
+        assert result_ok.api_indicator == "none"
+
+        # Reset throttle so version check runs again
+        checker._last_version_check = 0
+
+        # Second check: Degraded
+        body_degraded = _make_status_json("minor", "Degraded Performance")
+        with patch("core.status_checker.urlopen", return_value=_mock_urlopen(body_degraded)):
+            with patch("core.status_checker.get_claude_version", return_value="1.0.20"):
+                result_degraded = checker.check_now()
+
+        assert result_degraded.api_indicator == "minor"
+
+        # get_last_status should return the latest (degraded)
+        last = checker.get_last_status()
+        assert last is not None
+        assert last.api_indicator == "minor"
+        assert last.api_description == "Degraded Performance"
+
+        # get_status_history should return 2 transitions: none → minor
+        transitions = checker.get_status_history(hours=24)
+        indicators = [t.api_indicator for t in transitions]
+        assert len(indicators) == 2
+        assert indicators[0] == "none"
+        assert indicators[1] == "minor"
+
+        db.close()
+
+    def test_haiku_error_callback_pattern(self):
+        """Simulate on_api_error → check_now flow: callback calls check_now, verify result is saved."""
+        db = HistoryDB(":memory:")
+        db.init()
+        checker = StatusChecker(db)
+
+        captured = {}
+
+        def on_api_error_callback():
+            """Simulates what the GUI does when haiku returns an error: trigger an immediate status check."""
+            body = _make_status_json("minor", "Degraded Performance")
+            with patch("core.status_checker.urlopen", return_value=_mock_urlopen(body)):
+                with patch("core.status_checker.get_claude_version", return_value="1.0.20"):
+                    result = checker.check_now()
+            captured["result"] = result
+
+        # Trigger the callback (simulates on_api_error firing)
+        on_api_error_callback()
+
+        assert "result" in captured
+        assert captured["result"].api_indicator == "minor"
+
+        # Verify the result was actually saved to DB
+        last = checker.get_last_status()
+        assert last is not None
+        assert last.api_indicator == "minor"
+        assert last.api_description == "Degraded Performance"
+
+        db.close()
