@@ -105,22 +105,26 @@ class StatusChecker:
             response_time_ms=response_time_ms,
         )
 
-        # Save to DB
-        self._db._conn.execute(
-            "INSERT INTO api_status_log "
-            "(timestamp, api_indicator, api_description, claude_version, response_time_ms) "
-            "VALUES (?, ?, ?, ?, ?)",
-            (result.timestamp, result.api_indicator, result.api_description,
-             result.claude_version, result.response_time_ms),
-        )
-        self._db._conn.commit()
+        # Save to DB (non-fatal — statusbar updates even if DB fails)
+        try:
+            self._db._ensure_conn()
+            self._db._conn.execute(
+                "INSERT INTO api_status_log "
+                "(timestamp, api_indicator, api_description, claude_version, response_time_ms) "
+                "VALUES (?, ?, ?, ?, ?)",
+                (result.timestamp, result.api_indicator, result.api_description,
+                 result.claude_version, result.response_time_ms),
+            )
+            self._db._conn.commit()
 
-        # Prune records older than 7 days
-        cutoff = (datetime.now() - timedelta(days=7)).isoformat(timespec="seconds")
-        self._db._conn.execute(
-            "DELETE FROM api_status_log WHERE timestamp < ?", (cutoff,)
-        )
-        self._db._conn.commit()
+            # Prune records older than 7 days
+            cutoff = (datetime.now() - timedelta(days=7)).isoformat(timespec="seconds")
+            self._db._conn.execute(
+                "DELETE FROM api_status_log WHERE timestamp < ?", (cutoff,)
+            )
+            self._db._conn.commit()
+        except Exception as e:
+            log.warning("Status DB write failed: %s", e)
 
         return result
 

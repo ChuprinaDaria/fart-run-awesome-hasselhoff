@@ -27,6 +27,9 @@ HOFF_DOWN = [
     "Even the Hoff can't fix this one. Wait.",
     "Don't hassle the API. It's down.",
 ]
+HOFF_VERSION = [
+    "The Hoff upgraded. New powers unlocked.",
+]
 
 
 class ClaudeStatusBar(QStatusBar):
@@ -34,6 +37,7 @@ class ClaudeStatusBar(QStatusBar):
 
     def __init__(self, parent=None):
         super().__init__(parent)
+        self._prev_version: str | None = None
         self._version_label = QLabel("Claude: --")
         self._status_label = QLabel(_t("status_unknown"))
         self._time_label = QLabel("")
@@ -72,11 +76,15 @@ class ClaudeStatusBar(QStatusBar):
         except (ValueError, TypeError):
             self._time_label.setText("")
 
-        if random.random() < 0.10:
+        # Hasselhoff: version change or random 10%
+        if version and self._prev_version and version != self._prev_version:
+            self.showMessage(random.choice(HOFF_VERSION), 5000)
+        elif random.random() < 0.10:
             if indicator == "none":
                 self.showMessage(random.choice(HOFF_OK), 5000)
             elif indicator in ("major", "critical"):
                 self.showMessage(random.choice(HOFF_DOWN), 5000)
+        self._prev_version = version
 
     def mousePressEvent(self, event: QMouseEvent) -> None:
         if event.button() == Qt.LeftButton:
