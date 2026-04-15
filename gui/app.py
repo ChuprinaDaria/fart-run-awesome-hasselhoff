@@ -36,6 +36,7 @@ from gui.pages.hasselhoff_wizard import HasselhoffWizardPage
 from gui.pages.discover import DiscoverTab
 from gui.pages.activity import ActivityPage
 from gui.pages.health_page import HealthPage
+from gui.pages.snapshots import SnapshotsPage
 
 log = logging.getLogger(__name__)
 
@@ -132,6 +133,7 @@ class MonitorApp(QMainWindow):
         sidebar_items = [
             SidebarItem(_t("side_overview"), "overview"),
             SidebarItem(_t("side_activity"), "activity"),
+            SidebarItem(_t("side_snapshots"), "snapshots"),
             SidebarItem(_t("side_health"), "health"),
             SidebarItem(_t("side_security"), "security"),
             SidebarItem(_t("side_usage"), "usage"),
@@ -160,12 +162,14 @@ class MonitorApp(QMainWindow):
         self.page_tips = TipsPage()
         self.page_discover = DiscoverTab()
         self.page_activity = ActivityPage()
+        self.page_snapshots = SnapshotsPage()
         self.page_health = HealthPage()
         self.page_settings = SettingsPage(config)
 
         for key, page in [
             ("overview", self.page_overview),
             ("activity", self.page_activity),
+            ("snapshots", self.page_snapshots),
             ("health", self.page_health),
             ("security", self.page_security),
             ("usage", self.page_usage),
@@ -211,6 +215,14 @@ class MonitorApp(QMainWindow):
         self._security_timer = QTimer(self)
         self._security_timer.timeout.connect(self._run_security_scan)
         self._security_timer.start(scan_interval)
+
+        # Snapshot auto timer
+        snap_config = config.get("snapshots", {})
+        if snap_config.get("enabled", True):
+            snap_interval = snap_config.get("auto_interval_minutes", 30) * 60 * 1000
+            self._snapshot_timer = QTimer(self)
+            self._snapshot_timer.timeout.connect(self._auto_snapshot)
+            self._snapshot_timer.start(snap_interval)
 
         # Collector thread
         self._collector_thread = None
@@ -342,6 +354,15 @@ class MonitorApp(QMainWindow):
             docker_data=infos,
             port_data=ports,
         )
+
+        # Auto-snapshot on first data collection (app start)
+        if not hasattr(self, "_start_snapshot_taken"):
+            self._start_snapshot_taken = True
+            self.page_snapshots.take_auto_snapshot(
+                label=_t("snap_start_label"),
+                docker_data=infos,
+                port_data=ports,
+            )
 
         self.statusBar().showMessage(_t("ready"))
 
@@ -520,6 +541,14 @@ class MonitorApp(QMainWindow):
 
     def _do_hoff(self):
         self._trigger_hasselhoff("Manual Hasselhoff!")
+
+    def _auto_snapshot(self):
+        """Take auto-snapshot if snapshots page has a project dir."""
+        from datetime import datetime
+        time_str = datetime.now().strftime("%H:%M")
+        self.page_snapshots.take_auto_snapshot(
+            label=f"{_t('snap_auto_label')} ({time_str})",
+        )
 
     def _show_about(self):
         QMessageBox.about(

@@ -269,4 +269,30 @@ STRINGS = {
     "health_section_orphans": "Файли-сироти",
     "health_section_commented": "Закоментований код",
     "health_dead_code_header": "Мертвий код",
+
+    # Snapshots
+    "side_snapshots": "Знімки",
+    "snap_header": "Знімки середовища",
+    "snap_no_dir": "Директорію проєкту не обрано",
+    "snap_select_dir": "Оберіть директорію проєкту",
+    "snap_btn_select": "Обрати директорію...",
+    "snap_btn_take": "Зробити знімок",
+    "snap_btn_compare": "Порівняти обрані",
+    "snap_btn_delete": "Видалити",
+    "snap_label_prompt": "Мітка знімка (необов'язково):",
+    "snap_no_snapshots": "Знімків ще немає. Натисніть 'Зробити знімок' для збереження стану.",
+    "snap_compare_title": "Порівняння #{} \u2192 #{}",
+    "snap_git_section": "Git",
+    "snap_docker_section": "Docker",
+    "snap_ports_section": "Порти",
+    "snap_configs_section": "Конфігурація",
+    "snap_branch_changed": "Гілка: {} \u2192 {}",
+    "snap_no_changes": "Між цими знімками нічого не змінилось",
+    "snap_total_changes": "Всього: {} змін",
+    "snap_auto_label": "Авто",
+    "snap_start_label": "Старт додатку",
+
+    # Hasselhoff — Snapshots
+    "hoff_snap_header": "Полароїд Хоффа",
+    "hoff_snap_no_changes": "Той самий пляж, той самий Хофф. Нічого не змінилось.",
 }

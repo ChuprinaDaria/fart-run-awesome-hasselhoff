@@ -269,4 +269,30 @@ STRINGS = {
     "health_section_orphans": "Orphan Files",
     "health_section_commented": "Commented-Out Code",
     "health_dead_code_header": "Dead Code",
+
+    # Snapshots
+    "side_snapshots": "Snapshots",
+    "snap_header": "Snapshots",
+    "snap_no_dir": "No project directory selected",
+    "snap_select_dir": "Select project directory",
+    "snap_btn_select": "Select Directory...",
+    "snap_btn_take": "Take Snapshot",
+    "snap_btn_compare": "Compare Selected",
+    "snap_btn_delete": "Delete",
+    "snap_label_prompt": "Snapshot label (optional):",
+    "snap_no_snapshots": "No snapshots yet. Click 'Take Snapshot' to save current state.",
+    "snap_compare_title": "Compare #{} \u2192 #{}",
+    "snap_git_section": "Git",
+    "snap_docker_section": "Docker",
+    "snap_ports_section": "Ports",
+    "snap_configs_section": "Configs",
+    "snap_branch_changed": "Branch: {} \u2192 {}",
+    "snap_no_changes": "No changes between these snapshots",
+    "snap_total_changes": "Total: {} changes",
+    "snap_auto_label": "Auto",
+    "snap_start_label": "App start",
+
+    # Hasselhoff — Snapshots
+    "hoff_snap_header": "Hoff's Polaroid",
+    "hoff_snap_no_changes": "Same beach, same Hoff. Nothing changed.",
 }

@@ -38,6 +38,11 @@ DEFAULTS = {
             "scan_paths": ["~"],
         },
     },
+    "snapshots": {
+        "enabled": True,
+        "auto_interval_minutes": 30,
+        "max_snapshots": 50,
+    },
 }
 
 
