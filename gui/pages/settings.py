@@ -1,8 +1,8 @@
 """Settings page — language, sound, notifications."""
 
 from PyQt5.QtWidgets import (
-    QWidget, QVBoxLayout, QGroupBox, QFormLayout,
-    QComboBox, QCheckBox, QLabel, QPushButton, QSpinBox,
+    QWidget, QVBoxLayout, QHBoxLayout, QGroupBox, QFormLayout,
+    QComboBox, QCheckBox, QLabel, QPushButton, QSpinBox, QLineEdit,
 )
 from PyQt5.QtCore import pyqtSignal
 from i18n import get_string as _t
@@ -15,6 +15,36 @@ class SettingsPage(QWidget):
         super().__init__()
         self._config = config
         layout = QVBoxLayout(self)
+
+        # --- HaikuHoff ---
+        haiku_group = QGroupBox("HaikuHoff")
+        hg = QFormLayout()
+
+        self.api_key_input = QLineEdit()
+        self.api_key_input.setEchoMode(QLineEdit.Password)
+        self.api_key_input.setPlaceholderText("sk-ant-...")
+        current_key = config.get("haiku", {}).get("api_key", "")
+        self.api_key_input.setText(current_key)
+        hg.addRow("HaikuHoff Key:", self.api_key_input)
+
+        haiku_hint = QLabel(_t("haiku_hint"))
+        haiku_hint.setStyleSheet("color: #666; font-size: 11px; font-style: italic;")
+        haiku_hint.setWordWrap(True)
+        hg.addRow(haiku_hint)
+
+        test_row = QHBoxLayout()
+        self.btn_test_haiku = QPushButton(_t("haiku_test"))
+        self.btn_test_haiku.setFixedWidth(80)
+        self.btn_test_haiku.clicked.connect(self._test_haiku)
+        test_row.addWidget(self.btn_test_haiku)
+        self.haiku_status = QLabel("")
+        self.haiku_status.setStyleSheet("font-style: italic; padding-left: 8px;")
+        test_row.addWidget(self.haiku_status)
+        test_row.addStretch()
+        hg.addRow(test_row)
+
+        haiku_group.setLayout(hg)
+        layout.addWidget(haiku_group)
 
         # --- Language ---
         lang_group = QGroupBox(_t("lang_group"))
@@ -94,9 +124,31 @@ class SettingsPage(QWidget):
 
         layout.addStretch()
 
+    def _test_haiku(self):
+        key = self.api_key_input.text().strip()
+        if not key:
+            self.haiku_status.setText(_t("haiku_no_key"))
+            self.haiku_status.setStyleSheet("color: #cc0000; font-style: italic; padding-left: 8px;")
+            return
+        self.haiku_status.setText(_t("haiku_testing"))
+        self.haiku_status.setStyleSheet("color: #808080; font-style: italic; padding-left: 8px;")
+        from core.haiku_client import HaikuClient
+        client = HaikuClient(api_key=key)
+        client._min_interval = 0
+        result = client.ask("Say OK", max_tokens=5)
+        if result:
+            self.haiku_status.setText(_t("haiku_connected"))
+            self.haiku_status.setStyleSheet("color: #006600; font-style: italic; padding-left: 8px;")
+        else:
+            self.haiku_status.setText(_t("haiku_failed"))
+            self.haiku_status.setStyleSheet("color: #cc0000; font-style: italic; padding-left: 8px;")
+
     def _apply(self):
         """Save settings to config.toml — cross-platform."""
         from core.platform import get_platform
+
+        self._config.setdefault("haiku", {})
+        self._config["haiku"]["api_key"] = self.api_key_input.text().strip()
 
         self._config["general"]["language"] = self.lang_combo.currentText()
         self._config["sounds"]["enabled"] = self.sound_enabled.isChecked()

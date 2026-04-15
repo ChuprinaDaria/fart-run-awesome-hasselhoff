@@ -154,6 +154,14 @@ STRINGS = {
     "no_tips": "Порад ще немає — попрацюйте з Claude!",
     "tips_require": "Для порад потрібен модуль core",
 
+    # Налаштування — HaikuHoff
+    "haiku_hint": "Ключ від Claude API — Haiku буде пояснювати все людською мовою",
+    "haiku_test": "Тест",
+    "haiku_no_key": "Ключ не введено",
+    "haiku_testing": "Перевіряю...",
+    "haiku_connected": "Підключено!",
+    "haiku_failed": "Помилка підключення",
+
     # Налаштування
     "lang_group": "Мова / Language",
     "sound_group": "Звук / Sound",

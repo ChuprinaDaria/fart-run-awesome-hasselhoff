@@ -154,6 +154,14 @@ STRINGS = {
     "no_tips": "No tips yet — use Claude to get recommendations!",
     "tips_require": "Tips require core module",
 
+    # Settings page — HaikuHoff
+    "haiku_hint": "Claude API key — Haiku will explain everything in human language",
+    "haiku_test": "Test",
+    "haiku_no_key": "No key entered",
+    "haiku_testing": "Testing...",
+    "haiku_connected": "Connected!",
+    "haiku_failed": "Connection failed",
+
     # Settings page
     "lang_group": "Language / Мова",
     "sound_group": "Sound / Звук",
