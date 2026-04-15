@@ -67,6 +67,44 @@ class HistoryDB:
                 haiku_context TEXT DEFAULT ''
             )
         """)
+        # Safety Net tables
+        self._conn.execute("""
+            CREATE TABLE IF NOT EXISTS save_points (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                timestamp TEXT NOT NULL,
+                label TEXT NOT NULL,
+                project_dir TEXT NOT NULL,
+                branch TEXT NOT NULL,
+                commit_hash TEXT NOT NULL,
+                tag_name TEXT NOT NULL,
+                file_count INTEGER DEFAULT 0,
+                lines_total INTEGER DEFAULT 0,
+                hint_level INTEGER DEFAULT 0
+            )
+        """)
+        self._conn.execute("""
+            CREATE TABLE IF NOT EXISTS rollback_backups (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                timestamp TEXT NOT NULL,
+                project_dir TEXT NOT NULL,
+                save_point_id INTEGER NOT NULL,
+                backup_branch TEXT NOT NULL,
+                backup_commit TEXT NOT NULL,
+                files_changed INTEGER DEFAULT 0,
+                picked_files TEXT DEFAULT '[]',
+                FOREIGN KEY (save_point_id) REFERENCES save_points(id)
+            )
+        """)
+        self._conn.execute("""
+            CREATE TABLE IF NOT EXISTS git_education (
+                project_dir TEXT PRIMARY KEY,
+                saves_count INTEGER DEFAULT 0,
+                rollbacks_count INTEGER DEFAULT 0,
+                picks_count INTEGER DEFAULT 0,
+                gitignore_created INTEGER DEFAULT 0,
+                git_initialized INTEGER DEFAULT 0
+            )
+        """)
         self._conn.commit()
 
         try:
@@ -142,6 +180,147 @@ class HistoryDB:
              "haiku_summary": r[3], "haiku_context": r[4]}
             for r in cursor.fetchall()
         ]
+
+    # --- Safety Net: Save Points ---
+
+    def add_save_point(self, timestamp: str, label: str, project_dir: str,
+                       branch: str, commit_hash: str, tag_name: str,
+                       file_count: int = 0, lines_total: int = 0,
+                       hint_level: int = 0) -> int:
+        self._ensure_conn()
+        cursor = self._conn.execute(
+            """INSERT INTO save_points
+               (timestamp, label, project_dir, branch, commit_hash, tag_name,
+                file_count, lines_total, hint_level)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+            (timestamp, label, project_dir, branch, commit_hash, tag_name,
+             file_count, lines_total, hint_level),
+        )
+        self._conn.commit()
+        return cursor.lastrowid
+
+    def get_save_points(self, project_dir: str, limit: int = 20) -> list[dict]:
+        self._ensure_conn()
+        cursor = self._conn.execute(
+            """SELECT id, timestamp, label, branch, commit_hash, tag_name,
+                      file_count, lines_total, hint_level
+               FROM save_points WHERE project_dir = ?
+               ORDER BY id DESC LIMIT ?""",
+            (project_dir, limit),
+        )
+        return [
+            {"id": r[0], "timestamp": r[1], "label": r[2], "branch": r[3],
+             "commit_hash": r[4], "tag_name": r[5], "file_count": r[6],
+             "lines_total": r[7], "hint_level": r[8]}
+            for r in cursor.fetchall()
+        ]
+
+    def get_save_point(self, save_point_id: int) -> dict | None:
+        self._ensure_conn()
+        cursor = self._conn.execute(
+            """SELECT id, timestamp, label, project_dir, branch, commit_hash,
+                      tag_name, file_count, lines_total, hint_level
+               FROM save_points WHERE id = ?""",
+            (save_point_id,),
+        )
+        r = cursor.fetchone()
+        if not r:
+            return None
+        return {"id": r[0], "timestamp": r[1], "label": r[2], "project_dir": r[3],
+                "branch": r[4], "commit_hash": r[5], "tag_name": r[6],
+                "file_count": r[7], "lines_total": r[8], "hint_level": r[9]}
+
+    def delete_save_point(self, save_point_id: int) -> None:
+        self._ensure_conn()
+        self._conn.execute("DELETE FROM save_points WHERE id = ?", (save_point_id,))
+        self._conn.commit()
+
+    def count_save_points(self, project_dir: str) -> int:
+        self._ensure_conn()
+        cursor = self._conn.execute(
+            "SELECT COUNT(*) FROM save_points WHERE project_dir = ?",
+            (project_dir,),
+        )
+        return cursor.fetchone()[0]
+
+    # --- Safety Net: Rollback Backups ---
+
+    def add_rollback_backup(self, timestamp: str, project_dir: str,
+                            save_point_id: int, backup_branch: str,
+                            backup_commit: str, files_changed: int = 0) -> int:
+        self._ensure_conn()
+        cursor = self._conn.execute(
+            """INSERT INTO rollback_backups
+               (timestamp, project_dir, save_point_id, backup_branch,
+                backup_commit, files_changed)
+               VALUES (?, ?, ?, ?, ?, ?)""",
+            (timestamp, project_dir, save_point_id, backup_branch,
+             backup_commit, files_changed),
+        )
+        self._conn.commit()
+        return cursor.lastrowid
+
+    def get_rollback_backups(self, project_dir: str) -> list[dict]:
+        self._ensure_conn()
+        cursor = self._conn.execute(
+            """SELECT rb.id, rb.timestamp, rb.save_point_id, rb.backup_branch,
+                      rb.backup_commit, rb.files_changed, rb.picked_files,
+                      sp.label as sp_label
+               FROM rollback_backups rb
+               LEFT JOIN save_points sp ON rb.save_point_id = sp.id
+               WHERE rb.project_dir = ?
+               ORDER BY rb.id DESC""",
+            (project_dir,),
+        )
+        return [
+            {"id": r[0], "timestamp": r[1], "save_point_id": r[2],
+             "backup_branch": r[3], "backup_commit": r[4],
+             "files_changed": r[5], "picked_files": r[6],
+             "sp_label": r[7] or ""}
+            for r in cursor.fetchall()
+        ]
+
+    def update_picked_files(self, backup_id: int, picked_json: str) -> None:
+        self._ensure_conn()
+        self._conn.execute(
+            "UPDATE rollback_backups SET picked_files = ? WHERE id = ?",
+            (picked_json, backup_id),
+        )
+        self._conn.commit()
+
+    # --- Safety Net: Git Education ---
+
+    def get_git_education(self, project_dir: str) -> dict:
+        self._ensure_conn()
+        cursor = self._conn.execute(
+            "SELECT saves_count, rollbacks_count, picks_count, gitignore_created, git_initialized "
+            "FROM git_education WHERE project_dir = ?",
+            (project_dir,),
+        )
+        r = cursor.fetchone()
+        if not r:
+            return {"saves_count": 0, "rollbacks_count": 0, "picks_count": 0,
+                    "gitignore_created": 0, "git_initialized": 0}
+        return {"saves_count": r[0], "rollbacks_count": r[1], "picks_count": r[2],
+                "gitignore_created": r[3], "git_initialized": r[4]}
+
+    def bump_git_education(self, project_dir: str, field: str) -> None:
+        self._ensure_conn()
+        self._conn.execute(
+            "INSERT OR IGNORE INTO git_education (project_dir) VALUES (?)",
+            (project_dir,),
+        )
+        if field in ("saves_count", "rollbacks_count", "picks_count"):
+            self._conn.execute(
+                f"UPDATE git_education SET {field} = {field} + 1 WHERE project_dir = ?",
+                (project_dir,),
+            )
+        elif field in ("gitignore_created", "git_initialized"):
+            self._conn.execute(
+                f"UPDATE git_education SET {field} = 1 WHERE project_dir = ?",
+                (project_dir,),
+            )
+        self._conn.commit()
 
     def close(self) -> None:
         if self._conn:

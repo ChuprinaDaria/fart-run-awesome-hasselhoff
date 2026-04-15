@@ -260,6 +260,8 @@ class HealthPage(QWidget):
             "docs.deps": (_t("health_section_deps"), []),
             "docs.devtools": (_t("health_section_devtools"), []),
             "docs.llm_context": (_t("health_section_llm_context"), []),
+            "docs.ui_dictionary": (_t("health_section_ui_dict"), []),
+            "docs.sdk_context": (_t("health_section_sdk_context"), []),
             "system": ("System", []),
         }
 
@@ -369,6 +371,7 @@ class HealthPage(QWidget):
             "brake.unfinished", "brake.tests", "brake.scope_creep", "brake.overengineering",
             "git.status", "git.commits", "git.branches", "git.gitignore", "git.cheatsheet",
             "docs.readme", "docs.deps", "docs.devtools", "docs.llm_context",
+            "docs.ui_dictionary", "docs.sdk_context",
         ]:
             dead_findings = sections.get(dead_key, ("", []))[1]
             if dead_findings:
@@ -378,6 +381,24 @@ class HealthPage(QWidget):
                 for f in dead_findings[:15]:
                     row = self._make_finding_row(f)
                     gl.addWidget(row)
+                    # Special: UI Dictionary button
+                    if f.check_id == "docs.ui_dictionary":
+                        btn = QPushButton(_t("health_btn_ui_dict"))
+                        btn.setStyleSheet(
+                            "QPushButton { background: #000080; color: white; "
+                            "padding: 4px 12px; border: 2px outset #4040c0; "
+                            "font-weight: bold; max-width: 200px; }"
+                        )
+                        btn.clicked.connect(self._show_ui_dictionary)
+                        gl.addWidget(btn)
+                    # Special: SDK Context button
+                    if f.check_id == "docs.sdk_context":
+                        btn = QPushButton(_t("health_btn_sdk_fetch"))
+                        btn.setStyleSheet(
+                            "QPushButton { padding: 4px 12px; max-width: 200px; }"
+                        )
+                        btn.clicked.connect(self._show_sdk_context)
+                        gl.addWidget(btn)
                 if len(dead_findings) > 15:
                     more = QLabel(f"  ... and {len(dead_findings) - 15} more")
                     more.setStyleSheet("color: #808080; font-style: italic;")
@@ -485,3 +506,20 @@ class HealthPage(QWidget):
             return f"{size_bytes / 1024:.1f} KB"
         else:
             return f"{size_bytes / (1024 * 1024):.1f} MB"
+
+    def _show_ui_dictionary(self) -> None:
+        """Open UI Dictionary popup."""
+        from gui.ui_dictionary_popup import UIDictionaryPopup
+        lang = get_language()
+        popup = UIDictionaryPopup(lang=lang, parent=self)
+        popup.exec_()
+
+    def _show_sdk_context(self) -> None:
+        """Open SDK Context fetch dialog."""
+        from gui.sdk_context_popup import SDKContextPopup
+        popup = SDKContextPopup(
+            project_dir=self._project_dir,
+            config=self._config,
+            parent=self,
+        )
+        popup.exec_()

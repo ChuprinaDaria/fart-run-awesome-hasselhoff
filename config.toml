@@ -1,7 +1,7 @@
 
 [general]
 refresh_interval = 5
-language = "ua"
+language = "en"
 
 [sounds]
 enabled = true
@@ -33,4 +33,15 @@ auto_interval_minutes = 30
 max_snapshots = 50
 
 [haiku]
-api_key = ""
+api_key = "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"
+
+[safety_net]
+max_save_points = 20
+auto_gitignore = true
+show_hints = true
+
+[alert_filters]
+docker = true
+security = true
+ports = true
+usage = true

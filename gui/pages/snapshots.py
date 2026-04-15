@@ -128,6 +128,15 @@ class SnapshotsPage(QWidget):
         )
         actions.addWidget(self._btn_take)
 
+        self._btn_save_code = QPushButton(_t("safety_save_code_btn"))
+        self._btn_save_code.setStyleSheet(
+            "QPushButton { background: #006600; color: white; padding: 6px 16px; "
+            "border: 2px outset #008800; font-weight: bold; }"
+            "QPushButton:pressed { border: 2px inset #006600; }"
+        )
+        self._btn_save_code.clicked.connect(self._on_save_code)
+        actions.addWidget(self._btn_save_code)
+
         self._btn_compare = QPushButton(_t("snap_btn_compare"))
         self._btn_compare.clicked.connect(self._on_compare)
         self._btn_compare.setEnabled(False)
@@ -488,6 +497,12 @@ class SnapshotsPage(QWidget):
         if reply == QMessageBox.Yes:
             delete_snapshot(self._get_db(), snapshot_id)
             self._refresh_list()
+
+    def _on_save_code(self) -> None:
+        """Quick Save Code — delegates to Safety Net page."""
+        parent = self.window()
+        if hasattr(parent, 'page_safety_net'):
+            parent.page_safety_net.create_save_point_quick()
 
     @staticmethod
     def _section_label(text: str) -> QLabel:

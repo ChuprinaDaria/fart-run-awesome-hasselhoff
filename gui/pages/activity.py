@@ -138,6 +138,15 @@ class ActivityPage(QWidget):
         copy_btn = make_copy_all_button(lambda: "\n".join(self._all_texts))
         header.addWidget(copy_btn)
 
+        self._btn_save_point = QPushButton(_t("safety_save_btn"))
+        self._btn_save_point.setStyleSheet(
+            "QPushButton { background: #006600; color: white; padding: 4px 12px; "
+            "border: 2px outset #008800; font-weight: bold; }"
+            "QPushButton:pressed { border: 2px inset #006600; }"
+        )
+        self._btn_save_point.clicked.connect(self._on_save_point)
+        header.addWidget(self._btn_save_point)
+
         self._btn_refresh = QPushButton(_t("activity_btn_refresh"))
         self._btn_refresh.setStyleSheet(
             "QPushButton { padding: 4px 12px; }"
@@ -559,3 +568,23 @@ class ActivityPage(QWidget):
             layout.addWidget(expl)
 
         return frame
+
+    def _on_save_point(self) -> None:
+        """Quick Save Point — delegates to Safety Net page if available."""
+        parent = self.window()
+        if hasattr(parent, 'page_safety_net'):
+            parent.page_safety_net.create_save_point_quick()
+            self._btn_save_point.setText("Saved!")
+            self._btn_save_point.setStyleSheet(
+                "QPushButton { background: #008800; color: white; padding: 4px 12px; "
+                "border: 2px outset #00aa00; font-weight: bold; }"
+            )
+            from PyQt5.QtCore import QTimer
+            QTimer.singleShot(2000, lambda: (
+                self._btn_save_point.setText(_t("safety_save_btn")),
+                self._btn_save_point.setStyleSheet(
+                    "QPushButton { background: #006600; color: white; padding: 4px 12px; "
+                    "border: 2px outset #008800; font-weight: bold; }"
+                    "QPushButton:pressed { border: 2px inset #006600; }"
+                ),
+            ))

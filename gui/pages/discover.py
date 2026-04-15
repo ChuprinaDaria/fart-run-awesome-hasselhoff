@@ -63,6 +63,40 @@ class DiscoverTab(QWidget):
                             f"[{category}] {item.title}", item.description, item.url
                         )
 
+        # Hooks Guide
+        self._add_hooks_guide(lang)
+
+    def _add_hooks_guide(self, lang: str) -> None:
+        from i18n import get_string as _t
+        if lang == "ua":
+            from data.hooks_guide_ua import HOOKS_GUIDE
+        else:
+            from data.hooks_guide_en import HOOKS_GUIDE
+
+        self._add_section_header(_t("hooks_guide_title"))
+
+        desc = QLabel(_t("hooks_guide_desc"))
+        desc.setWordWrap(True)
+        desc.setStyleSheet("color: #333; padding: 4px 8px;")
+        self.items_layout.addWidget(desc)
+
+        for hook in HOOKS_GUIDE:
+            text = (
+                f"<b>{hook['title']}</b><br/>"
+                f"<i>{_t('hooks_what_happens')}</i> {hook['what_happens']}<br/>"
+                f"<i>{_t('hooks_when_needed')}</i> {hook['when_you_need']}<br/>"
+                f"<i>{_t('hooks_setup_file')}</i> <code>{hook['setup_file']}</code><br/>"
+                f"<i>{_t('hooks_dont_forget')}</i> <code>{hook['dont_forget']}</code>"
+            )
+            lbl = QLabel(text)
+            lbl.setWordWrap(True)
+            lbl.setTextFormat(Qt.RichText)
+            lbl.setStyleSheet(
+                "padding: 6px 8px; margin: 1px 4px; background: white; color: #000; "
+                "border: 2px groove #808080;"
+            )
+            self.items_layout.addWidget(lbl)
+
     def _add_section_header(self, title: str):
         header = QLabel(f"<b>\u2501\u2501 {title} \u2501\u2501</b>")
         header.setStyleSheet("font-size: 14px; padding: 8px 4px 2px 4px; color: #000080;")

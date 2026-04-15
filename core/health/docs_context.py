@@ -229,11 +229,65 @@ def generate_llm_context(report: HealthReport, project_dir: str) -> None:
     ))
 
 
+def check_ui_vocabulary(report: HealthReport, project_dir: str) -> None:
+    """Check 6.6 — UI vocabulary reference for frontend projects."""
+    root = Path(project_dir)
+
+    from core.health import has_files_with_ext
+    is_frontend = (
+        has_files_with_ext(root, "jsx")
+        or has_files_with_ext(root, "tsx")
+        or has_files_with_ext(root, "vue")
+        or has_files_with_ext(root, "svelte")
+        or has_files_with_ext(root, "html")
+    )
+
+    if is_frontend:
+        report.findings.append(HealthFinding(
+            check_id="docs.ui_dictionary",
+            title="UI Element Dictionary available",
+            severity="info",
+            message=(
+                "Frontend project detected. Can't explain to AI which button to change? "
+                "Open the UI Dictionary — 20 elements with names, pictures, and example prompts."
+            ),
+            details={"has_ui_dictionary": True},
+        ))
+
+
+def check_unknown_packages(report: HealthReport, project_dir: str) -> None:
+    """Check 6.7 — detect packages AI might not know."""
+    try:
+        from core.context_fetcher import ContextFetcher
+        fetcher = ContextFetcher(project_dir)
+        unknown = fetcher.detect_unknown_packages()
+        if unknown:
+            names = [f"{p.name} ({p.registry})" for p in unknown[:5]]
+            more = f" (+{len(unknown) - 5} more)" if len(unknown) > 5 else ""
+            report.findings.append(HealthFinding(
+                check_id="docs.sdk_context",
+                title=f"Unknown packages: {', '.join(n.split(' ')[0] for n in names[:3])}",
+                severity="info",
+                message=(
+                    f"AI might not know these packages: {', '.join(names)}{more}. "
+                    f"Fetch their docs so AI understands your stack."
+                ),
+                details={"unknown_packages": [
+                    {"name": p.name, "version": p.version, "registry": p.registry}
+                    for p in unknown
+                ]},
+            ))
+    except Exception as e:
+        log.debug("Unknown packages check error: %s", e)
+
+
 def run_docs_context_checks(report: HealthReport, project_dir: str) -> None:
     """Run all docs & context checks."""
     check_readme(report, project_dir)
     check_dependency_docs(report, project_dir)
     check_devtools_tips(report, project_dir)
+    check_ui_vocabulary(report, project_dir)
+    check_unknown_packages(report, project_dir)
     generate_llm_context(report, project_dir)
 
 

@@ -37,6 +37,7 @@ from gui.pages.discover import DiscoverTab
 from gui.pages.activity import ActivityPage
 from gui.pages.health_page import HealthPage
 from gui.pages.snapshots import SnapshotsPage
+from gui.pages.safety_net_page import SafetyNetPage
 from core.changelog_watcher import check_for_update, dismiss_version
 from core.history import HistoryDB
 from gui.widgets.project_selector import ProjectSelector
@@ -137,6 +138,7 @@ class MonitorApp(QMainWindow):
             SidebarItem(_t("side_overview"), "overview"),
             SidebarItem(_t("side_activity"), "activity"),
             SidebarItem(_t("side_snapshots"), "snapshots"),
+            SidebarItem(_t("side_safety_net"), "safety_net"),
             SidebarItem(_t("side_health"), "health"),
             SidebarItem(_t("side_security"), "security"),
             SidebarItem(_t("side_usage"), "usage"),
@@ -168,6 +170,8 @@ class MonitorApp(QMainWindow):
         self.page_activity.set_config(config)
         self.page_snapshots = SnapshotsPage()
         self.page_snapshots.set_config(config)
+        self.page_safety_net = SafetyNetPage()
+        self.page_safety_net.set_config(config)
         self.page_health = HealthPage()
         self.page_health.set_config(config)
         self.page_settings = SettingsPage(config)
@@ -176,6 +180,7 @@ class MonitorApp(QMainWindow):
             ("overview", self.page_overview),
             ("activity", self.page_activity),
             ("snapshots", self.page_snapshots),
+            ("safety_net", self.page_safety_net),
             ("health", self.page_health),
             ("security", self.page_security),
             ("usage", self.page_usage),
@@ -227,6 +232,7 @@ class MonitorApp(QMainWindow):
             self.page_activity.hide_dir_picker()
         self.page_health.hide_dir_picker()
         self.page_snapshots.hide_dir_picker()
+        self.page_safety_net.hide_dir_picker()
 
         # Push initial project to pages (restores last session's directory)
         initial_project = self._project_selector.current_project()
@@ -296,12 +302,15 @@ class MonitorApp(QMainWindow):
             self.page_health.set_config(new_config)
         if hasattr(self.page_snapshots, 'set_config'):
             self.page_snapshots.set_config(new_config)
+        if hasattr(self.page_safety_net, 'set_config'):
+            self.page_safety_net.set_config(new_config)
         self.statusBar().showMessage("Settings applied", 3000)
 
     def _on_project_changed(self, path: str) -> None:
         """Sync selected project to Activity, Snapshots, and Health pages."""
         self.page_activity.set_project_dir(path)
         self.page_snapshots.set_project_dir(path)
+        self.page_safety_net.set_project_dir(path)
         # Health: set dir + enable scan button + update label
         self.page_health._project_dir = path
         display = path if len(path) <= 50 else "..." + path[-47:]
