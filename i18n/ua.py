@@ -327,9 +327,18 @@ STRINGS = {
     "changelog_got_it": "Зрозуміло",
     "changelog_show_full": "Повний changelog",
 
+    # Project Selector
+    "project_label": "Проект:",
+    "project_browse": "Огляд...",
+    "project_none": "Проект не обрано",
+
     # Outdated Dependencies
     "health_section_outdated_deps": "Застарілі залежності",
     "health_section_duplicates": "Дублікати коду",
     "health_section_reusable": "Компоненти для перевикористання",
     "health_section_opensource": "Спершу погугли",
+
+    # Copy widgets
+    "copy_all": "Копіювати все",
+    "copy_done": "Скопійовано!",
 }

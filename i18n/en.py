@@ -327,9 +327,18 @@ STRINGS = {
     "changelog_got_it": "Got it",
     "changelog_show_full": "Show full changelog",
 
+    # Project Selector
+    "project_label": "Project:",
+    "project_browse": "Browse...",
+    "project_none": "No project selected",
+
     # Outdated Dependencies
     "health_section_outdated_deps": "Outdated Dependencies",
     "health_section_duplicates": "Duplicate Code",
     "health_section_reusable": "Reusable Components",
     "health_section_opensource": "Open Source First",
+
+    # Copy widgets
+    "copy_all": "Copy all",
+    "copy_done": "Copied!",
 }
