@@ -334,6 +334,7 @@ STRINGS = {
     "health_section_deps": "Dependencies",
     "health_section_devtools": "DevTools Tips",
     "health_section_llm_context": "LLM Context",
+    "health_ai_summary": "AI Assessment",
 
     # Changelog Watcher
     "changelog_title": "Claude Code Updated!",

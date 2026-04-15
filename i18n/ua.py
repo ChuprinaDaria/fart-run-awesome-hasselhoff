@@ -334,6 +334,7 @@ STRINGS = {
     "health_section_deps": "Залежності",
     "health_section_devtools": "DevTools поради",
     "health_section_llm_context": "Контекст для AI",
+    "health_ai_summary": "AI оцінка",
 
     # Changelog Watcher
     "changelog_title": "Claude Code оновився!",

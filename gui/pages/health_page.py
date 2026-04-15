@@ -188,28 +188,38 @@ class HealthPage(QWidget):
             self._haiku_thread.start()
 
     def _on_haiku_done(self, explanations: dict, summary: str) -> None:
+        if not summary and not explanations:
+            return
+
+        box = QFrame()
+        box.setStyleSheet(
+            "QFrame { border: 2px solid #cccc00; background: #ffffcc; "
+            "border-radius: 4px; padding: 6px; margin-bottom: 4px; }"
+        )
+        box_layout = QVBoxLayout(box)
+        box_layout.setContentsMargins(8, 6, 8, 6)
+        box_layout.setSpacing(4)
+
+        title = QLabel(f"-- {_t('health_ai_summary')} --")
+        title.setStyleSheet("font-weight: bold; color: #806600; font-size: 12px;")
+        box_layout.addWidget(title)
+
         if summary:
-            lbl = QLabel(f"  {summary}")
+            lbl = QLabel(summary)
             lbl.setWordWrap(True)
-            lbl.setStyleSheet(
-                "color: #333; font-style: italic; font-size: 12px; "
-                "padding: 8px; background: #f0f0ff; border: 2px solid #000080; margin: 4px;"
-            )
-            self._content_layout.insertWidget(0, lbl)
+            lbl.setStyleSheet("color: #333; font-size: 12px; padding: 4px;")
+            box_layout.addWidget(lbl)
             self._all_texts.insert(0, f"[AI] {summary}")
 
         if explanations:
-            # Add explanations as a separate block after summary
-            for key, expl in explanations.items():
-                haiku_lbl = QLabel(f"    {expl}")
-                haiku_lbl.setWordWrap(True)
-                haiku_lbl.setStyleSheet(
-                    "color: #4040a0; font-style: italic; font-size: 11px; padding: 2px 8px;"
-                )
-                # Insert after summary (position 1) or at top
-                pos = 1 if summary else 0
-                self._content_layout.insertWidget(pos, haiku_lbl)
+            for expl in explanations.values():
+                expl_lbl = QLabel(f"  {expl}")
+                expl_lbl.setWordWrap(True)
+                expl_lbl.setStyleSheet("color: #555; font-size: 11px; padding: 1px 4px;")
+                box_layout.addWidget(expl_lbl)
                 self._all_texts.append(f"  [AI] {expl}")
+
+        self._content_layout.insertWidget(0, box)
 
     def _render_report(self, report: HealthReport) -> None:
         self._clear_content()

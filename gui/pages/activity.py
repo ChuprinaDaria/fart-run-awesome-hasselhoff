@@ -101,6 +101,7 @@ class ActivityPage(QWidget):
         self._all_texts: list[str] = []
         self._where_stopped_label: QLabel | None = None
         self._last_haiku_context: str = ""
+        self._last_entry_hash: str = ""
         self._db = None
         self._build_ui()
 
@@ -231,8 +232,19 @@ class ActivityPage(QWidget):
         except Exception as e:
             log.error("Activity log save error: %s", e)
 
-        # Trigger Haiku in background
-        self._start_haiku_thread(entry)
+        # Trigger Haiku only when data actually changed
+        entry_hash = self._hash_entry(entry)
+        if entry_hash != self._last_entry_hash:
+            self._last_entry_hash = entry_hash
+            self._last_haiku_context = ""
+            self._start_haiku_thread(entry)
+
+    @staticmethod
+    def _hash_entry(entry: ActivityEntry) -> str:
+        parts = sorted(f.path for f in entry.files)
+        parts += sorted(c for c in entry.commits)
+        parts += sorted(f"{d.name}:{d.status}" for d in entry.docker_changes)
+        return "|".join(parts)
 
     def _start_haiku_thread(self, entry: ActivityEntry) -> None:
         if self._haiku_thread and self._haiku_thread.isRunning():
