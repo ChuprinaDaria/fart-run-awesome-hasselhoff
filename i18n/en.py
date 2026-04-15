@@ -307,4 +307,11 @@ STRINGS = {
     "health_section_tests": "Test Health",
     "health_section_scope": "Session Activity",
     "health_section_overeng": "Overengineering",
+
+    # Git Survival
+    "health_section_git_status": "Git Status",
+    "health_section_git_commits": "Commit Quality",
+    "health_section_git_branches": "Branches",
+    "health_section_git_ignore": ".gitignore",
+    "health_section_git_cheat": "Git Cheat Sheet",
 }

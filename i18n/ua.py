@@ -307,4 +307,11 @@ STRINGS = {
     "health_section_tests": "Здоров'я тестів",
     "health_section_scope": "Активність сесії",
     "health_section_overeng": "Оверінжиніринг",
+
+    # Git Survival
+    "health_section_git_status": "Стан Git",
+    "health_section_git_commits": "Якість комітів",
+    "health_section_git_branches": "Гілки",
+    "health_section_git_ignore": ".gitignore",
+    "health_section_git_cheat": "Git шпаргалка",
 }

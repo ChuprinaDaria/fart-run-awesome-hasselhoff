@@ -237,6 +237,13 @@ def run_all_checks(project_dir: str) -> HealthReport:
         except Exception as e:
             log.error("brake_system (no rust) error: %s", e)
 
+    # Phase 5: Git Survival (always Python, no Rust needed)
+    try:
+        from core.health.git_survival import run_git_survival_checks
+        run_git_survival_checks(report, project_dir)
+    except Exception as e:
+        log.error("git_survival scan error: %s", e)
+
     # Check 1.5 — Config Inventory (always Python)
     try:
         config_result = scan_config_inventory(project_dir)
