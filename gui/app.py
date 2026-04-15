@@ -302,7 +302,12 @@ class MonitorApp(QMainWindow):
         """Sync selected project to Activity, Snapshots, and Health pages."""
         self.page_activity.set_project_dir(path)
         self.page_snapshots.set_project_dir(path)
+        # Health: set dir + enable scan button + update label
         self.page_health._project_dir = path
+        display = path if len(path) <= 50 else "..." + path[-47:]
+        self.page_health._dir_label.setText(display)
+        self.page_health._dir_label.setStyleSheet("color: #000000;")
+        self.page_health._btn_scan.setEnabled(True)
 
     def _is_alert_enabled(self, source: str) -> bool:
         filters = self._config.get("alert_filters", {})

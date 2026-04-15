@@ -303,7 +303,7 @@ STRINGS = {
     "snap_total_changes": "Total: {} changes",
     "snap_auto_label": "Auto",
     "snap_start_label": "App start",
-    "snap_hint": "Snapshots = game saves. Take one before AI starts changing things. Then compare what was and what became.",
+    "snap_hint": "Snapshots = game saves.\n\nHow to use:\n1. Click 'Take Snapshot' before AI starts changing your project\n2. Let AI do its thing\n3. Take another snapshot\n4. Select two snapshots and click 'Compare' to see what changed\n\nThis way you always know what AI did to your code.",
     "snap_haiku_loading": "AI is figuring out what changed...",
 
     # Hasselhoff — Snapshots

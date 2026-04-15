@@ -54,7 +54,7 @@ class HaikuSnapshotThread(QThread):
                     "changed in the environment between two snapshots. Keep it to 1-2 sentences, "
                     "no tech jargon. Here's the diff:\n\n" + self._diff_text
                 )
-            explanation = client.explain(prompt)
+            explanation = client.ask(prompt, max_tokens=300)
             self.result_ready.emit(explanation or "")
         except Exception as e:
             log.debug("HaikuSnapshotThread error: %s", e)
@@ -144,8 +144,9 @@ class SnapshotsPage(QWidget):
         hint = QLabel(_t("snap_hint"))
         hint.setWordWrap(True)
         hint.setStyleSheet(
-            "color: #666; font-style: italic; font-size: 11px; "
-            "padding: 4px 8px; background: #f8f8ff; border: 1px solid #d0d0d0;"
+            "color: #333; font-size: 12px; "
+            "padding: 10px 12px; background: #fffff0; "
+            "border: 2px solid #cccc00; border-radius: 4px;"
         )
         layout.addWidget(hint)
 

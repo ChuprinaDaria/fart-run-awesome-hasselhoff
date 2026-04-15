@@ -289,16 +289,24 @@ class ActivityPage(QWidget):
         self._content_layout.addWidget(where_box)
         self._all_texts.append(_t("activity_where_stopped"))
 
+        if not self._tracker or not self._tracker.is_git_repo():
+            self._where_stopped_label.setText(_t("activity_no_git"))
+            self._content_layout.addStretch()
+            return
+
         if not has_content:
-            if not self._tracker or not self._tracker.is_git_repo():
-                self._show_placeholder(_t("activity_no_git"))
-            else:
-                # No changes — update where_stopped placeholder and show message
-                self._where_stopped_label.setText(_t("activity_haiku_unavailable"))
-                lbl = QLabel(_t("activity_no_changes"))
-                lbl.setAlignment(Qt.AlignCenter)
-                lbl.setStyleSheet("color: #808080; font-size: 13px; padding: 20px;")
-                self._content_layout.addWidget(lbl)
+            self._where_stopped_label.setText(_t("activity_no_changes"))
+            # Still show recent commits even with no uncommitted changes
+            commits = self._tracker.get_recent_commits(limit=10)
+            if commits:
+                group = self._make_group(f"{_t('activity_commits_header')} ({len(commits)})")
+                group_layout = group.layout()
+                for commit in commits:
+                    lbl = QLabel(f"  {commit}")
+                    lbl.setStyleSheet("font-family: monospace; color: #333;")
+                    group_layout.addWidget(lbl)
+                    self._all_texts.append(f"  {commit}")
+                self._content_layout.addWidget(group)
             self._content_layout.addStretch()
             return
 
