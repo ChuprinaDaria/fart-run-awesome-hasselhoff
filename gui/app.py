@@ -588,6 +588,7 @@ class MonitorApp(QMainWindow):
                     old_version=update_info["old_version"],
                     new_version=update_info["new_version"],
                     changelog_url=update_info["changelog_url"],
+                    config=self._config,
                     parent=self,
                 )
                 popup.exec_()
