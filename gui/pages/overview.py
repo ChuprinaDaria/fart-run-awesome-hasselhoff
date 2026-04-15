@@ -62,7 +62,10 @@ class OverviewPage(QWidget):
             (_t("lbl_cache_eff"), self.lbl_cache_eff),
             (_t("lbl_cache_saved"), self.lbl_cache_saved),
         ]:
+            widget.setMinimumWidth(120)
+            widget.setMinimumHeight(18)
             sl.addRow(QLabel(label_text), widget)
+        sl.setFieldGrowthPolicy(QFormLayout.ExpandingFieldsGrow)
         self.stats_group.setLayout(sl)
         layout.addWidget(self.stats_group)
 

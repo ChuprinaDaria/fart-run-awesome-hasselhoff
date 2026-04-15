@@ -467,26 +467,31 @@ class SafetyNetPage(QWidget):
                 item.widget().deleteLater()
                 self._content_layout.removeItem(item)
 
-        group = QGroupBox(_t("safety_what_happened"))
-        group._is_what_happened = True
-        group.setStyleSheet(
-            "QGroupBox { border: 2px groove #808080; margin-top: 8px; "
-            "padding-top: 16px; font-weight: bold; background: #fffff0; }"
-            "QGroupBox::title { subcontrol-origin: margin; left: 10px; padding: 0 4px; }"
+        frame = QFrame()
+        frame._is_what_happened = True
+        frame.setStyleSheet(
+            "QFrame { border: 2px solid #cccc00; background: #ffffcc; "
+            "border-radius: 4px; padding: 6px; margin-top: 8px; }"
         )
-        gl = QVBoxLayout(group)
+        gl = QVBoxLayout(frame)
+        gl.setContentsMargins(8, 6, 8, 6)
+        gl.setSpacing(4)
+
+        title_lbl = QLabel(f"-- {_t('safety_what_happened')} --")
+        title_lbl.setStyleSheet("font-weight: bold; color: #806600; font-size: 12px;")
+        gl.addWidget(title_lbl)
 
         # Result text
         result_lbl = QLabel(result_text)
         result_lbl.setWordWrap(True)
-        result_lbl.setStyleSheet("color: #000; padding: 4px;")
+        result_lbl.setStyleSheet("color: #333; font-size: 12px; padding: 4px;")
         gl.addWidget(result_lbl)
 
         # Teaching hint
         if hint:
             hint_lbl = QLabel(hint.text)
             hint_lbl.setWordWrap(True)
-            hint_lbl.setStyleSheet("color: #333; padding: 4px 8px;")
+            hint_lbl.setStyleSheet("color: #333; font-size: 11px; padding: 2px 8px;")
             gl.addWidget(hint_lbl)
 
             cmd_lbl = QLabel(f"({hint.git_command})")
@@ -498,7 +503,8 @@ class SafetyNetPage(QWidget):
                 detail_lbl.setWordWrap(True)
                 detail_lbl.setStyleSheet(
                     "color: #5500aa; font-style: italic; font-size: 11px; "
-                    "padding: 4px 8px; background: #f8f8ff; border: 1px solid #d0d0d0;"
+                    "padding: 4px 8px; background: #f8f0ff; "
+                    "border: 1px solid #d0c0e0; border-radius: 2px;"
                 )
                 gl.addWidget(detail_lbl)
 
@@ -510,7 +516,7 @@ class SafetyNetPage(QWidget):
             )
             gl.addWidget(hoff_lbl)
 
-        self._content_layout.addWidget(group)
+        self._content_layout.addWidget(frame)
 
     # --- Actions ---
 
@@ -708,5 +714,18 @@ class SafetyNetPage(QWidget):
         """Called from Activity/Snapshots page quick-access buttons."""
         if not self._project_dir:
             return
+
+        sn = self._get_safety_net()
+        can, reason = sn.can_save()
+        if not can:
+            caller = self.window() or self
+            if reason == "no_changes":
+                QMessageBox.information(caller, "Info", _t("safety_warn_no_changes"))
+            elif reason == "no_git_repo":
+                QMessageBox.information(caller, "Info", _t("safety_git_init_title"))
+            elif reason == "git_not_installed":
+                QMessageBox.warning(caller, "Git", _t("safety_git_not_found"))
+            return
+
         self._label_input.setText(label)
         self._on_save()
