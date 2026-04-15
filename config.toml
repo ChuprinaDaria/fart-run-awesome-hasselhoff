@@ -1,21 +1,17 @@
+
 [general]
 refresh_interval = 5
 language = "ua"
 
 [sounds]
 enabled = true
+mode = "classic"
 quiet_hours_start = "23:00"
 quiet_hours_end = "07:00"
 
 [alerts]
 cooldown_seconds = 300
 desktop_notifications = true
-
-[paths]
-# Auto-detected by default. Override here:
-# claude_dir = "~/.claude"
-# docker_socket = "/var/run/docker.sock"
-# scan_paths = ["~/projects"]
 
 [plugins.docker_monitor]
 enabled = true
@@ -30,3 +26,11 @@ enabled = true
 enabled = true
 scan_interval = 3600
 scan_paths = ["~"]
+
+[snapshots]
+enabled = true
+auto_interval_minutes = 30
+max_snapshots = 50
+
+[haiku]
+api_key = ""

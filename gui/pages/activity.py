@@ -137,6 +137,10 @@ class ActivityPage(QWidget):
         header.addWidget(copy_btn)
 
         self._btn_refresh = QPushButton(_t("activity_btn_refresh"))
+        self._btn_refresh.setStyleSheet(
+            "QPushButton { padding: 4px 12px; }"
+            "QPushButton:pressed { border: 2px inset #808080; }"
+        )
         self._btn_refresh.clicked.connect(self._on_refresh)
         header.addWidget(self._btn_refresh)
 

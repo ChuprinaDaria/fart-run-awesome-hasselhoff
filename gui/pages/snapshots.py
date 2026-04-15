@@ -124,7 +124,7 @@ class SnapshotsPage(QWidget):
             "QPushButton { background: #000080; color: white; padding: 6px 16px; "
             "border: 2px outset #4040c0; font-weight: bold; }"
             "QPushButton:pressed { border: 2px inset #000080; }"
-            "QPushButton:disabled { background: #808080; color: #c0c0c0; }"
+            "QPushButton:disabled { background: #c0c0c0; color: #808080; }"
         )
         actions.addWidget(self._btn_take)
 
