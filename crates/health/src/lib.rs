@@ -2,6 +2,7 @@
 
 mod common;
 mod dead_code;
+mod duplicates;
 mod entry_points;
 mod file_tree;
 mod module_map;
@@ -40,6 +41,10 @@ fn health(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<tech_debt::TodoItem>()?;
     m.add_class::<tech_debt::TechDebtResult>()?;
     m.add_function(wrap_pyfunction!(tech_debt::scan_tech_debt, m)?)?;
+
+    m.add_class::<duplicates::DuplicateBlock>()?;
+    m.add_class::<duplicates::DuplicatesResult>()?;
+    m.add_function(wrap_pyfunction!(duplicates::scan_duplicates, m)?)?;
 
     m.add_class::<overengineering::OverengineeringIssue>()?;
     m.add_class::<overengineering::OverengineeringResult>()?;

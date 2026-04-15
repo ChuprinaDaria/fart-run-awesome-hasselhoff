@@ -329,4 +329,5 @@ STRINGS = {
 
     # Outdated Dependencies
     "health_section_outdated_deps": "Outdated Dependencies",
+    "health_section_duplicates": "Duplicate Code",
 }

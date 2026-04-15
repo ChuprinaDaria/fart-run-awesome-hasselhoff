@@ -211,6 +211,23 @@ def run_all_checks(project_dir: str) -> HealthReport:
         except Exception as e:
             log.error("dead_code scan error: %s", e)
 
+        # Check 2.5: Duplicate Code
+        try:
+            dup_result = health_rs.scan_duplicates(project_dir)
+            for dup in dup_result.duplicates[:15]:
+                report.findings.append(HealthFinding(
+                    check_id="dead.duplicates",
+                    title=f"Duplicate: {dup.file_a} \u2194 {dup.file_b} ({dup.line_count} lines)",
+                    severity="medium",
+                    message=(
+                        f"{dup.line_count} duplicate lines: "
+                        f"{dup.file_a}:{dup.line_a} and {dup.file_b}:{dup.line_b}. "
+                        f"Extract into a shared function, import from both."
+                    ),
+                ))
+        except Exception as e:
+            log.error("duplicates scan error: %s", e)
+
         # Phase 3: Tech Debt
         try:
             from core.health.tech_debt import run_tech_debt_checks
