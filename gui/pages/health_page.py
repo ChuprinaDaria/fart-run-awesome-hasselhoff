@@ -84,6 +84,13 @@ class HealthPage(QWidget):
     def set_config(self, config: dict) -> None:
         self._config = config
 
+    def hide_dir_picker(self) -> None:
+        """Hide per-page dir picker when shared project selector is active."""
+        if hasattr(self, '_btn_select'):
+            self._btn_select.hide()
+        if hasattr(self, '_dir_label'):
+            self._dir_label.hide()
+
     def _build_ui(self) -> None:
         layout = QVBoxLayout(self)
         layout.setContentsMargins(8, 8, 8, 8)

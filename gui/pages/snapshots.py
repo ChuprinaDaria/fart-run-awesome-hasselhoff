@@ -80,6 +80,13 @@ class SnapshotsPage(QWidget):
     def set_config(self, config: dict) -> None:
         self._config = config
 
+    def hide_dir_picker(self) -> None:
+        """Hide per-page dir picker when shared project selector is active."""
+        if hasattr(self, '_btn_select'):
+            self._btn_select.hide()
+        if hasattr(self, '_dir_label'):
+            self._dir_label.hide()
+
     def _get_db(self) -> HistoryDB:
         if self._db is None:
             self._db = HistoryDB()

@@ -216,6 +216,12 @@ class MonitorApp(QMainWindow):
         self.page_activity.refresh_requested.connect(self._refresh_all)
         self.page_settings.settings_changed.connect(self._on_settings_changed)
 
+        # Hide per-page dir pickers — shared project selector takes over
+        if hasattr(self.page_activity, 'hide_dir_picker'):
+            self.page_activity.hide_dir_picker()
+        self.page_health.hide_dir_picker()
+        self.page_snapshots.hide_dir_picker()
+
         # Push initial project to pages (restores last session's directory)
         initial_project = self._project_selector.current_project()
         if initial_project:
@@ -283,6 +289,13 @@ class MonitorApp(QMainWindow):
         self._config = new_config
         self._alert_manager = AlertManager(new_config)
         set_language(new_config.get("general", {}).get("language", "en"))
+        # Propagate config to pages that use Haiku
+        if hasattr(self.page_activity, 'set_config'):
+            self.page_activity.set_config(new_config)
+        if hasattr(self.page_health, 'set_config'):
+            self.page_health.set_config(new_config)
+        if hasattr(self.page_snapshots, 'set_config'):
+            self.page_snapshots.set_config(new_config)
         self.statusBar().showMessage("Settings applied", 3000)
 
     def _on_project_changed(self, path: str) -> None:

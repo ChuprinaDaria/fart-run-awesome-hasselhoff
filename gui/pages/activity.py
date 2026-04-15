@@ -107,6 +107,13 @@ class ActivityPage(QWidget):
         """Receive config (including Haiku API key)."""
         self._config = config
 
+    def hide_dir_picker(self) -> None:
+        """Hide per-page dir picker when shared project selector is active."""
+        if hasattr(self, '_btn_select'):
+            self._btn_select.hide()
+        if hasattr(self, '_dir_label'):
+            self._dir_label.hide()
+
     def _get_db(self):
         if self._db is None:
             from core.history import HistoryDB
