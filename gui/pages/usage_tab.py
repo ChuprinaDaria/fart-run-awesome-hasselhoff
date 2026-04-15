@@ -7,7 +7,7 @@ from PyQt5.QtCore import Qt
 from core.token_parser import TokenParser
 from core.calculator import CostCalculator
 from core.usage_analyzer import Analyzer
-from i18n import get_string, get_language
+from i18n import get_string
 
 
 def _fmt(n: int) -> str:
@@ -92,6 +92,3 @@ class UsageTab(QWidget):
         self.week_sessions.setText(str(week_total_sessions))
         self.week_tokens.setText(_fmt(week_total_billable))
 
-    def retranslate(self):
-        self.today_group.setTitle(get_string("today"))
-        self.week_group.setTitle(get_string("this_week"))

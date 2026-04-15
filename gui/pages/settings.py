@@ -216,10 +216,3 @@ class SettingsPage(QWidget):
             self.status_label.setText(_t("save_error").format(e))
             self.status_label.setStyleSheet("color: #cc0000; font-style: italic; padding: 4px;")
 
-    def get_alert_filters(self) -> dict:
-        return {
-            "docker": self.alert_docker.isChecked(),
-            "security": self.alert_security.isChecked(),
-            "ports": self.alert_ports.isChecked(),
-            "usage": self.alert_usage.isChecked(),
-        }

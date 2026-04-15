@@ -871,9 +871,3 @@ class HasselhoffWizardPage(QWidget):
         )
         self.hoff_event.emit(phrase)
 
-    def refresh_all(self):
-        """Re-check all tool statuses."""
-        for card in self._cards.values():
-            card.refresh_status()
-        self._update_install_all_btn()
-        self._update_subtitle()

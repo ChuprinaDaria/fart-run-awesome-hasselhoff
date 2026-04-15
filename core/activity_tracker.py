@@ -292,14 +292,3 @@ def serialize_activity(entry: ActivityEntry) -> str:
     return json.dumps(data, ensure_ascii=False)
 
 
-def deserialize_activity(json_str: str) -> ActivityEntry:
-    import json
-    data = json.loads(json_str)
-    return ActivityEntry(
-        timestamp=data["timestamp"],
-        project_dir=data.get("project_dir", ""),
-        files=[FileChange(**f) for f in data.get("files", [])],
-        docker_changes=[DockerChange(**d) for d in data.get("docker_changes", [])],
-        port_changes=[PortChange(**p) for p in data.get("port_changes", [])],
-        commits=data.get("commits", []),
-    )
