@@ -314,4 +314,10 @@ STRINGS = {
     "health_section_git_branches": "Branches",
     "health_section_git_ignore": ".gitignore",
     "health_section_git_cheat": "Git Cheat Sheet",
+
+    # Docs & Context
+    "health_section_readme": "README",
+    "health_section_deps": "Dependencies",
+    "health_section_devtools": "DevTools Tips",
+    "health_section_llm_context": "LLM Context",
 }

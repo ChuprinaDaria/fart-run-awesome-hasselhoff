@@ -314,4 +314,10 @@ STRINGS = {
     "health_section_git_branches": "Гілки",
     "health_section_git_ignore": ".gitignore",
     "health_section_git_cheat": "Git шпаргалка",
+
+    # Docs & Context
+    "health_section_readme": "README",
+    "health_section_deps": "Залежності",
+    "health_section_devtools": "DevTools поради",
+    "health_section_llm_context": "Контекст для AI",
 }

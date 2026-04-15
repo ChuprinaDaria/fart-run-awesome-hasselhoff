@@ -157,6 +157,10 @@ class HealthPage(QWidget):
             "git.branches": (_t("health_section_git_branches"), []),
             "git.gitignore": (_t("health_section_git_ignore"), []),
             "git.cheatsheet": (_t("health_section_git_cheat"), []),
+            "docs.readme": (_t("health_section_readme"), []),
+            "docs.deps": (_t("health_section_deps"), []),
+            "docs.devtools": (_t("health_section_devtools"), []),
+            "docs.llm_context": (_t("health_section_llm_context"), []),
             "system": ("System", []),
         }
 
@@ -265,6 +269,7 @@ class HealthPage(QWidget):
             "debt.no_types", "debt.error_handling", "debt.hardcoded", "debt.todos",
             "brake.unfinished", "brake.tests", "brake.scope_creep", "brake.overengineering",
             "git.status", "git.commits", "git.branches", "git.gitignore", "git.cheatsheet",
+            "docs.readme", "docs.deps", "docs.devtools", "docs.llm_context",
         ]:
             dead_findings = sections.get(dead_key, ("", []))[1]
             if dead_findings:

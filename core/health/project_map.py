@@ -244,6 +244,13 @@ def run_all_checks(project_dir: str) -> HealthReport:
     except Exception as e:
         log.error("git_survival scan error: %s", e)
 
+    # Phase 6: Docs & Context (always Python)
+    try:
+        from core.health.docs_context import run_docs_context_checks
+        run_docs_context_checks(report, project_dir)
+    except Exception as e:
+        log.error("docs_context scan error: %s", e)
+
     # Check 1.5 — Config Inventory (always Python)
     try:
         config_result = scan_config_inventory(project_dir)
