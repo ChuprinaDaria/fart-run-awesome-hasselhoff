@@ -35,6 +35,7 @@ from gui.pages.settings import SettingsPage
 from gui.pages.hasselhoff_wizard import HasselhoffWizardPage
 from gui.pages.discover import DiscoverTab
 from gui.pages.activity import ActivityPage
+from gui.pages.health_page import HealthPage
 
 log = logging.getLogger(__name__)
 
@@ -131,6 +132,7 @@ class MonitorApp(QMainWindow):
         sidebar_items = [
             SidebarItem(_t("side_overview"), "overview"),
             SidebarItem(_t("side_activity"), "activity"),
+            SidebarItem(_t("side_health"), "health"),
             SidebarItem(_t("side_security"), "security"),
             SidebarItem(_t("side_usage"), "usage"),
             SidebarItem(_t("side_analytics"), "analytics"),
@@ -158,11 +160,13 @@ class MonitorApp(QMainWindow):
         self.page_tips = TipsPage()
         self.page_discover = DiscoverTab()
         self.page_activity = ActivityPage()
+        self.page_health = HealthPage()
         self.page_settings = SettingsPage(config)
 
         for key, page in [
             ("overview", self.page_overview),
             ("activity", self.page_activity),
+            ("health", self.page_health),
             ("security", self.page_security),
             ("usage", self.page_usage),
             ("analytics", self.page_analytics),
