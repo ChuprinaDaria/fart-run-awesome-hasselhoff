@@ -37,6 +37,7 @@ from gui.pages.discover import DiscoverTab
 from gui.pages.activity import ActivityPage
 from gui.pages.health_page import HealthPage
 from gui.pages.snapshots import SnapshotsPage
+from core.changelog_watcher import check_for_update, dismiss_version
 
 log = logging.getLogger(__name__)
 
@@ -363,6 +364,8 @@ class MonitorApp(QMainWindow):
                 docker_data=infos,
                 port_data=ports,
             )
+            # Check for Claude Code updates on startup
+            self._check_claude_update()
 
         self.statusBar().showMessage(_t("ready"))
 
@@ -541,6 +544,28 @@ class MonitorApp(QMainWindow):
 
     def _do_hoff(self):
         self._trigger_hasselhoff("Manual Hasselhoff!")
+
+    def _check_claude_update(self):
+        """Check if Claude Code version changed since last run."""
+        try:
+            from core.history import HistoryDB
+            if self._history_db is None:
+                self._history_db = HistoryDB()
+                self._history_db.init()
+            update_info = check_for_update(self._history_db)
+            if update_info:
+                from gui.changelog_popup import ChangelogPopup
+                popup = ChangelogPopup(
+                    old_version=update_info["old_version"],
+                    new_version=update_info["new_version"],
+                    changelog_url=update_info["changelog_url"],
+                    parent=self,
+                )
+                popup.exec_()
+                if popup.was_dismissed:
+                    dismiss_version(self._history_db, update_info["new_version"])
+        except Exception as e:
+            log.error("Changelog check error: %s", e)
 
     def _auto_snapshot(self):
         """Take auto-snapshot if snapshots page has a project dir."""

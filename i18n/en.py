@@ -320,4 +320,10 @@ STRINGS = {
     "health_section_deps": "Dependencies",
     "health_section_devtools": "DevTools Tips",
     "health_section_llm_context": "LLM Context",
+
+    # Changelog Watcher
+    "changelog_title": "Claude Code Updated!",
+    "changelog_message": "New features might affect your workflow. Check what changed before your next AI session.",
+    "changelog_got_it": "Got it",
+    "changelog_show_full": "Show full changelog",
 }
