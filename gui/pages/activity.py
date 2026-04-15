@@ -26,15 +26,16 @@ class HaikuContextThread(QThread):
 
     result_ready = pyqtSignal(str, str)  # (haiku_context, haiku_summary)
 
-    def __init__(self, entry: ActivityEntry, config: dict, parent=None):
+    def __init__(self, entry: ActivityEntry, config: dict, on_api_error=None, parent=None):
         super().__init__(parent)
         self._entry = entry
         self._config = config
+        self._on_api_error = on_api_error
 
     def run(self):
         try:
             from core.haiku_client import HaikuClient
-            client = HaikuClient(config=self._config)
+            client = HaikuClient(config=self._config, on_api_error=self._on_api_error)
             if not client.is_available():
                 self.result_ready.emit("", "")
                 return
@@ -104,6 +105,12 @@ class ActivityPage(QWidget):
         self._last_entry_hash: str = ""
         self._db = None
         self._build_ui()
+
+    _haiku_error_callback = None
+
+    def set_haiku_error_callback(self, callback) -> None:
+        """Set callback invoked when HaikuClient hits an API error."""
+        self._haiku_error_callback = callback
 
     def set_config(self, config: dict) -> None:
         """Receive config (including Haiku API key)."""
@@ -259,7 +266,7 @@ class ActivityPage(QWidget):
         if self._haiku_thread and self._haiku_thread.isRunning():
             return
 
-        self._haiku_thread = HaikuContextThread(entry, self._config, self)
+        self._haiku_thread = HaikuContextThread(entry, self._config, on_api_error=self._haiku_error_callback, parent=self)
         self._haiku_thread.result_ready.connect(self._on_haiku_ready)
         self._haiku_thread.start()
 

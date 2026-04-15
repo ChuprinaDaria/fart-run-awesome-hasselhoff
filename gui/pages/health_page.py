@@ -34,17 +34,18 @@ class HaikuHealthThread(QThread):
     """Get Haiku explanations for top findings in background."""
     done = pyqtSignal(dict, str)  # explanations dict, summary text
 
-    def __init__(self, findings: list, config: dict, parent=None):
+    def __init__(self, findings: list, config: dict, on_api_error=None, parent=None):
         super().__init__(parent)
         self._findings = findings
         self._config = config
+        self._on_api_error = on_api_error
 
     def run(self):
         explanations = {}
         summary = ""
         try:
             from core.haiku_client import HaikuClient
-            haiku = HaikuClient(config=self._config)
+            haiku = HaikuClient(config=self._config, on_api_error=self._on_api_error)
             if not haiku.is_available():
                 self.done.emit({}, "")
                 return
@@ -80,6 +81,12 @@ class HealthPage(QWidget):
         self._config: dict = {}
         self._all_texts: list[str] = []
         self._build_ui()
+
+    _haiku_error_callback = None
+
+    def set_haiku_error_callback(self, callback) -> None:
+        """Set callback invoked when HaikuClient hits an API error."""
+        self._haiku_error_callback = callback
 
     def set_config(self, config: dict) -> None:
         self._config = config
@@ -183,7 +190,7 @@ class HealthPage(QWidget):
         self._render_report(report)
         # Trigger Haiku
         if report.findings:
-            self._haiku_thread = HaikuHealthThread(report.findings, self._config)
+            self._haiku_thread = HaikuHealthThread(report.findings, self._config, on_api_error=self._haiku_error_callback)
             self._haiku_thread.done.connect(self._on_haiku_done)
             self._haiku_thread.start()
 

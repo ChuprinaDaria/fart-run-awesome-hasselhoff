@@ -239,6 +239,12 @@ class MonitorApp(QMainWindow):
         self.page_snapshots.hide_dir_picker()
         self.page_safety_net.hide_dir_picker()
 
+        # Propagate Haiku API error callback — triggers status re-check on failure
+        self._on_haiku_api_error = lambda e: self._check_api_status()
+        for page in (self.page_activity, self.page_health, self.page_snapshots):
+            if hasattr(page, "set_haiku_error_callback"):
+                page.set_haiku_error_callback(self._on_haiku_api_error)
+
         # Push initial project to pages (restores last session's directory)
         initial_project = self._project_selector.current_project()
         if initial_project:

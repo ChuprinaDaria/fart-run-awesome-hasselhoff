@@ -28,10 +28,11 @@ class HaikuSnapshotThread(QThread):
     """Ask Haiku to explain what changed between two snapshots."""
     result_ready = pyqtSignal(str)
 
-    def __init__(self, diff_text: str, config: dict, parent=None):
+    def __init__(self, diff_text: str, config: dict, on_api_error=None, parent=None):
         super().__init__(parent)
         self._diff_text = diff_text
         self._config = config
+        self._on_api_error = on_api_error
 
     def run(self):
         try:
@@ -40,7 +41,7 @@ class HaikuSnapshotThread(QThread):
                 self.result_ready.emit("")
                 return
             from core.haiku_client import HaikuClient
-            client = HaikuClient(api_key)
+            client = HaikuClient(api_key, on_api_error=self._on_api_error)
             lang = get_language()
             if lang == "ua":
                 prompt = (
@@ -76,6 +77,12 @@ class SnapshotsPage(QWidget):
         self._haiku_thread: HaikuSnapshotThread | None = None
         self._compare_group: QGroupBox | None = None
         self._build_ui()
+
+    _haiku_error_callback = None
+
+    def set_haiku_error_callback(self, callback) -> None:
+        """Set callback invoked when HaikuClient hits an API error."""
+        self._haiku_error_callback = callback
 
     def set_config(self, config: dict) -> None:
         self._config = config
@@ -439,7 +446,7 @@ class SnapshotsPage(QWidget):
         # Trigger Haiku explanation in background
         diff_text = self._build_diff_text(diff, old_snap, new_snap)
         if diff_text and self._config.get("haiku", {}).get("api_key", ""):
-            self._haiku_thread = HaikuSnapshotThread(diff_text, self._config, self)
+            self._haiku_thread = HaikuSnapshotThread(diff_text, self._config, on_api_error=self._haiku_error_callback, parent=self)
             self._haiku_thread.result_ready.connect(self._on_haiku_compare_ready)
             self._haiku_thread.start()
         else:
