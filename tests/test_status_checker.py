@@ -75,6 +75,21 @@ class TestParseStatus:
         assert result.api_indicator == "major"
         db.close()
 
+    def test_parse_status_critical(self):
+        """indicator 'critical' → api_indicator 'critical'."""
+        db = HistoryDB(":memory:")
+        db.init()
+        checker = StatusChecker(db)
+
+        body = _make_status_json("critical", "Critical Outage")
+        with patch("core.status_checker.urlopen", return_value=_mock_urlopen(body)):
+            with patch("core.status_checker.get_claude_version", return_value="1.0.20"):
+                result = checker.check_now()
+
+        assert result.api_indicator == "critical"
+        assert result.api_description == "Critical Outage"
+        db.close()
+
     def test_timeout_returns_unknown(self):
         """Network error → api_indicator 'unknown'."""
         db = HistoryDB(":memory:")
