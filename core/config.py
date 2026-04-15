@@ -43,6 +43,9 @@ DEFAULTS = {
         "auto_interval_minutes": 30,
         "max_snapshots": 50,
     },
+    "haiku": {
+        "api_key": "",
+    },
 }
 
 

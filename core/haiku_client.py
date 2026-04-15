@@ -1,7 +1,7 @@
 """Claude Haiku client for personalized tips and explanations.
 
 Optional — requires anthropic SDK and API key.
-~$0.001 per call, rate limited to max 1 call per 5 minutes.
+~$0.001 per call, rate limited to max 1 call per 30 seconds.
 """
 
 from __future__ import annotations
@@ -13,14 +13,18 @@ import time
 
 log = logging.getLogger(__name__)
 
-_MIN_INTERVAL = 300  # 5 minutes between API calls
-
 
 class HaikuClient:
-    def __init__(self, api_key: str | None = None):
-        self._api_key = api_key or os.environ.get("ANTHROPIC_API_KEY")
+    def __init__(self, api_key: str | None = None, config: dict | None = None):
+        # Resolution: explicit param → env var → config dict → None
+        resolved = api_key or os.environ.get("ANTHROPIC_API_KEY")
+        if not resolved and config:
+            resolved = config.get("haiku", {}).get("api_key") or None
+        # Empty string counts as None
+        self._api_key = resolved if resolved else None
         self._cache: dict[str, str] = {}
         self._last_call: float = 0
+        self._min_interval: int = 30
         self._client = None
 
     def is_available(self) -> bool:
@@ -46,7 +50,7 @@ class HaikuClient:
             return None
 
         now = time.time()
-        if now - self._last_call < _MIN_INTERVAL:
+        if now - self._last_call < self._min_interval:
             return None
 
         client = self._get_client()
@@ -66,6 +70,56 @@ class HaikuClient:
         except Exception as e:
             log.error("Haiku API error: %s", e)
             return None
+
+    def batch_explain(
+        self, items: list[str], context: str, language: str
+    ) -> dict[str, str]:
+        """Explain multiple items in one API call.
+
+        Returns a dict mapping each item to its explanation.
+        Returns empty dict if no items or client not available.
+        """
+        if not items or not self.is_available():
+            return {}
+
+        numbered = "\n".join(f"{i + 1}. {item}" for i, item in enumerate(items))
+        prompt = (
+            f"You are a developer assistant. Explain each of the following findings "
+            f"in plain human language ({language}). Keep each explanation to 1-2 sentences. "
+            f"Context: {context}\n\n"
+            f"Findings:\n{numbered}\n\n"
+            f"Reply with the same numbered list, one explanation per line. "
+            f"Format: '1. explanation', '2. explanation', etc."
+        )
+
+        response = self.ask(prompt, max_tokens=600)
+        if not response:
+            return {}
+
+        result: dict[str, str] = {}
+        for line in response.splitlines():
+            line = line.strip()
+            if not line:
+                continue
+            for i, item in enumerate(items):
+                prefix = f"{i + 1}."
+                if line.startswith(prefix):
+                    explanation = line[len(prefix):].strip()
+                    result[item] = explanation
+                    break
+
+        return result
+
+    def summarize(self, text: str, language: str, max_tokens: int = 300) -> str | None:
+        """General purpose human-language summary of the given text."""
+        if not text or not self.is_available():
+            return None
+
+        prompt = (
+            f"Summarize the following in plain human language ({language}). "
+            f"Be concise, practical, and avoid jargon.\n\n{text}"
+        )
+        return self.ask(prompt, max_tokens=max_tokens)
 
     def get_tip(self, stats_summary: str) -> str | None:
         """Get personalized tip based on usage stats."""
