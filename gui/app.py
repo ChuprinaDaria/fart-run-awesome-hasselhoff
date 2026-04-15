@@ -216,6 +216,12 @@ class MonitorApp(QMainWindow):
         self.page_activity.refresh_requested.connect(self._refresh_all)
         self.page_settings.settings_changed.connect(self._on_settings_changed)
 
+        # Collector thread state (must init before any refresh calls)
+        self._collector_thread = None
+        self._collecting = False
+        self._last_security_score = 100
+        self._history_db = None
+
         # Hide per-page dir pickers — shared project selector takes over
         if hasattr(self.page_activity, 'hide_dir_picker'):
             self.page_activity.hide_dir_picker()
@@ -254,12 +260,6 @@ class MonitorApp(QMainWindow):
             self._snapshot_timer = QTimer(self)
             self._snapshot_timer.timeout.connect(self._auto_snapshot)
             self._snapshot_timer.start(snap_interval)
-
-        # Collector thread
-        self._collector_thread = None
-        self._collecting = False
-        self._last_security_score = 100
-        self._history_db = None
 
         # Initial refresh
         self._refresh_all()
