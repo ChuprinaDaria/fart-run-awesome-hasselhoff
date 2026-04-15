@@ -274,3 +274,32 @@ class ActivityTracker:
             commits=commits,
             project_dir=self._dir,
         )
+
+
+def serialize_activity(entry: ActivityEntry) -> str:
+    import json
+    data = {
+        "timestamp": entry.timestamp,
+        "project_dir": entry.project_dir,
+        "files": [{"path": f.path, "status": f.status, "additions": f.additions,
+                    "deletions": f.deletions, "explanation": f.explanation} for f in entry.files],
+        "docker_changes": [{"name": d.name, "image": d.image, "status": d.status,
+                            "ports": d.ports, "explanation": d.explanation} for d in entry.docker_changes],
+        "port_changes": [{"port": p.port, "process": p.process, "status": p.status,
+                          "explanation": p.explanation} for p in entry.port_changes],
+        "commits": entry.commits,
+    }
+    return json.dumps(data, ensure_ascii=False)
+
+
+def deserialize_activity(json_str: str) -> ActivityEntry:
+    import json
+    data = json.loads(json_str)
+    return ActivityEntry(
+        timestamp=data["timestamp"],
+        project_dir=data.get("project_dir", ""),
+        files=[FileChange(**f) for f in data.get("files", [])],
+        docker_changes=[DockerChange(**d) for d in data.get("docker_changes", [])],
+        port_changes=[PortChange(**p) for p in data.get("port_changes", [])],
+        commits=data.get("commits", []),
+    )

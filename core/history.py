@@ -57,6 +57,16 @@ class HistoryDB:
                 value TEXT NOT NULL
             )
         """)
+        self._conn.execute("""
+            CREATE TABLE IF NOT EXISTS activity_log (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                project_dir TEXT NOT NULL,
+                timestamp TEXT NOT NULL,
+                entry_json TEXT NOT NULL,
+                haiku_summary TEXT DEFAULT '',
+                haiku_context TEXT DEFAULT ''
+            )
+        """)
         self._conn.commit()
 
     def get_state(self, key: str) -> str | None:
@@ -97,6 +107,33 @@ class HistoryDB:
         return [
             {"date": r[0], "tokens": r[1], "cost": r[2],
              "cache_efficiency": r[3], "sessions": r[4], "security_score": r[5]}
+            for r in cursor.fetchall()
+        ]
+
+    def save_activity(self, project_dir: str, timestamp: str,
+                      entry_json: str, haiku_summary: str = "",
+                      haiku_context: str = "") -> int:
+        self._ensure_conn()
+        cursor = self._conn.execute(
+            """INSERT INTO activity_log
+               (project_dir, timestamp, entry_json, haiku_summary, haiku_context)
+               VALUES (?, ?, ?, ?, ?)""",
+            (project_dir, timestamp, entry_json, haiku_summary, haiku_context),
+        )
+        self._conn.commit()
+        return cursor.lastrowid
+
+    def get_activity_log(self, project_dir: str, limit: int = 20) -> list[dict]:
+        self._ensure_conn()
+        cursor = self._conn.execute(
+            """SELECT id, timestamp, entry_json, haiku_summary, haiku_context
+               FROM activity_log WHERE project_dir = ?
+               ORDER BY id DESC LIMIT ?""",
+            (project_dir, limit),
+        )
+        return [
+            {"id": r[0], "timestamp": r[1], "entry_json": r[2],
+             "haiku_summary": r[3], "haiku_context": r[4]}
             for r in cursor.fetchall()
         ]
 

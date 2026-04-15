@@ -233,6 +233,10 @@ STRINGS = {
     "activity_env_warning": "Змінні середовища змінились — перевірте секрети",
     "activity_container_crash": "Контейнер впав — перевірте логи",
     "activity_git_not_found": "Git не встановлено — відстеження файлів недоступне",
+    "activity_where_stopped": "Де ти зупинився",
+    "activity_today": "Сьогодні",
+    "activity_haiku_loading": "Аналізую твою сесію...",
+    "activity_haiku_unavailable": "Додай Claude API key у Налаштуваннях, щоб отримати AI-контекст",
 
     # Hasselhoff mode — Activity Log
     "hoff_activity_header": "Хофф бачить все",

@@ -233,6 +233,10 @@ STRINGS = {
     "activity_env_warning": "Environment variables changed — check if secrets are OK",
     "activity_container_crash": "Container died — check logs",
     "activity_git_not_found": "Git not installed — file tracking unavailable",
+    "activity_where_stopped": "Where you left off",
+    "activity_today": "Today",
+    "activity_haiku_loading": "Analyzing your session...",
+    "activity_haiku_unavailable": "Add Claude API key in Settings to get AI context here",
 
     # Hasselhoff mode — Activity Log
     "hoff_activity_header": "The Hoff Sees All",

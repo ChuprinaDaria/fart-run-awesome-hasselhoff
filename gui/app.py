@@ -8,7 +8,7 @@ import logging
 from pathlib import Path
 
 from PyQt5.QtWidgets import (
-    QApplication, QMainWindow, QWidget, QHBoxLayout,
+    QApplication, QMainWindow, QWidget, QHBoxLayout, QVBoxLayout,
     QStackedWidget, QLabel, QSystemTrayIcon, QMenu,
     QMessageBox,
 )
@@ -38,6 +38,8 @@ from gui.pages.activity import ActivityPage
 from gui.pages.health_page import HealthPage
 from gui.pages.snapshots import SnapshotsPage
 from core.changelog_watcher import check_for_update, dismiss_version
+from core.history import HistoryDB
+from gui.widgets.project_selector import ProjectSelector
 
 log = logging.getLogger(__name__)
 
@@ -163,6 +165,7 @@ class MonitorApp(QMainWindow):
         self.page_tips = TipsPage()
         self.page_discover = DiscoverTab()
         self.page_activity = ActivityPage()
+        self.page_activity.set_config(config)
         self.page_snapshots = SnapshotsPage()
         self.page_health = HealthPage()
         self.page_settings = SettingsPage(config)
@@ -183,7 +186,21 @@ class MonitorApp(QMainWindow):
             self.stack.addWidget(page)
             self._pages[key] = page
 
-        main_layout.addWidget(self.stack)
+        # Right panel: project selector on top + content stack below
+        right_panel = QWidget()
+        right_layout = QVBoxLayout(right_panel)
+        right_layout.setContentsMargins(0, 0, 0, 0)
+        right_layout.setSpacing(0)
+
+        # Project selector — shared across Activity, Health, Snapshots
+        _selector_db = HistoryDB()
+        _claude_dir = str(system_state.claude_dir) if system_state.claude_dir else None
+        self._project_selector = ProjectSelector(_selector_db, _claude_dir, parent=right_panel)
+        self._project_selector.project_changed.connect(self._on_project_changed)
+        right_layout.addWidget(self._project_selector)
+
+        right_layout.addWidget(self.stack)
+        main_layout.addWidget(right_panel)
         self.setCentralWidget(central)
 
         self.statusBar().showMessage(_t("ready"))
@@ -196,6 +213,11 @@ class MonitorApp(QMainWindow):
         self.page_hoff_wizard.hoff_event.connect(self._trigger_hasselhoff)
         self.page_activity.refresh_requested.connect(self._refresh_all)
         self.page_settings.settings_changed.connect(self._on_settings_changed)
+
+        # Push initial project to pages (restores last session's directory)
+        initial_project = self._project_selector.current_project()
+        if initial_project:
+            self._on_project_changed(initial_project)
 
         # Apply autodiscovery state
         if not system_state.docker_available:
@@ -260,6 +282,12 @@ class MonitorApp(QMainWindow):
         self._alert_manager = AlertManager(new_config)
         set_language(new_config.get("general", {}).get("language", "en"))
         self.statusBar().showMessage("Settings applied", 3000)
+
+    def _on_project_changed(self, path: str) -> None:
+        """Sync selected project to Activity, Snapshots, and Health pages."""
+        self.page_activity.set_project_dir(path)
+        self.page_snapshots.set_project_dir(path)
+        self.page_health._project_dir = path
 
     def _is_alert_enabled(self, source: str) -> bool:
         filters = self._config.get("alert_filters", {})
