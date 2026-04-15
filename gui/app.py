@@ -34,6 +34,7 @@ from gui.pages.tips import TipsPage
 from gui.pages.settings import SettingsPage
 from gui.pages.hasselhoff_wizard import HasselhoffWizardPage
 from gui.pages.discover import DiscoverTab
+from gui.pages.activity import ActivityPage
 
 log = logging.getLogger(__name__)
 
@@ -129,6 +130,7 @@ class MonitorApp(QMainWindow):
         # Sidebar — no Docker/Ports, Hoff Wizard at end
         sidebar_items = [
             SidebarItem(_t("side_overview"), "overview"),
+            SidebarItem(_t("side_activity"), "activity"),
             SidebarItem(_t("side_security"), "security"),
             SidebarItem(_t("side_usage"), "usage"),
             SidebarItem(_t("side_analytics"), "analytics"),
@@ -155,10 +157,12 @@ class MonitorApp(QMainWindow):
         self.page_hoff_wizard = HasselhoffWizardPage()
         self.page_tips = TipsPage()
         self.page_discover = DiscoverTab()
+        self.page_activity = ActivityPage()
         self.page_settings = SettingsPage(config)
 
         for key, page in [
             ("overview", self.page_overview),
+            ("activity", self.page_activity),
             ("security", self.page_security),
             ("usage", self.page_usage),
             ("analytics", self.page_analytics),
@@ -181,6 +185,7 @@ class MonitorApp(QMainWindow):
         self.page_overview.hoff_requested.connect(self._do_hoff)
         self.page_security.scan_requested.connect(self._run_security_scan)
         self.page_hoff_wizard.hoff_event.connect(self._trigger_hasselhoff)
+        self.page_activity.refresh_requested.connect(self._refresh_all)
         self.page_settings.settings_changed.connect(self._on_settings_changed)
 
         # Apply autodiscovery state
@@ -327,6 +332,12 @@ class MonitorApp(QMainWindow):
                         title=f"Port {p['port']} conflict",
                         message=f"Port {p['port']} used by multiple processes",
                     ))
+
+        # Activity Log — feed docker + port data
+        self.page_activity.update_data(
+            docker_data=infos,
+            port_data=ports,
+        )
 
         self.statusBar().showMessage(_t("ready"))
 
