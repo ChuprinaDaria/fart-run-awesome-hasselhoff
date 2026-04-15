@@ -168,6 +168,7 @@ class MonitorApp(QMainWindow):
         self.page_activity.set_config(config)
         self.page_snapshots = SnapshotsPage()
         self.page_health = HealthPage()
+        self.page_health.set_config(config)
         self.page_settings = SettingsPage(config)
 
         for key, page in [

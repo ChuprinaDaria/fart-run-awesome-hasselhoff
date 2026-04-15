@@ -11,8 +11,9 @@ from PyQt5.QtWidgets import (
 from PyQt5.QtCore import pyqtSignal, Qt, QThread
 from PyQt5.QtGui import QFont
 
-from i18n import get_string as _t
+from i18n import get_string as _t, get_language
 from core.health.models import HealthReport, HealthFinding
+from gui.copyable_widgets import make_copy_all_button
 
 
 class HealthScanThread(QThread):
@@ -29,6 +30,45 @@ class HealthScanThread(QThread):
         self.scan_done.emit(report)
 
 
+class HaikuHealthThread(QThread):
+    """Get Haiku explanations for top findings in background."""
+    done = pyqtSignal(dict, str)  # explanations dict, summary text
+
+    def __init__(self, findings: list, config: dict, parent=None):
+        super().__init__(parent)
+        self._findings = findings
+        self._config = config
+
+    def run(self):
+        explanations = {}
+        summary = ""
+        try:
+            from core.haiku_client import HaikuClient
+            haiku = HaikuClient(config=self._config)
+            if not haiku.is_available():
+                self.done.emit({}, "")
+                return
+            lang = get_language()
+            # Batch explain top 10
+            top = self._findings[:10]
+            items = [f"{f.title}: {f.message}" for f in top]
+            explanations = haiku.batch_explain(items=items, context="code health check results", language=lang)
+            # Summary
+            severity_counts = {}
+            for f in self._findings:
+                severity_counts[f.severity] = severity_counts.get(f.severity, 0) + 1
+            stats = ", ".join(f"{k}: {v}" for k, v in severity_counts.items())
+            lang_name = "Ukrainian" if lang == "ua" else "English"
+            summary = haiku.ask(
+                f"Project health scan found: {stats}. Total {len(self._findings)} issues. "
+                f"Give overall assessment in 2-3 sentences. Simple words, no jargon. Respond in {lang_name}.",
+                max_tokens=200
+            ) or ""
+        except Exception:
+            pass
+        self.done.emit(explanations, summary)
+
+
 class HealthPage(QWidget):
     """Dev Health — scan project and show health check results."""
 
@@ -36,7 +76,13 @@ class HealthPage(QWidget):
         super().__init__()
         self._project_dir: str | None = None
         self._scan_thread: HealthScanThread | None = None
+        self._haiku_thread: HaikuHealthThread | None = None
+        self._config: dict = {}
+        self._all_texts: list[str] = []
         self._build_ui()
+
+    def set_config(self, config: dict) -> None:
+        self._config = config
 
     def _build_ui(self) -> None:
         layout = QVBoxLayout(self)
@@ -68,6 +114,7 @@ class HealthPage(QWidget):
             "QPushButton:disabled { background: #808080; color: #c0c0c0; }"
         )
         header.addWidget(self._btn_scan)
+        header.addWidget(make_copy_all_button(lambda: "\n".join(self._all_texts)))
 
         layout.addLayout(header)
 
@@ -124,7 +171,57 @@ class HealthPage(QWidget):
     def _on_scan_done(self, report: HealthReport) -> None:
         self._btn_scan.setEnabled(True)
         self._btn_scan.setText(_t("health_btn_scan"))
+        self._all_texts.clear()
         self._render_report(report)
+        # Trigger Haiku
+        if report.findings:
+            self._haiku_thread = HaikuHealthThread(report.findings, self._config)
+            self._haiku_thread.done.connect(self._on_haiku_done)
+            self._haiku_thread.start()
+
+    def _on_haiku_done(self, explanations: dict, summary: str) -> None:
+        if summary:
+            lbl = QLabel(f"  {summary}")
+            lbl.setWordWrap(True)
+            lbl.setStyleSheet(
+                "color: #333; font-style: italic; font-size: 12px; "
+                "padding: 8px; background: #f0f0ff; border: 2px solid #000080; margin: 4px;"
+            )
+            self._content_layout.insertWidget(0, lbl)
+            self._all_texts.insert(0, f"[Summary] {summary}")
+
+        if explanations:
+            # Walk through all QGroupBoxes and their QFrames to find matching findings
+            for i in range(self._content_layout.count()):
+                item = self._content_layout.itemAt(i)
+                if not item or not item.widget():
+                    continue
+                widget = item.widget()
+                if not isinstance(widget, QGroupBox):
+                    continue
+                group_layout = widget.layout()
+                if not group_layout:
+                    continue
+                for j in range(group_layout.count()):
+                    sub_item = group_layout.itemAt(j)
+                    if not sub_item or not sub_item.widget():
+                        continue
+                    frame = sub_item.widget()
+                    if not isinstance(frame, QFrame):
+                        continue
+                    for child_label in frame.findChildren(QLabel):
+                        text = child_label.text().strip()
+                        for key, expl in explanations.items():
+                            # Match by finding message substring
+                            if key.split(": ", 1)[-1][:30] in text:
+                                haiku_lbl = QLabel(f"    {expl}")
+                                haiku_lbl.setWordWrap(True)
+                                haiku_lbl.setStyleSheet(
+                                    "color: #4040a0; font-style: italic; font-size: 11px; padding: 2px 8px;"
+                                )
+                                frame.layout().addWidget(haiku_lbl)
+                                self._all_texts.append(f"  [Haiku] {expl}")
+                                break
 
     def _render_report(self, report: HealthReport) -> None:
         self._clear_content()
@@ -356,6 +453,7 @@ class HealthPage(QWidget):
         msg_lbl.setStyleSheet("color: #666; font-size: 11px;")
         msg_lbl.setWordWrap(True)
         layout.addWidget(msg_lbl)
+        self._all_texts.append(f"[{finding.severity}] {finding.title}: {finding.message}")
 
         return frame
 
