@@ -15,7 +15,19 @@ log = logging.getLogger(__name__)
 
 _URGENCY_MAP = {
     "critical": "critical",
+    "high": "critical",
     "warning": "warning",
+    "info": "info",
+}
+
+# Normalize severity for sound file matching:
+# sound files are named critical.wav, warning.wav, info.wav
+_SOUND_SEVERITY = {
+    "critical": "critical",
+    "high": "critical",
+    "warning": "warning",
+    "medium": "warning",
+    "low": "info",
     "info": "info",
 }
 
@@ -65,6 +77,9 @@ class AlertManager:
     def send_desktop(self, alert: Alert) -> None:
         if not self._config["alerts"].get("desktop_notifications", True):
             return
+        if self.is_quiet_hours():
+            log.debug("Desktop notification suppressed — quiet hours")
+            return
         urgency = _URGENCY_MAP.get(alert.severity, "info")
         self._platform.notify(
             f"[{alert.source}] {alert.title}",
@@ -75,29 +90,40 @@ class AlertManager:
     def play_sound(self, alert: Alert) -> None:
         sounds_cfg = self._config.get("sounds", {})
         if not sounds_cfg.get("enabled", True):
+            log.debug("Sound disabled in config")
             return
         if self.is_quiet_hours():
+            log.debug("Sound suppressed — quiet hours")
             return
 
         sound_mode = sounds_cfg.get("mode", "classic")
         sound_dir = self._find_sound_dir(sound_mode)
         if not sound_dir:
+            log.warning("Sound dir not found for mode '%s'", sound_mode)
             return
 
+        # Normalize severity: "high" → "critical" for sound matching
+        severity = _SOUND_SEVERITY.get(alert.severity, alert.severity)
+
         # Try severity-specific sound first
-        severity = alert.severity
         severity_files = [f for f in sound_dir.iterdir()
                           if f.stem.lower().startswith(severity) and
                           f.suffix.lower() in (".mp3", ".wav", ".ogg", ".flac")]
         if severity_files:
-            self._platform.play_sound(random.choice(severity_files))
+            chosen = random.choice(severity_files)
+            log.debug("Playing severity sound: %s", chosen.name)
+            self._platform.play_sound(chosen)
             return
 
         # Fallback: any sound in the directory
         all_files = [f for f in sound_dir.iterdir()
                      if f.suffix.lower() in (".mp3", ".wav", ".ogg", ".flac")]
         if all_files:
-            self._platform.play_sound(random.choice(all_files))
+            chosen = random.choice(all_files)
+            log.debug("Playing fallback sound: %s", chosen.name)
+            self._platform.play_sound(chosen)
+        else:
+            log.warning("No sound files in %s", sound_dir)
 
     def _find_sound_dir(self, mode: str) -> Path | None:
         root = _project_root()

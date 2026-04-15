@@ -56,6 +56,9 @@ class LinuxBackend:
         log.warning("No sound player found (tried pw-play, paplay, ffplay, aplay)")
 
     def open_url(self, url: str) -> None:
+        if not url.startswith(("http://", "https://")):
+            log.warning("Blocked non-HTTP URL: %s", url[:80])
+            return
         try:
             subprocess.Popen(
                 ["xdg-open", url],

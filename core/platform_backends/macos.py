@@ -11,7 +11,7 @@ log = logging.getLogger(__name__)
 
 def _escape_applescript(s: str) -> str:
     """Escape string for safe use in AppleScript double-quoted strings."""
-    return s.replace("\\", "\\\\").replace('"', '\\"')
+    return s.replace("\\", "\\\\").replace('"', '\\"').replace("\n", " ").replace("\r", " ")
 
 
 class MacOSBackend:
@@ -46,6 +46,9 @@ class MacOSBackend:
             log.warning("afplay not found")
 
     def open_url(self, url: str) -> None:
+        if not url.startswith(("http://", "https://")):
+            log.warning("Blocked non-HTTP URL: %s", url[:80])
+            return
         try:
             subprocess.Popen(
                 ["open", url],
@@ -136,7 +139,8 @@ class MacOSBackend:
             return {"nopasswd_all": False}
 
     def elevate_command(self, cmd: list[str]) -> list[str]:
-        safe_cmd = _escape_applescript(" ".join(cmd))
+        import shlex
+        safe_cmd = _escape_applescript(shlex.join(cmd))
         return [
             "osascript", "-e",
             f'do shell script "{safe_cmd}" with administrator privileges',

@@ -130,7 +130,6 @@ class DockerMonitorPlugin(Plugin):
                     severity="critical",
                     title=f"{c['name']} crashed (exit {c['exit_code']})",
                     message=f"Container {c['name']} exited with code {c['exit_code']}",
-                    sound="fart3.mp3",
                 ))
 
             if c["status"] != "running":
@@ -142,7 +141,6 @@ class DockerMonitorPlugin(Plugin):
                     severity="warning",
                     title=f"{c['name']} CPU {c['cpu_percent']:.0f}%",
                     message=f"Container {c['name']} CPU usage at {c['cpu_percent']:.1f}% (threshold: {self._cpu_threshold}%)",
-                    sound="fart1.mp3",
                 ))
 
             if c["mem_limit"] > 0:
@@ -153,8 +151,7 @@ class DockerMonitorPlugin(Plugin):
                         severity="critical",
                         title=f"{c['name']} RAM {ram_pct:.0f}%",
                         message=f"Container {c['name']} RAM at {ram_pct:.1f}% (threshold: {self._ram_threshold}%)",
-                        sound="fart3.mp3",
-                    ))
+                        ))
 
             if c["health"] == "unhealthy":
                 alerts.append(Alert(
@@ -162,7 +159,6 @@ class DockerMonitorPlugin(Plugin):
                     severity="warning",
                     title=f"{c['name']} unhealthy",
                     message=f"Container {c['name']} health check is failing",
-                    sound="fart1.mp3",
                 ))
 
             if c["restart_count"] >= 3:
@@ -171,7 +167,6 @@ class DockerMonitorPlugin(Plugin):
                     severity="critical",
                     title=f"{c['name']} restart loop ({c['restart_count']}x)",
                     message=f"Container {c['name']} has restarted {c['restart_count']} times",
-                    sound="fart3.mp3",
                 ))
 
         return alerts

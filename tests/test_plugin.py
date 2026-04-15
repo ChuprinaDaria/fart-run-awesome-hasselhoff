@@ -10,11 +10,10 @@ def test_alert_creation():
         severity="critical",
         title="Test Alert",
         message="Something broke",
-        sound="fart1.mp3",
     )
     assert alert.source == "test"
     assert alert.severity == "critical"
-    assert alert.sound == "fart1.mp3"
+    assert alert.title == "Test Alert"
 
 
 def test_plugin_cannot_be_instantiated():

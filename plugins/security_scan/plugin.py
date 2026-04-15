@@ -143,12 +143,10 @@ class SecurityScanPlugin(Plugin):
         for row in await cursor.fetchall():
             type_, severity, desc, source = row
             if severity in ("critical", "high"):
-                sound = "fart3.mp3" if severity == "critical" else "fart1.mp3"
                 alerts.append(Alert(
                     source="security",
                     severity=severity,
                     title=f"[{type_}] {desc[:50]}",
                     message=desc,
-                    sound=sound,
                 ))
         return alerts

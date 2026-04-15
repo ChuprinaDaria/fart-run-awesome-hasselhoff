@@ -14,10 +14,9 @@ if TYPE_CHECKING:
 @dataclass
 class Alert:
     source: str
-    severity: str  # "critical", "warning", "info"
+    severity: str  # "critical", "high", "warning", "info"
     title: str
     message: str
-    sound: str | None = None
 
 
 class Plugin(abc.ABC):

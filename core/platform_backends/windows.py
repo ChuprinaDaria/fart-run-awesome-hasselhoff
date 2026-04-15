@@ -12,7 +12,9 @@ log = logging.getLogger(__name__)
 
 def _escape_ps(s: str) -> str:
     """Escape string for safe use in PowerShell double-quoted strings."""
-    return s.replace("`", "``").replace('"', '`"').replace("$", "`$")
+    return (s.replace("`", "``").replace('"', '`"').replace("$", "`$")
+             .replace("\n", " ").replace("\r", " ").replace(";", "`;")
+             .replace("|", "`|").replace("(", "`(").replace(")", "`)"))
 
 
 def _appdata() -> Path:
@@ -70,16 +72,21 @@ class WindowsBackend:
             log.warning("powershell not found for sound playback")
 
     def open_url(self, url: str) -> None:
+        if not url.startswith(("http://", "https://")):
+            log.warning("Blocked non-HTTP URL: %s", url[:80])
+            return
         try:
             os.startfile(url)  # type: ignore[attr-defined]
         except AttributeError:
-            subprocess.Popen(["cmd", "/c", "start", "", url])
+            import webbrowser
+            webbrowser.open(url)
 
     def open_file(self, path: Path) -> None:
         try:
             os.startfile(str(path))  # type: ignore[attr-defined]
         except AttributeError:
-            subprocess.Popen(["cmd", "/c", "start", "", str(path)])
+            import webbrowser
+            webbrowser.open(str(path))
 
     def check_firewall(self) -> dict:
         try:
@@ -149,8 +156,11 @@ class WindowsBackend:
 
     def elevate_command(self, cmd: list[str]) -> list[str]:
         safe_exe = cmd[0].replace("'", "''")
-        safe_args = " ".join(cmd[1:]).replace("'", "''") if len(cmd) > 1 else ""
+        if len(cmd) > 1:
+            safe_args = ", ".join(f"'{a.replace(chr(39), chr(39)*2)}'" for a in cmd[1:])
+        else:
+            safe_args = ""
         return [
             "powershell", "-Command",
-            f"Start-Process -Verb RunAs -FilePath '{safe_exe}' -ArgumentList '{safe_args}'",
+            f"Start-Process -Verb RunAs -FilePath '{safe_exe}' -ArgumentList @({safe_args})",
         ]

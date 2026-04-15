@@ -304,22 +304,28 @@ class HistoryDB:
         return {"saves_count": r[0], "rollbacks_count": r[1], "picks_count": r[2],
                 "gitignore_created": r[3], "git_initialized": r[4]}
 
+    _BUMP_FIELDS = frozenset({"saves_count", "rollbacks_count", "picks_count"})
+    _FLAG_FIELDS = frozenset({"gitignore_created", "git_initialized"})
+
     def bump_git_education(self, project_dir: str, field: str) -> None:
         self._ensure_conn()
         self._conn.execute(
             "INSERT OR IGNORE INTO git_education (project_dir) VALUES (?)",
             (project_dir,),
         )
-        if field in ("saves_count", "rollbacks_count", "picks_count"):
+        if field in self._BUMP_FIELDS:
+            # field is validated against a frozen whitelist — safe for interpolation
             self._conn.execute(
                 f"UPDATE git_education SET {field} = {field} + 1 WHERE project_dir = ?",
                 (project_dir,),
             )
-        elif field in ("gitignore_created", "git_initialized"):
+        elif field in self._FLAG_FIELDS:
             self._conn.execute(
                 f"UPDATE git_education SET {field} = 1 WHERE project_dir = ?",
                 (project_dir,),
             )
+        else:
+            raise ValueError(f"Invalid git_education field: {field!r}")
         self._conn.commit()
 
     def close(self) -> None:
