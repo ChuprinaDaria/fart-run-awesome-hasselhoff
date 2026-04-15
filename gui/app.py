@@ -38,8 +38,10 @@ from gui.pages.activity import ActivityPage
 from gui.pages.health_page import HealthPage
 from gui.pages.snapshots import SnapshotsPage
 from gui.pages.safety_net_page import SafetyNetPage
-from core.changelog_watcher import check_for_update, dismiss_version
+from core.changelog_watcher import check_for_update, dismiss_version, _ensure_version_table
 from core.history import HistoryDB
+from core.status_checker import StatusChecker
+from gui.statusbar import ClaudeStatusBar
 from gui.widgets.project_selector import ProjectSelector
 
 log = logging.getLogger(__name__)
@@ -210,7 +212,10 @@ class MonitorApp(QMainWindow):
         main_layout.addWidget(right_panel)
         self.setCentralWidget(central)
 
-        self.statusBar().showMessage(_t("ready"))
+        # Claude Status Bar (permanent, replaces default statusbar)
+        self._claude_statusbar = ClaudeStatusBar(self)
+        self.setStatusBar(self._claude_statusbar)
+        self._claude_statusbar.clicked.connect(lambda: self._on_page_selected("overview"))
 
         # Connect signals
         self.page_overview.refresh_requested.connect(self._refresh_all)
@@ -267,6 +272,16 @@ class MonitorApp(QMainWindow):
             self._snapshot_timer.timeout.connect(self._auto_snapshot)
             self._snapshot_timer.start(snap_interval)
 
+        # Status checker timer
+        self._status_checker = None
+        self._status_thread = None
+        status_config = config.get("status", {})
+        if status_config.get("enabled", True):
+            interval_min = status_config.get("check_interval_minutes", 5)
+            self._status_timer = QTimer(self)
+            self._status_timer.timeout.connect(self._check_api_status)
+            self._status_timer.start(interval_min * 60 * 1000)
+
         # Initial refresh
         self._refresh_all()
         self._run_security_scan()
@@ -304,7 +319,7 @@ class MonitorApp(QMainWindow):
             self.page_snapshots.set_config(new_config)
         if hasattr(self.page_safety_net, 'set_config'):
             self.page_safety_net.set_config(new_config)
-        self.statusBar().showMessage("Settings applied", 3000)
+        self._claude_statusbar.showMessage("Settings applied", 3000)
 
     def _on_project_changed(self, path: str) -> None:
         """Sync selected project to Activity, Snapshots, and Health pages."""
@@ -423,8 +438,8 @@ class MonitorApp(QMainWindow):
             )
             # Check for Claude Code updates on startup
             self._check_claude_update()
-
-        self.statusBar().showMessage(_t("ready"))
+            # Initial API status check
+            self._check_api_status()
 
     def _check_docker_alerts(self, infos: list[dict]):
         """Docker alerts — no Hasselhoff, just problems."""
@@ -590,9 +605,9 @@ class MonitorApp(QMainWindow):
             if victory:
                 self._alert_manager.play_file(Path(victory))
             phrase = get_hoff_phrase()
-            self.statusBar().showMessage(f"HASSELHOFF: {message} — {phrase}", 8000)
+            self._claude_statusbar.showMessage(f"HASSELHOFF: {message} — {phrase}", 8000)
         except ImportError:
-            self.statusBar().showMessage(f"HASSELHOFF: {message}", 5000)
+            self._claude_statusbar.showMessage(f"HASSELHOFF: {message}", 5000)
 
     def _do_nag(self):
         self._alert_manager.play_sound(Alert(
@@ -601,6 +616,50 @@ class MonitorApp(QMainWindow):
 
     def _do_hoff(self):
         self._trigger_hasselhoff("Manual Hasselhoff!")
+
+    def _check_api_status(self) -> None:
+        """Check Anthropic API status in background thread."""
+        if self._history_db is None:
+            self._history_db = HistoryDB()
+            self._history_db.init()
+        if self._status_checker is None:
+            self._status_checker = StatusChecker(self._history_db)
+
+        class _StatusThread(QThread):
+            done = pyqtSignal(object)
+            def __init__(self, checker, parent=None):
+                super().__init__(parent)
+                self._checker = checker
+            def run(self):
+                self.done.emit(self._checker.check_now())
+
+        thread = _StatusThread(self._status_checker, self)
+        thread.done.connect(self._on_status_checked)
+        thread.finished.connect(thread.deleteLater)
+        thread.start()
+        self._status_thread = thread
+
+    def _on_status_checked(self, result) -> None:
+        """Update statusbar + overview from status check result."""
+        self._claude_statusbar.update_status(
+            result.api_indicator, result.claude_version, result.timestamp
+        )
+        if hasattr(self.page_overview, "update_claude_status"):
+            history = self._status_checker.get_status_history(hours=24)
+            try:
+                _ensure_version_table(self._history_db)
+                rows = self._history_db._conn.execute(
+                    "SELECT version, detected_at FROM claude_versions ORDER BY id DESC LIMIT 5"
+                ).fetchall()
+            except Exception:
+                rows = []
+            self.page_overview.update_claude_status(result, history, rows)
+
+        # Connect overview Check Now button (once)
+        if not hasattr(self, "_status_btn_connected"):
+            if hasattr(self.page_overview, "btn_check_now"):
+                self.page_overview.btn_check_now.clicked.connect(self._check_api_status)
+                self._status_btn_connected = True
 
     def _check_claude_update(self):
         """Check if Claude Code version changed since last run."""
