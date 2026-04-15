@@ -262,4 +262,11 @@ STRINGS = {
     "hoff_health_header": "Хофф перевіряє здоров'я",
     "hoff_health_monster": "Навіть Хассельхофф не врятує файл на 3000 рядків",
     "hoff_health_clean": "Твій код готовий до пляжу!",
+
+    # Dead Code
+    "health_section_unused_imports": "Невикористані імпорти",
+    "health_section_unused_defs": "Невикористані функції/класи",
+    "health_section_orphans": "Файли-сироти",
+    "health_section_commented": "Закоментований код",
+    "health_dead_code_header": "Мертвий код",
 }

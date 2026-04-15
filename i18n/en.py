@@ -262,4 +262,11 @@ STRINGS = {
     "hoff_health_header": "The Hoff's Health Check",
     "hoff_health_monster": "Even Hasselhoff can't save a 3000-line file",
     "hoff_health_clean": "Your codebase is beach-ready!",
+
+    # Dead Code
+    "health_section_unused_imports": "Unused Imports",
+    "health_section_unused_defs": "Unused Functions/Classes",
+    "health_section_orphans": "Orphan Files",
+    "health_section_commented": "Commented-Out Code",
+    "health_dead_code_header": "Dead Code",
 }

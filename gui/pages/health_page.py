@@ -140,6 +140,10 @@ class HealthPage(QWidget):
             "map.modules": (_t("health_section_modules"), []),
             "map.monsters": (_t("health_section_monsters"), []),
             "map.configs": (_t("health_section_configs"), []),
+            "dead.unused_imports": (_t("health_section_unused_imports"), []),
+            "dead.unused_definitions": (_t("health_section_unused_defs"), []),
+            "dead.orphan_files": (_t("health_section_orphans"), []),
+            "dead.commented_code": (_t("health_section_commented"), []),
             "system": ("System", []),
         }
 
@@ -241,6 +245,22 @@ class HealthPage(QWidget):
                 tip.setWordWrap(True)
                 gl.addWidget(tip)
             self._content_layout.addWidget(group)
+
+        # Dead Code sections
+        for dead_key in ["dead.unused_imports", "dead.unused_definitions", "dead.orphan_files", "dead.commented_code"]:
+            dead_findings = sections.get(dead_key, ("", []))[1]
+            if dead_findings:
+                section_title = sections[dead_key][0]
+                group = self._make_group(f"{section_title} ({len(dead_findings)})")
+                gl = group.layout()
+                for f in dead_findings[:15]:
+                    row = self._make_finding_row(f)
+                    gl.addWidget(row)
+                if len(dead_findings) > 15:
+                    more = QLabel(f"  ... and {len(dead_findings) - 15} more")
+                    more.setStyleSheet("color: #808080; font-style: italic;")
+                    gl.addWidget(more)
+                self._content_layout.addWidget(group)
 
         # System warnings
         sys_findings = sections.get("system", ("", []))[1]

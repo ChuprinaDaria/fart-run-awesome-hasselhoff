@@ -39,3 +39,6 @@ class HealthReport:
     module_map: dict = field(default_factory=dict)
     monsters: list[dict] = field(default_factory=list)
     configs: list[dict] = field(default_factory=list)
+    unused_imports: list[dict] = field(default_factory=list)
+    unused_definitions: list[dict] = field(default_factory=list)
+    commented_blocks: list[dict] = field(default_factory=list)

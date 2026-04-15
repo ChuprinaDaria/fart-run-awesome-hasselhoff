@@ -65,3 +65,32 @@ def tip_env_files(count: int) -> str:
             f"That's chaos. Usually one .env in root is enough."
         )
     return "One .env file — that's clean."
+
+
+def tip_unused_import(name: str, path: str, line: int) -> str:
+    return (
+        f"{name} imported in {path}:{line} but never used. "
+        f"Unused import — like buying groceries and leaving them in the trunk. "
+        f"Remove it, nothing will break."
+    )
+
+
+def tip_unused_function(name: str, path: str) -> str:
+    return (
+        f"{name}() in {path} — defined but never called anywhere in the project. "
+        f"Dead code. Delete or use it."
+    )
+
+
+def tip_unused_class(name: str, path: str) -> str:
+    return (
+        f"class {name} in {path} — exists but nobody uses it. Dead weight. "
+        f"Delete or use it."
+    )
+
+
+def tip_commented_code(path: str, start: int, count: int) -> str:
+    return (
+        f"{count} lines of commented-out code in {path}:{start}. "
+        f"That's not backup — git is your backup. Delete it."
+    )
