@@ -218,6 +218,17 @@ def run_all_checks(project_dir: str) -> HealthReport:
         except Exception as e:
             log.error("tech_debt scan error: %s", e)
 
+        # Check 3.1: Outdated Dependencies (needs network)
+        try:
+            from core.health.outdated_deps import run_outdated_deps_check
+            from core.history import HistoryDB
+            _dep_db = HistoryDB()
+            _dep_db.init()
+            run_outdated_deps_check(report, project_dir, db=_dep_db)
+            _dep_db.close()
+        except Exception as e:
+            log.error("outdated_deps scan error: %s", e)
+
         # Phase 4: Brake System
         try:
             from core.health.brake_system import run_brake_checks

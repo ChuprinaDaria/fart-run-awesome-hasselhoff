@@ -326,4 +326,7 @@ STRINGS = {
     "changelog_message": "New features might affect your workflow. Check what changed before your next AI session.",
     "changelog_got_it": "Got it",
     "changelog_show_full": "Show full changelog",
+
+    # Outdated Dependencies
+    "health_section_outdated_deps": "Outdated Dependencies",
 }

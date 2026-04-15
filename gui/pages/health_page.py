@@ -148,6 +148,7 @@ class HealthPage(QWidget):
             "debt.error_handling": (_t("health_section_error_gaps"), []),
             "debt.hardcoded": (_t("health_section_hardcoded"), []),
             "debt.todos": (_t("health_section_todos"), []),
+            "debt.outdated_deps": (_t("health_section_outdated_deps"), []),
             "brake.unfinished": (_t("health_section_unfinished"), []),
             "brake.tests": (_t("health_section_tests"), []),
             "brake.scope_creep": (_t("health_section_scope"), []),
@@ -266,7 +267,7 @@ class HealthPage(QWidget):
         # Dead Code sections
         for dead_key in [
             "dead.unused_imports", "dead.unused_definitions", "dead.orphan_files", "dead.commented_code",
-            "debt.no_types", "debt.error_handling", "debt.hardcoded", "debt.todos",
+            "debt.no_types", "debt.error_handling", "debt.hardcoded", "debt.todos", "debt.outdated_deps",
             "brake.unfinished", "brake.tests", "brake.scope_creep", "brake.overengineering",
             "git.status", "git.commits", "git.branches", "git.gitignore", "git.cheatsheet",
             "docs.readme", "docs.deps", "docs.devtools", "docs.llm_context",

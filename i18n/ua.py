@@ -326,4 +326,7 @@ STRINGS = {
     "changelog_message": "Нові фічі можуть вплинути на роботу. Перевір що змінилось перед наступною AI сесією.",
     "changelog_got_it": "Зрозуміло",
     "changelog_show_full": "Повний changelog",
+
+    # Outdated Dependencies
+    "health_section_outdated_deps": "Застарілі залежності",
 }
