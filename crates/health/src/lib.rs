@@ -8,6 +8,7 @@ mod file_tree;
 mod module_map;
 mod monsters;
 mod overengineering;
+mod reusable;
 mod tech_debt;
 
 use pyo3::prelude::*;
@@ -49,6 +50,10 @@ fn health(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<overengineering::OverengineeringIssue>()?;
     m.add_class::<overengineering::OverengineeringResult>()?;
     m.add_function(wrap_pyfunction!(overengineering::scan_overengineering, m)?)?;
+
+    m.add_class::<reusable::ReusablePattern>()?;
+    m.add_class::<reusable::ReusableResult>()?;
+    m.add_function(wrap_pyfunction!(reusable::scan_reusable, m)?)?;
 
     Ok(())
 }

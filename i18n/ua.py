@@ -330,4 +330,5 @@ STRINGS = {
     # Outdated Dependencies
     "health_section_outdated_deps": "Застарілі залежності",
     "health_section_duplicates": "Дублікати коду",
+    "health_section_reusable": "Компоненти для перевикористання",
 }

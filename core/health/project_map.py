@@ -228,6 +228,23 @@ def run_all_checks(project_dir: str) -> HealthReport:
         except Exception as e:
             log.error("duplicates scan error: %s", e)
 
+        # Check 3.6: Reusable Components (frontend)
+        try:
+            reuse_result = health_rs.scan_reusable(project_dir)
+            for pat in reuse_result.patterns[:10]:
+                report.findings.append(HealthFinding(
+                    check_id="debt.no_reuse",
+                    title=f"{pat.pattern} in {len(pat.files)} files ({pat.occurrences}x)",
+                    severity="medium",
+                    message=(
+                        f"{pat.pattern} appears {pat.occurrences} times in {len(pat.files)} files: "
+                        f"{', '.join(pat.files[:3])}. "
+                        f"Extract into a reusable component. Write once, use everywhere."
+                    ),
+                ))
+        except Exception as e:
+            log.error("reusable scan error: %s", e)
+
         # Phase 3: Tech Debt
         try:
             from core.health.tech_debt import run_tech_debt_checks
