@@ -107,3 +107,46 @@ class ActivityEntry:
     port_changes: list[PortChange] = field(default_factory=list)
     commits: list[str] = field(default_factory=list)
     project_dir: str = ""
+
+
+@dataclass
+class EnvironmentSnapshot:
+    id: int = 0
+    timestamp: str = ""
+    label: str = ""
+    project_dir: str = ""
+    git_branch: str = ""
+    git_last_commit: str = ""
+    git_tracked_count: int = 0
+    git_dirty_files: list[str] = field(default_factory=list)
+    containers: list[dict] = field(default_factory=list)
+    listening_ports: list[dict] = field(default_factory=list)
+    config_checksums: dict[str, str] = field(default_factory=dict)
+
+
+@dataclass
+class SnapshotDiff:
+    branch_changed: bool = False
+    old_branch: str = ""
+    new_branch: str = ""
+    dirty_added: list[str] = field(default_factory=list)
+    dirty_removed: list[str] = field(default_factory=list)
+    containers_added: list[str] = field(default_factory=list)
+    containers_removed: list[str] = field(default_factory=list)
+    containers_status_changed: list[tuple] = field(default_factory=list)
+    ports_opened: list[int] = field(default_factory=list)
+    ports_closed: list[int] = field(default_factory=list)
+    configs_changed: list[str] = field(default_factory=list)
+    configs_added: list[str] = field(default_factory=list)
+    configs_removed: list[str] = field(default_factory=list)
+
+    @property
+    def total_changes(self) -> int:
+        return (
+            int(self.branch_changed)
+            + len(self.dirty_added) + len(self.dirty_removed)
+            + len(self.containers_added) + len(self.containers_removed)
+            + len(self.containers_status_changed)
+            + len(self.ports_opened) + len(self.ports_closed)
+            + len(self.configs_changed) + len(self.configs_added) + len(self.configs_removed)
+        )

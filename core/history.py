@@ -36,6 +36,21 @@ class HistoryDB:
                 security_score INTEGER
             )
         """)
+        self._conn.execute("""
+            CREATE TABLE IF NOT EXISTS snapshots (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                timestamp TEXT NOT NULL,
+                label TEXT NOT NULL,
+                project_dir TEXT NOT NULL,
+                git_branch TEXT DEFAULT '',
+                git_last_commit TEXT DEFAULT '',
+                git_tracked_count INTEGER DEFAULT 0,
+                git_dirty_files TEXT DEFAULT '[]',
+                containers TEXT DEFAULT '[]',
+                listening_ports TEXT DEFAULT '[]',
+                config_checksums TEXT DEFAULT '{}'
+            )
+        """)
         self._conn.commit()
 
     def save_daily_stats(self, date: str, tokens: int, cost: float,
