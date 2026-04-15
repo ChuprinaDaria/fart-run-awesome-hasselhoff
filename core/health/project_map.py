@@ -90,11 +90,12 @@ def run_all_checks(project_dir: str) -> HealthReport:
     """Run all Phase 1 checks and assemble a HealthReport."""
     report = HealthReport(project_dir=project_dir)
 
+    _rust_available = False
+    health_rs = None
     try:
         import health as health_rs
         _rust_available = True
     except ImportError:
-        _rust_available = False
         log.warning("health crate not installed — Rust checks skipped")
         report.findings.append(HealthFinding(
             check_id="system",

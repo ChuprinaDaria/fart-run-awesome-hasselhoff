@@ -62,7 +62,7 @@ fn count_definitions_python(content: &str) -> (u32, u32) {
     let mut classes: u32 = 0;
 
     let mut cursor = tree.walk();
-    walk_nodes(&mut cursor, &mut |node| match node.kind() {
+    crate::common::walk_nodes(&mut cursor, &mut |node| match node.kind() {
         "function_definition" => functions += 1,
         "class_definition" => classes += 1,
         _ => {}
@@ -88,7 +88,7 @@ fn count_definitions_js(content: &str, is_ts: bool) -> (u32, u32) {
     let mut classes: u32 = 0;
 
     let mut cursor = tree.walk();
-    walk_nodes(&mut cursor, &mut |node| match node.kind() {
+    crate::common::walk_nodes(&mut cursor, &mut |node| match node.kind() {
         "function_declaration" | "arrow_function" | "method_definition"
         | "function_expression" | "generator_function_declaration" => functions += 1,
         "class_declaration" => classes += 1,
@@ -96,23 +96,6 @@ fn count_definitions_js(content: &str, is_ts: bool) -> (u32, u32) {
     });
 
     (functions, classes)
-}
-
-/// Recursively walk all nodes in the tree, calling f on each.
-fn walk_nodes<F>(cursor: &mut tree_sitter::TreeCursor, f: &mut F)
-where
-    F: FnMut(tree_sitter::Node),
-{
-    f(cursor.node());
-    if cursor.goto_first_child() {
-        loop {
-            walk_nodes(cursor, f);
-            if !cursor.goto_next_sibling() {
-                break;
-            }
-        }
-        cursor.goto_parent();
-    }
 }
 
 #[pyfunction]

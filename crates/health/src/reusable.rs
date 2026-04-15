@@ -35,22 +35,6 @@ pub struct ReusableResult {
     pub patterns: Vec<ReusablePattern>,
 }
 
-fn walk_nodes<F>(cursor: &mut tree_sitter::TreeCursor, f: &mut F)
-where
-    F: FnMut(tree_sitter::Node),
-{
-    f(cursor.node());
-    if cursor.goto_first_child() {
-        loop {
-            walk_nodes(cursor, f);
-            if !cursor.goto_next_sibling() {
-                break;
-            }
-        }
-        cursor.goto_parent();
-    }
-}
-
 /// Extract a normalized pattern from a JSX element:
 /// "<button className='btn-primary'>" → "button.btn-primary"
 fn extract_jsx_pattern(node: tree_sitter::Node, source: &str) -> Option<String> {
@@ -168,7 +152,7 @@ pub fn scan_reusable(path: &str) -> PyResult<ReusableResult> {
             continue;
         }
         let rel_path = match entry_path.strip_prefix(root) {
-            Ok(r) => r.to_string_lossy().to_string(),
+            Ok(r) => crate::common::normalize_path(&r.to_string_lossy()),
             Err(_) => continue,
         };
 
@@ -198,7 +182,7 @@ pub fn scan_reusable(path: &str) -> PyResult<ReusableResult> {
         };
 
         let mut cursor = tree.walk();
-        walk_nodes(&mut cursor, &mut |node| {
+        crate::common::walk_nodes(&mut cursor, &mut |node| {
             if let Some(pattern) = extract_jsx_pattern(node, &content) {
                 let entry = pattern_map.entry(pattern.clone()).or_insert_with(|| {
                     let preview = node

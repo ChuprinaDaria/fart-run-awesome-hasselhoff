@@ -72,6 +72,7 @@ pub struct DeadCodeResult {
 struct FileData {
     rel_path: String,
     lang: Lang,
+    content: String,
     imports: Vec<(String, u32, String)>,
     definitions: Vec<(String, u32, String)>,
     used_identifiers: HashSet<String>,
@@ -86,22 +87,6 @@ enum Lang {
     TypeScript,
 }
 
-fn walk_nodes<F>(cursor: &mut tree_sitter::TreeCursor, f: &mut F)
-where
-    F: FnMut(tree_sitter::Node),
-{
-    f(cursor.node());
-    if cursor.goto_first_child() {
-        loop {
-            walk_nodes(cursor, f);
-            if !cursor.goto_next_sibling() {
-                break;
-            }
-        }
-        cursor.goto_parent();
-    }
-}
-
 fn parse_file(content: &str, rel_path: &str, lang: Lang) -> FileData {
     let is_init = rel_path.ends_with("__init__.py");
 
@@ -114,6 +99,7 @@ fn parse_file(content: &str, rel_path: &str, lang: Lang) -> FileData {
     let empty = FileData {
         rel_path: rel_path.to_string(),
         lang,
+        content: content.to_string(),
         imports: vec![],
         definitions: vec![],
         used_identifiers: HashSet::new(),
@@ -138,7 +124,7 @@ fn parse_file(content: &str, rel_path: &str, lang: Lang) -> FileData {
 
     let mut cursor = tree.walk();
 
-    walk_nodes(&mut cursor, &mut |node| {
+    crate::common::walk_nodes(&mut cursor, &mut |node| {
         let line = node.start_position().row as u32 + 1;
 
         match lang {
@@ -341,6 +327,7 @@ fn parse_file(content: &str, rel_path: &str, lang: Lang) -> FileData {
     FileData {
         rel_path: rel_path.to_string(),
         lang,
+        content: content.to_string(),
         imports,
         definitions,
         used_identifiers,
@@ -407,9 +394,12 @@ fn collect_js_import_names(
 
 /// Detect commented-out code blocks via regex.
 fn find_commented_blocks(content: &str, rel_path: &str, lang: Lang) -> Vec<CommentedBlock> {
-    let code_pattern =
+    use std::sync::LazyLock;
+    static CODE_PATTERN: LazyLock<Regex> = LazyLock::new(|| {
         Regex::new(r"[=\(\)\{\}]|def |class |import |return |function |const |let |var |if |for ")
-            .unwrap();
+            .unwrap()
+    });
+    let code_pattern = &*CODE_PATTERN;
 
     let comment_prefix = match lang {
         Lang::Python => "#",
@@ -531,7 +521,7 @@ pub fn scan_dead_code(path: &str, entry_point_paths: Vec<String>) -> PyResult<De
             _ => Lang::JavaScript,
         };
         let rel_path = match entry_path.strip_prefix(root) {
-            Ok(r) => r.to_string_lossy().to_string(),
+            Ok(r) => crate::common::normalize_path(&r.to_string_lossy()),
             Err(_) => continue,
         };
         let content = match fs::read_to_string(entry_path) {
@@ -621,14 +611,10 @@ pub fn scan_dead_code(path: &str, entry_point_paths: Vec<String>) -> PyResult<De
         .cloned()
         .collect();
 
-    // Phase 5: Commented-out code
+    // Phase 5: Commented-out code (reuse stored content, no re-read)
     let mut commented_blocks: Vec<CommentedBlock> = Vec::new();
     for fd in &file_data {
-        let content = match fs::read_to_string(root.join(&fd.rel_path)) {
-            Ok(c) => c,
-            Err(_) => continue,
-        };
-        commented_blocks.extend(find_commented_blocks(&content, &fd.rel_path, fd.lang));
+        commented_blocks.extend(find_commented_blocks(&fd.content, &fd.rel_path, fd.lang));
     }
 
     Ok(DeadCodeResult {

@@ -121,7 +121,8 @@ def check_dependency_docs(report: HealthReport, project_dir: str) -> None:
             pass
 
     # Check package.json exists if JS files present
-    has_js = any(root.rglob("*.js")) or any(root.rglob("*.ts"))
+    from core.health import has_files_with_ext
+    has_js = has_files_with_ext(root, "js") or has_files_with_ext(root, "ts")
     pkg_json = root / "package.json"
     if has_js and not pkg_json.exists():
         report.findings.append(HealthFinding(
@@ -136,11 +137,12 @@ def check_devtools_tips(report: HealthReport, project_dir: str) -> None:
     """Check 6.4 — show DevTools tips for frontend projects."""
     root = Path(project_dir)
 
+    from core.health import has_files_with_ext
     is_frontend = (
-        any(root.rglob("*.jsx"))
-        or any(root.rglob("*.tsx"))
-        or any(root.rglob("*.vue"))
-        or any(root.rglob("*.svelte"))
+        has_files_with_ext(root, "jsx")
+        or has_files_with_ext(root, "tsx")
+        or has_files_with_ext(root, "vue")
+        or has_files_with_ext(root, "svelte")
         or (root / "next.config.js").exists()
         or (root / "next.config.mjs").exists()
         or (root / "vite.config.js").exists()
@@ -169,15 +171,16 @@ def generate_llm_context(report: HealthReport, project_dir: str) -> None:
 
     # Stack detection
     stack = []
-    if any(root.rglob("*.py")):
+    from core.health import has_files_with_ext
+    if has_files_with_ext(root, "py"):
         stack.append("Python")
         if (root / "manage.py").exists():
             stack.append("Django")
-    if any(root.rglob("*.js")) or any(root.rglob("*.ts")):
+    if has_files_with_ext(root, "js") or has_files_with_ext(root, "ts"):
         stack.append("JavaScript/TypeScript")
-        if any(root.rglob("*.jsx")) or any(root.rglob("*.tsx")):
+        if has_files_with_ext(root, "jsx") or has_files_with_ext(root, "tsx"):
             stack.append("React")
-        if any(root.rglob("*.vue")):
+        if has_files_with_ext(root, "vue"):
             stack.append("Vue")
     if (root / "docker-compose.yml").exists() or (root / "docker-compose.yaml").exists():
         stack.append("Docker")

@@ -32,22 +32,6 @@ pub struct OverengineeringResult {
     pub issues: Vec<OverengineeringIssue>,
 }
 
-fn walk_nodes<F>(cursor: &mut tree_sitter::TreeCursor, f: &mut F)
-where
-    F: FnMut(tree_sitter::Node),
-{
-    f(cursor.node());
-    if cursor.goto_first_child() {
-        loop {
-            walk_nodes(cursor, f);
-            if !cursor.goto_next_sibling() {
-                break;
-            }
-        }
-        cursor.goto_parent();
-    }
-}
-
 /// Check for single-method classes in Python.
 fn check_single_method_classes_python(
     content: &str,
@@ -141,7 +125,7 @@ fn check_single_method_classes_js(
     let root = tree.root_node();
 
     let mut cursor = root.walk();
-    walk_nodes(&mut cursor, &mut |node| {
+    crate::common::walk_nodes(&mut cursor, &mut |node| {
         if node.kind() == "class_declaration" {
             let class_name = node
                 .child_by_field_name("name")
@@ -227,7 +211,7 @@ pub fn scan_overengineering(path: &str) -> PyResult<OverengineeringResult> {
         }
 
         let rel_path = match entry_path.strip_prefix(root) {
-            Ok(r) => r.to_string_lossy().to_string(),
+            Ok(r) => crate::common::normalize_path(&r.to_string_lossy()),
             Err(_) => continue,
         };
 

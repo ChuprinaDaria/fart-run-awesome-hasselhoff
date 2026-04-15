@@ -3,37 +3,12 @@
 from __future__ import annotations
 
 import logging
-import shutil
-import subprocess
 from pathlib import Path
 
 from core.health.models import HealthFinding, HealthReport
+from core.health.git_utils import run_git as _run_git, is_git_repo as _is_git_repo
 
 log = logging.getLogger(__name__)
-
-
-def _run_git(project_dir: str, *args: str) -> str | None:
-    git = shutil.which("git")
-    if not git:
-        return None
-    try:
-        result = subprocess.run(
-            [git, *args],
-            cwd=project_dir,
-            capture_output=True,
-            text=True,
-            encoding="utf-8",
-            errors="replace",
-            timeout=10,
-        )
-        return result.stdout.strip() if result.returncode == 0 else None
-    except (subprocess.TimeoutExpired, OSError):
-        return None
-
-
-def _is_git_repo(project_dir: str) -> bool:
-    output = _run_git(project_dir, "rev-parse", "--is-inside-work-tree")
-    return output is not None and output.strip() == "true"
 
 
 def check_git_status(report: HealthReport, project_dir: str) -> None:
@@ -258,7 +233,8 @@ def check_gitignore(report: HealthReport, project_dir: str) -> None:
     missing = []
 
     # Detect project type and check relevant patterns
-    has_python = any(root.rglob("*.py"))
+    from core.health import has_files_with_ext
+    has_python = has_files_with_ext(root, "py")
     has_node = (root / "package.json").exists()
 
     if has_python:

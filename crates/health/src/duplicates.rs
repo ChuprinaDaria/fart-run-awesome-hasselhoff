@@ -165,7 +165,7 @@ pub fn scan_duplicates(path: &str) -> PyResult<DuplicatesResult> {
             continue;
         }
         let rel_path = match entry_path.strip_prefix(root) {
-            Ok(r) => r.to_string_lossy().to_string(),
+            Ok(r) => crate::common::normalize_path(&r.to_string_lossy()),
             Err(_) => continue,
         };
 

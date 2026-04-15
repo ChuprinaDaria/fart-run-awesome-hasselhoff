@@ -202,6 +202,7 @@ class SnapshotsPage(QWidget):
         layout.addWidget(time_lbl)
 
         label_lbl = QLabel(f'"{snap.label}"')
+        label_lbl.setTextFormat(Qt.PlainText)
         label_lbl.setStyleSheet("color: #333; font-style: italic;")
         layout.addWidget(label_lbl)
 

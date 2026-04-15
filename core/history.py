@@ -25,7 +25,7 @@ class HistoryDB:
             self.init()
 
     def init(self) -> None:
-        self._conn = sqlite3.connect(self._path)
+        self._conn = sqlite3.connect(self._path, timeout=10)
         self._conn.execute("""
             CREATE TABLE IF NOT EXISTS daily_stats (
                 date TEXT PRIMARY KEY,

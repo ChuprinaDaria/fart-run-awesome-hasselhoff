@@ -80,24 +80,6 @@ pub struct TechDebtResult {
     pub todos: Vec<TodoItem>,
 }
 
-// --- Tree walker helper ---
-
-fn walk_nodes<F>(cursor: &mut tree_sitter::TreeCursor, f: &mut F)
-where
-    F: FnMut(tree_sitter::Node),
-{
-    f(cursor.node());
-    if cursor.goto_first_child() {
-        loop {
-            walk_nodes(cursor, f);
-            if !cursor.goto_next_sibling() {
-                break;
-            }
-        }
-        cursor.goto_parent();
-    }
-}
-
 // --- Check 3.2: Missing Type Hints ---
 
 fn check_missing_types_python(content: &str, rel_path: &str) -> Vec<MissingType> {
@@ -113,7 +95,7 @@ fn check_missing_types_python(content: &str, rel_path: &str) -> Vec<MissingType>
     let mut results = Vec::new();
     let mut cursor = tree.walk();
 
-    walk_nodes(&mut cursor, &mut |node| {
+    crate::common::walk_nodes(&mut cursor, &mut |node| {
         if node.kind() != "function_definition" {
             return;
         }
@@ -198,30 +180,12 @@ fn check_error_gaps_python(content: &str, rel_path: &str) -> Vec<ErrorGap> {
     let mut results = Vec::new();
     let mut cursor = tree.walk();
 
-    walk_nodes(&mut cursor, &mut |node| {
+    crate::common::walk_nodes(&mut cursor, &mut |node| {
         if node.kind() == "except_clause" {
             let line = node.start_position().row as u32 + 1;
             let text = node.utf8_text(content.as_bytes()).unwrap_or("");
 
-            // Bare except (no exception type)
-            // except_clause children: "except" [type] ["as" name] ":" body
-            let has_type = (0..node.child_count())
-                .filter_map(|i| node.child(i as u32))
-                .any(|child| {
-                    child.kind() != "except"
-                        && child.kind() != ":"
-                        && child.kind() != "block"
-                        && child.kind() != "as"
-                        && child.kind() != "identifier"
-                        || child.kind() == "identifier" && {
-                            // Check if it's the exception type (before "as") or alias (after "as")
-                            let prev = child.prev_sibling();
-                            prev.map_or(false, |p| p.kind() == "except")
-                                || prev.map_or(false, |p| p.kind() == ",")
-                        }
-                });
-
-            // Simpler: check if text matches "except:" pattern
+            // Check if text matches bare "except:" pattern
             let trimmed = text.trim();
             if trimmed.starts_with("except:") || trimmed == "except :" {
                 results.push(ErrorGap {
@@ -283,7 +247,7 @@ fn check_error_gaps_js(content: &str, rel_path: &str, is_ts: bool) -> Vec<ErrorG
     let mut results = Vec::new();
     let mut cursor = tree.walk();
 
-    walk_nodes(&mut cursor, &mut |node| {
+    crate::common::walk_nodes(&mut cursor, &mut |node| {
         // Empty catch block
         if node.kind() == "catch_clause" {
             let line = node.start_position().row as u32 + 1;
@@ -342,9 +306,13 @@ fn check_error_gaps_js(content: &str, rel_path: &str, is_ts: bool) -> Vec<ErrorG
 // --- Check 3.4: Hardcoded Values ---
 
 fn check_hardcoded(content: &str, rel_path: &str) -> Vec<HardcodedValue> {
-    let url_re = Regex::new(r#"["'](https?://[^"']+)["']"#).unwrap();
-    let sleep_py_re = Regex::new(r"sleep\((\d+)\)").unwrap();
-    let sleep_js_re = Regex::new(r"setTimeout\([^,]+,\s*(\d+)\)").unwrap();
+    use std::sync::LazyLock;
+    static URL_RE: LazyLock<Regex> = LazyLock::new(|| Regex::new(r#"["'](https?://[^"']+)["']"#).unwrap());
+    static SLEEP_PY_RE: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"sleep\((\d+)\)").unwrap());
+    static SLEEP_JS_RE: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"setTimeout\([^,]+,\s*(\d+)\)").unwrap());
+    let url_re = &*URL_RE;
+    let sleep_py_re = &*SLEEP_PY_RE;
+    let sleep_js_re = &*SLEEP_JS_RE;
 
     let mut results = Vec::new();
 
@@ -419,7 +387,9 @@ fn check_hardcoded(content: &str, rel_path: &str) -> Vec<HardcodedValue> {
 // --- Check 3.5: TODO/FIXME/HACK ---
 
 fn check_todos(content: &str, rel_path: &str) -> Vec<TodoItem> {
-    let todo_re = Regex::new(r"(?i)\b(TODO|FIXME|HACK|XXX|TEMP)\b(.*)").unwrap();
+    use std::sync::LazyLock;
+    static TODO_RE: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"(?i)\b(TODO|FIXME|HACK|XXX|TEMP)\b(.*)").unwrap());
+    let todo_re = &*TODO_RE;
 
     let mut results = Vec::new();
 
@@ -498,7 +468,7 @@ pub fn scan_tech_debt(path: &str) -> PyResult<TechDebtResult> {
             continue;
         }
         let rel_path = match entry_path.strip_prefix(root) {
-            Ok(r) => r.to_string_lossy().to_string(),
+            Ok(r) => crate::common::normalize_path(&r.to_string_lossy()),
             Err(_) => continue,
         };
 
