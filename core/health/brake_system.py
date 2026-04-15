@@ -202,6 +202,24 @@ def check_overengineering(report: HealthReport, health_rs, project_dir: str) -> 
         ))
 
 
+def check_opensource_first(report: HealthReport, project_dir: str) -> None:
+    """Check 4.3 — reminder to search for existing solutions before building.
+
+    Simply shows a reminder on every scan. The point is not detection —
+    it's a habit nudge: before you build something, check if it exists.
+    """
+    report.findings.append(HealthFinding(
+        check_id="brake.opensource_check",
+        title="Before building — search first",
+        severity="info",
+        message=(
+            "Before writing a new feature: google it. Check GitHub repos, PyPI, npm. "
+            "Someone probably already built what you need. "
+            "Don't reinvent the wheel — steal the wheel."
+        ),
+    ))
+
+
 def run_brake_checks(
     report: HealthReport,
     health_rs,
@@ -211,5 +229,6 @@ def run_brake_checks(
     check_unfinished_work(report, project_dir)
     check_test_health(report, project_dir)
     check_scope_creep(report, project_dir)
+    check_opensource_first(report, project_dir)
     if health_rs is not None:
         check_overengineering(report, health_rs, project_dir)

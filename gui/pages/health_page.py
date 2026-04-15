@@ -155,6 +155,7 @@ class HealthPage(QWidget):
             "brake.tests": (_t("health_section_tests"), []),
             "brake.scope_creep": (_t("health_section_scope"), []),
             "brake.overengineering": (_t("health_section_overeng"), []),
+            "brake.opensource_check": (_t("health_section_opensource"), []),
             "git.status": (_t("health_section_git_status"), []),
             "git.commits": (_t("health_section_git_commits"), []),
             "git.branches": (_t("health_section_git_branches"), []),

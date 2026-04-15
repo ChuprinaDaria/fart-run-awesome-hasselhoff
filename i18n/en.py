@@ -331,4 +331,5 @@ STRINGS = {
     "health_section_outdated_deps": "Outdated Dependencies",
     "health_section_duplicates": "Duplicate Code",
     "health_section_reusable": "Reusable Components",
+    "health_section_opensource": "Open Source First",
 }
