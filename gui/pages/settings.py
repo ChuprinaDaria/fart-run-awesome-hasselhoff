@@ -163,11 +163,10 @@ class SettingsPage(QWidget):
         self._config["alert_filters"]["ports"] = self.alert_ports.isChecked()
         self._config["alert_filters"]["usage"] = self.alert_usage.isChecked()
 
-        # Write config — platform config dir with fallback to project root
-        platform = get_platform()
-        config_dir = platform.config_dir()
-        config_dir.mkdir(parents=True, exist_ok=True)
-        config_path = config_dir / "config.toml"
+        # Write config — same location where it was loaded from
+        from pathlib import Path
+        from core.config import _project_root
+        config_path = _project_root() / "config.toml"
 
         try:
             try:

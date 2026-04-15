@@ -40,7 +40,7 @@ def test_config_fallback_empty():
     assert not client.is_available()
 
 
-def test_rate_limit_default_30s():
-    """_min_interval is 30 seconds."""
+def test_rate_limit_default_5s():
+    """_min_interval is 5 seconds."""
     client = HaikuClient(api_key="sk-ant-test")
-    assert client._min_interval == 30
+    assert client._min_interval == 5

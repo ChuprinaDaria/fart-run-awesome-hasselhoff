@@ -25,7 +25,7 @@ class HaikuClient:
         self._api_key = resolved if resolved else None
         self._cache: dict[str, str] = {}
         self._last_call: float = 0
-        self._min_interval: int = 30
+        self._min_interval: int = 5
         self._client = None
 
     def is_available(self) -> bool:
