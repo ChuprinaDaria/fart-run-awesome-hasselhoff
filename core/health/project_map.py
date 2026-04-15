@@ -218,6 +218,25 @@ def run_all_checks(project_dir: str) -> HealthReport:
         except Exception as e:
             log.error("tech_debt scan error: %s", e)
 
+        # Phase 4: Brake System
+        try:
+            from core.health.brake_system import run_brake_checks
+            run_brake_checks(report, health_rs, project_dir)
+        except Exception as e:
+            log.error("brake_system scan error: %s", e)
+
+    # Brake checks that don't need Rust (unfinished work, test health, scope creep)
+    if not _rust_available:
+        try:
+            from core.health.brake_system import (
+                check_unfinished_work, check_test_health, check_scope_creep,
+            )
+            check_unfinished_work(report, project_dir)
+            check_test_health(report, project_dir)
+            check_scope_creep(report, project_dir)
+        except Exception as e:
+            log.error("brake_system (no rust) error: %s", e)
+
     # Check 1.5 — Config Inventory (always Python)
     try:
         config_result = scan_config_inventory(project_dir)

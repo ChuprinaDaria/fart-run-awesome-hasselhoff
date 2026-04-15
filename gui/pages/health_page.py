@@ -148,6 +148,10 @@ class HealthPage(QWidget):
             "debt.error_handling": (_t("health_section_error_gaps"), []),
             "debt.hardcoded": (_t("health_section_hardcoded"), []),
             "debt.todos": (_t("health_section_todos"), []),
+            "brake.unfinished": (_t("health_section_unfinished"), []),
+            "brake.tests": (_t("health_section_tests"), []),
+            "brake.scope_creep": (_t("health_section_scope"), []),
+            "brake.overengineering": (_t("health_section_overeng"), []),
             "system": ("System", []),
         }
 
@@ -254,6 +258,7 @@ class HealthPage(QWidget):
         for dead_key in [
             "dead.unused_imports", "dead.unused_definitions", "dead.orphan_files", "dead.commented_code",
             "debt.no_types", "debt.error_handling", "debt.hardcoded", "debt.todos",
+            "brake.unfinished", "brake.tests", "brake.scope_creep", "brake.overengineering",
         ]:
             dead_findings = sections.get(dead_key, ("", []))[1]
             if dead_findings:

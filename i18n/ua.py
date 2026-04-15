@@ -301,4 +301,10 @@ STRINGS = {
     "health_section_error_gaps": "Проблеми обробки помилок",
     "health_section_hardcoded": "Захардкоджені значення",
     "health_section_todos": "TODO / FIXME",
+
+    # Brake System
+    "health_section_unfinished": "Незакінчена робота",
+    "health_section_tests": "Здоров'я тестів",
+    "health_section_scope": "Активність сесії",
+    "health_section_overeng": "Оверінжиніринг",
 }

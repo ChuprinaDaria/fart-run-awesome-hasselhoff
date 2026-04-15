@@ -301,4 +301,10 @@ STRINGS = {
     "health_section_error_gaps": "Error Handling Gaps",
     "health_section_hardcoded": "Hardcoded Values",
     "health_section_todos": "TODOs / FIXMEs",
+
+    # Brake System
+    "health_section_unfinished": "Unfinished Work",
+    "health_section_tests": "Test Health",
+    "health_section_scope": "Session Activity",
+    "health_section_overeng": "Overengineering",
 }
