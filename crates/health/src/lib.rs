@@ -6,6 +6,7 @@ mod entry_points;
 mod file_tree;
 mod module_map;
 mod monsters;
+mod tech_debt;
 
 use pyo3::prelude::*;
 
@@ -31,6 +32,13 @@ fn health(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<dead_code::CommentedBlock>()?;
     m.add_class::<dead_code::DeadCodeResult>()?;
     m.add_function(wrap_pyfunction!(dead_code::scan_dead_code, m)?)?;
+
+    m.add_class::<tech_debt::MissingType>()?;
+    m.add_class::<tech_debt::ErrorGap>()?;
+    m.add_class::<tech_debt::HardcodedValue>()?;
+    m.add_class::<tech_debt::TodoItem>()?;
+    m.add_class::<tech_debt::TechDebtResult>()?;
+    m.add_function(wrap_pyfunction!(tech_debt::scan_tech_debt, m)?)?;
 
     Ok(())
 }
