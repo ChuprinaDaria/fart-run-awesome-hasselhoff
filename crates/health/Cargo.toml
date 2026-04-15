@@ -1,0 +1,21 @@
+[package]
+name = "health"
+version = "0.1.0"
+edition = "2021"
+description = "fart.run health — project health scanner for vibe coders"
+
+[lib]
+name = "health"
+crate-type = ["cdylib"]
+
+[dependencies]
+pyo3 = { version = "0.25", features = ["extension-module"] }
+tree-sitter = "0.26"
+tree-sitter-python = "0.25"
+tree-sitter-javascript = "0.25"
+tree-sitter-typescript = "0.23"
+rayon = "1.10"
+ignore = "0.4"
+
+[dev-dependencies]
+tempfile = "3"

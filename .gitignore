@@ -9,3 +9,4 @@ __pycache__/
 .superpowers/
 .firecrawl/
 crates/sentinel/target/
+crates/health/target/
