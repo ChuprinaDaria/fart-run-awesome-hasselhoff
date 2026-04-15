@@ -1,13 +1,24 @@
 """Overview page — budget, tokens, nag messages, compact Docker/Ports."""
 
+from datetime import datetime
+
 from PyQt5.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QProgressBar,
     QPushButton, QGroupBox, QFormLayout,
 )
-from PyQt5.QtCore import Qt, pyqtSignal
-from PyQt5.QtGui import QPixmap
+from PyQt5.QtCore import Qt, pyqtSignal, QUrl
+from PyQt5.QtGui import QPixmap, QDesktopServices
 from i18n import get_string as _t
 from gui.fmt_utils import fmt_tokens as _fmt
+from core.changelog_watcher import CHANGELOG_URL
+
+_STATUS_MAP = {
+    "none": "OK",
+    "minor": "Degraded",
+    "major": "Down",
+    "critical": "Down",
+    "unknown": "Unknown",
+}
 
 
 _COMPACT_STYLE = (
@@ -25,6 +36,61 @@ class OverviewPage(QWidget):
         self._subscription = None
         layout = QVBoxLayout(self)
 
+        # --- Claude Status block ---
+        self.claude_group = QGroupBox(_t("status_claude_status"))
+        cl = QVBoxLayout()
+
+        status_row = QHBoxLayout()
+        self.lbl_claude_version = QLabel("Version: --")
+        self.lbl_claude_version.setStyleSheet("font-weight: bold;")
+        status_row.addWidget(self.lbl_claude_version)
+
+        self.lbl_api_status = QLabel(_t("status_unknown"))
+        status_row.addWidget(self.lbl_api_status)
+
+        self.lbl_last_check = QLabel("")
+        status_row.addWidget(self.lbl_last_check)
+
+        self.btn_check_now = QPushButton(_t("status_check_now"))
+        self.btn_check_now.setFixedWidth(100)
+        status_row.addWidget(self.btn_check_now)
+        status_row.addStretch()
+        cl.addLayout(status_row)
+
+        self.lbl_dont_panic = QLabel(_t("status_dont_panic"))
+        self.lbl_dont_panic.setWordWrap(True)
+        self.lbl_dont_panic.setStyleSheet(
+            "color: #800000; padding: 4px; background: #ffffcc; border: 1px solid #808080;"
+        )
+        self.lbl_dont_panic.setVisible(False)
+        cl.addWidget(self.lbl_dont_panic)
+
+        self.lbl_history_title = QLabel(_t("status_last_24h"))
+        self.lbl_history_title.setStyleSheet("font-weight: bold; margin-top: 8px;")
+        cl.addWidget(self.lbl_history_title)
+
+        self.lbl_status_history = QLabel(_t("status_all_day_ok"))
+        self.lbl_status_history.setStyleSheet(_COMPACT_STYLE)
+        cl.addWidget(self.lbl_status_history)
+
+        self.lbl_version_title = QLabel(_t("status_version_history"))
+        self.lbl_version_title.setStyleSheet("font-weight: bold; margin-top: 8px;")
+        cl.addWidget(self.lbl_version_title)
+
+        self.lbl_version_history = QLabel("--")
+        self.lbl_version_history.setStyleSheet(_COMPACT_STYLE)
+        cl.addWidget(self.lbl_version_history)
+
+        self.btn_changelog = QPushButton(_t("status_show_changelog"))
+        self.btn_changelog.clicked.connect(
+            lambda: QDesktopServices.openUrl(QUrl(CHANGELOG_URL))
+        )
+        cl.addWidget(self.btn_changelog)
+
+        self.claude_group.setLayout(cl)
+        layout.addWidget(self.claude_group)
+
+        # --- Budget ---
         self.budget_label = QLabel(_t("session_usage"))
         self.budget_label.setStyleSheet("font-size: 16px; font-weight: bold;")
         layout.addWidget(self.budget_label)
@@ -240,3 +306,60 @@ class OverviewPage(QWidget):
         self.budget_label.setText(_t("claude_not_found"))
         self.cost_label.setText("--")
         self.nag_label.setText(_t("set_claude_path"))
+
+    def update_claude_status(self, result, history: list, version_history: list) -> None:
+        """Update Claude Status block from StatusResult + histories."""
+        if result.claude_version:
+            self.lbl_claude_version.setText(
+                _t("status_version").format(version=result.claude_version)
+            )
+        else:
+            self.lbl_claude_version.setText(_t("status_claude_not_found"))
+
+        indicator = result.api_indicator
+        status_key = {
+            "none": "status_ok", "minor": "status_degraded",
+            "major": "status_down", "critical": "status_down",
+        }.get(indicator, "status_unknown")
+        self.lbl_api_status.setText(
+            f"{_t(status_key)} -- {result.api_description}"
+        )
+
+        if indicator in ("major", "critical"):
+            self.lbl_api_status.setStyleSheet("color: red; font-weight: bold;")
+            self.lbl_dont_panic.setVisible(True)
+            self.claude_group.setStyleSheet("QGroupBox { border: 2px groove #ff4444; }")
+        elif indicator == "minor":
+            self.lbl_api_status.setStyleSheet("color: #808000; font-weight: bold;")
+            self.lbl_dont_panic.setVisible(True)
+            self.claude_group.setStyleSheet("QGroupBox { border: 2px groove #ffff00; }")
+        else:
+            self.lbl_api_status.setStyleSheet("")
+            self.lbl_dont_panic.setVisible(False)
+            self.claude_group.setStyleSheet("")
+
+        try:
+            checked = datetime.fromisoformat(result.timestamp)
+            delta = datetime.now() - checked
+            minutes = int(delta.total_seconds() / 60)
+            ago = "just now" if minutes < 1 else f"{minutes} min ago"
+            self.lbl_last_check.setText(_t("status_checked_ago").format(ago=ago))
+        except (ValueError, TypeError):
+            pass
+
+        if not history:
+            self.lbl_status_history.setText(_t("status_all_day_ok"))
+        else:
+            lines = []
+            for h in history[:10]:
+                ts = h.timestamp[11:16] if len(h.timestamp) > 16 else h.timestamp
+                label = _STATUS_MAP.get(h.api_indicator, "Unknown")
+                desc = f" -- {h.api_description}" if h.api_description else ""
+                lines.append(f"{ts}  {label}{desc}")
+            self.lbl_status_history.setText("\n".join(lines))
+
+        if version_history:
+            lines = []
+            for v in version_history[:5]:
+                lines.append(f"{v[0]}  detected {v[1]}")
+            self.lbl_version_history.setText("\n".join(lines))
