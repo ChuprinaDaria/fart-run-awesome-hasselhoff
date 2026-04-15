@@ -71,3 +71,39 @@ class Tip:
     message_ua: str
     relevance: float = 0.5
     action: str | None = None
+
+
+@dataclass
+class FileChange:
+    path: str
+    status: str  # "added", "modified", "deleted", "renamed"
+    additions: int = 0
+    deletions: int = 0
+    explanation: str = ""
+
+
+@dataclass
+class DockerChange:
+    name: str
+    image: str
+    status: str  # "new", "removed", "restarted", "crashed"
+    ports: list[str] = field(default_factory=list)
+    explanation: str = ""
+
+
+@dataclass
+class PortChange:
+    port: int
+    process: str
+    status: str  # "new", "closed"
+    explanation: str = ""
+
+
+@dataclass
+class ActivityEntry:
+    timestamp: str
+    files: list[FileChange] = field(default_factory=list)
+    docker_changes: list[DockerChange] = field(default_factory=list)
+    port_changes: list[PortChange] = field(default_factory=list)
+    commits: list[str] = field(default_factory=list)
+    project_dir: str = ""
