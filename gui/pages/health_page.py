@@ -118,7 +118,7 @@ class HealthPage(QWidget):
             "QPushButton { background: #000080; color: white; padding: 6px 16px; "
             "border: 2px outset #4040c0; font-weight: bold; font-size: 13px; }"
             "QPushButton:pressed { border: 2px inset #000080; }"
-            "QPushButton:disabled { background: #808080; color: #c0c0c0; }"
+            "QPushButton:disabled { background: #c0c0c0; color: #808080; }"
         )
         header.addWidget(self._btn_scan)
         header.addWidget(make_copy_all_button(lambda: "\n".join(self._all_texts)))
@@ -179,6 +179,7 @@ class HealthPage(QWidget):
         self._btn_scan.setEnabled(True)
         self._btn_scan.setText(_t("health_btn_scan"))
         self._all_texts.clear()
+        self._last_report = report
         self._render_report(report)
         # Trigger Haiku
         if report.findings:
@@ -195,40 +196,20 @@ class HealthPage(QWidget):
                 "padding: 8px; background: #f0f0ff; border: 2px solid #000080; margin: 4px;"
             )
             self._content_layout.insertWidget(0, lbl)
-            self._all_texts.insert(0, f"[Summary] {summary}")
+            self._all_texts.insert(0, f"[AI] {summary}")
 
         if explanations:
-            # Walk through all QGroupBoxes and their QFrames to find matching findings
-            for i in range(self._content_layout.count()):
-                item = self._content_layout.itemAt(i)
-                if not item or not item.widget():
-                    continue
-                widget = item.widget()
-                if not isinstance(widget, QGroupBox):
-                    continue
-                group_layout = widget.layout()
-                if not group_layout:
-                    continue
-                for j in range(group_layout.count()):
-                    sub_item = group_layout.itemAt(j)
-                    if not sub_item or not sub_item.widget():
-                        continue
-                    frame = sub_item.widget()
-                    if not isinstance(frame, QFrame):
-                        continue
-                    for child_label in frame.findChildren(QLabel):
-                        text = child_label.text().strip()
-                        for key, expl in explanations.items():
-                            # Match by finding message substring
-                            if key.split(": ", 1)[-1][:30] in text:
-                                haiku_lbl = QLabel(f"    {expl}")
-                                haiku_lbl.setWordWrap(True)
-                                haiku_lbl.setStyleSheet(
-                                    "color: #4040a0; font-style: italic; font-size: 11px; padding: 2px 8px;"
-                                )
-                                frame.layout().addWidget(haiku_lbl)
-                                self._all_texts.append(f"  [Haiku] {expl}")
-                                break
+            # Add explanations as a separate block after summary
+            for key, expl in explanations.items():
+                haiku_lbl = QLabel(f"    {expl}")
+                haiku_lbl.setWordWrap(True)
+                haiku_lbl.setStyleSheet(
+                    "color: #4040a0; font-style: italic; font-size: 11px; padding: 2px 8px;"
+                )
+                # Insert after summary (position 1) or at top
+                pos = 1 if summary else 0
+                self._content_layout.insertWidget(pos, haiku_lbl)
+                self._all_texts.append(f"  [AI] {expl}")
 
     def _render_report(self, report: HealthReport) -> None:
         self._clear_content()

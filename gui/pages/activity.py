@@ -100,6 +100,7 @@ class ActivityPage(QWidget):
         self._haiku_thread: HaikuContextThread | None = None
         self._all_texts: list[str] = []
         self._where_stopped_label: QLabel | None = None
+        self._last_haiku_context: str = ""
         self._db = None
         self._build_ui()
 
@@ -211,6 +212,13 @@ class ActivityPage(QWidget):
 
         self._render_activity(entry)
 
+        # Restore cached Haiku context immediately (before new thread finishes)
+        if self._last_haiku_context and self._where_stopped_label:
+            self._where_stopped_label.setText(self._last_haiku_context)
+            self._where_stopped_label.setStyleSheet(
+                "color: #333; font-size: 12px; padding: 4px;"
+            )
+
         # Save to SQLite
         try:
             db = self._get_db()
@@ -240,6 +248,7 @@ class ActivityPage(QWidget):
             return
 
         if haiku_context:
+            self._last_haiku_context = haiku_context
             self._where_stopped_label.setText(haiku_context)
             self._where_stopped_label.setStyleSheet(
                 "color: #333; font-size: 12px; padding: 4px;"

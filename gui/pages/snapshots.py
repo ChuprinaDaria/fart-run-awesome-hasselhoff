@@ -131,6 +131,10 @@ class SnapshotsPage(QWidget):
         self._btn_compare = QPushButton(_t("snap_btn_compare"))
         self._btn_compare.clicked.connect(self._on_compare)
         self._btn_compare.setEnabled(False)
+        self._btn_compare.setStyleSheet(
+            "QPushButton { padding: 6px 16px; }"
+            "QPushButton:disabled { color: #808080; }"
+        )
         actions.addWidget(self._btn_compare)
         actions.addStretch()
 
