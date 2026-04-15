@@ -1,6 +1,5 @@
 """Tests for config loader."""
 
-import pytest
 from pathlib import Path
 from core.config import load_config
 

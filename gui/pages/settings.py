@@ -8,6 +8,40 @@ from PyQt5.QtCore import pyqtSignal
 from i18n import get_string as _t
 
 
+def _write_toml_fallback(path, cfg: dict) -> None:
+    """Write TOML without external libs — handles nested tables and basic types."""
+    lines: list[str] = []
+    top_keys = {k: v for k, v in cfg.items() if not isinstance(v, dict)}
+    table_keys = {k: v for k, v in cfg.items() if isinstance(v, dict)}
+    for k, v in top_keys.items():
+        lines.append(f"{k} = {_toml_value(v)}")
+    for section, values in table_keys.items():
+        nested = {k: v for k, v in values.items() if isinstance(v, dict)}
+        flat = {k: v for k, v in values.items() if not isinstance(v, dict)}
+        if flat:
+            lines.append(f"\n[{section}]")
+            for k, v in flat.items():
+                lines.append(f"{k} = {_toml_value(v)}")
+        for sub, sub_values in nested.items():
+            lines.append(f"\n[{section}.{sub}]")
+            for k, v in sub_values.items():
+                lines.append(f"{k} = {_toml_value(v)}")
+    path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+
+
+def _toml_value(v) -> str:
+    if isinstance(v, bool):
+        return "true" if v else "false"
+    if isinstance(v, int):
+        return str(v)
+    if isinstance(v, str):
+        return f'"{v}"'
+    if isinstance(v, list):
+        items = ", ".join(_toml_value(i) for i in v)
+        return f"[{items}]"
+    return f'"{v}"'
+
+
 class SettingsPage(QWidget):
     settings_changed = pyqtSignal(dict)  # emits changed config keys
 
@@ -174,9 +208,7 @@ class SettingsPage(QWidget):
                 with open(config_path, "wb") as f:
                     tomli_w.dump(self._config, f)
             except ImportError:
-                import toml
-                with open(config_path, "w") as f:
-                    toml.dump(self._config, f)
+                _write_toml_fallback(config_path, self._config)
             self.status_label.setText(_t("saved_ok"))
             self.status_label.setStyleSheet("color: #006600; font-style: italic; padding: 4px;")
             self.settings_changed.emit(self._config)

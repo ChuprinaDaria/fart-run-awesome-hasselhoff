@@ -1,7 +1,6 @@
 """Integration test — app creates, registers plugins, runs migrations."""
 
 import pytest
-import aiosqlite
 from pathlib import Path
 from core.config import load_config, DEFAULTS
 from core.sqlite_db import Database

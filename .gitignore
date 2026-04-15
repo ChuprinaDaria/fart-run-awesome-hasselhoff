@@ -10,3 +10,6 @@ __pycache__/
 .firecrawl/
 crates/sentinel/target/
 crates/health/target/
+.venv/
+venv/
+.DS_Store

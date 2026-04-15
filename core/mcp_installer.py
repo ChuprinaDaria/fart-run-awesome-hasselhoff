@@ -6,7 +6,6 @@ import json
 import logging
 import os
 import re
-import subprocess
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -78,46 +77,3 @@ def write_settings(settings: dict) -> None:
         raise
 
 
-def install_mcp_server(config: MCPServerConfig) -> bool:
-    """Add MCP server to settings.json."""
-    settings = read_settings()
-    servers = settings.setdefault("mcpServers", {})
-    servers[config.name] = config.to_dict()
-    write_settings(settings)
-    log.info("Installed MCP server: %s", config.name)
-    return True
-
-
-def uninstall_mcp_server(name: str) -> bool:
-    """Remove MCP server from settings.json."""
-    settings = read_settings()
-    servers = settings.get("mcpServers", {})
-    if name in servers:
-        del servers[name]
-        write_settings(settings)
-        return True
-    return False
-
-
-def install_skill_from_url(git_url: str, name: str | None = None) -> bool:
-    """Clone skill repo into ~/.claude/skills/."""
-    skills_dir = Path.home() / ".claude" / "skills"
-    skills_dir.mkdir(parents=True, exist_ok=True)
-
-    repo_name = name or git_url.rstrip("/").split("/")[-1].replace(".git", "")
-    dest = skills_dir / repo_name
-
-    if dest.exists():
-        log.warning("Skill already exists: %s", dest)
-        return False
-
-    try:
-        subprocess.run(
-            ["git", "clone", "--depth", "1", git_url, str(dest)],
-            check=True, capture_output=True, timeout=60,
-        )
-        log.info("Installed skill: %s -> %s", git_url, dest)
-        return True
-    except (subprocess.CalledProcessError, subprocess.TimeoutExpired) as e:
-        log.error("Failed to clone skill: %s", e)
-        return False

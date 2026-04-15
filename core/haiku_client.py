@@ -114,19 +114,6 @@ class HaikuClient:
 
         return result
 
-    def summarize(self, text: str, language: str, max_tokens: int = 300) -> str | None:
-        """General purpose human-language summary of the given text."""
-        if not text or not self.is_available():
-            return None
-
-        text = text[:5000]
-
-        prompt = (
-            f"Summarize the following in plain human language ({language}). "
-            f"Be concise, practical, and avoid jargon.\n\n{text}"
-        )
-        return self.ask(prompt, max_tokens=max_tokens)
-
     def get_tip(self, stats_summary: str) -> str | None:
         """Get personalized tip based on usage stats."""
         prompt = (
@@ -136,21 +123,3 @@ class HaikuClient:
         )
         return self.ask(prompt)
 
-    def recommend_model(self, task_description: str) -> str | None:
-        """Recommend model based on task."""
-        prompt = (
-            f"You are a Claude model advisor. For this task, recommend Opus, Sonnet, or Haiku. "
-            f"ONE sentence with estimated token savings.\n\n"
-            f"Task: {task_description[:200]}"
-        )
-        return self.ask(prompt, max_tokens=100)
-
-    def explain_finding(self, finding_description: str, project_context: str = "") -> str | None:
-        """Explain a security finding in context."""
-        prompt = (
-            f"Explain this security finding in simple terms for a developer. "
-            f"What is the risk? How to fix it? 3 sentences max.\n\n"
-            f"Finding: {finding_description}\n"
-            f"Project context: {project_context or 'general dev environment'}"
-        )
-        return self.ask(prompt, max_tokens=150)

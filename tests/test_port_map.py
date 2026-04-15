@@ -1,6 +1,5 @@
 """Tests for Port/Service Map plugin."""
 
-import pytest
 from unittest.mock import patch, MagicMock
 from collections import namedtuple
 from plugins.port_map.collector import collect_ports

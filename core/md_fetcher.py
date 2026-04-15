@@ -2,19 +2,9 @@
 
 from __future__ import annotations
 
-import logging
 import re
-import time
 from dataclasses import dataclass, field
 from pathlib import Path
-from urllib.request import urlopen, Request
-from urllib.error import URLError
-
-from core.platform import get_platform
-
-log = logging.getLogger(__name__)
-
-CACHE_TTL = 86400  # 24 hours
 
 
 @dataclass
@@ -30,44 +20,11 @@ class Section:
     items: list[Resource] = field(default_factory=list)
 
 
-def fetch_md(url: str, cache_name: str | None = None) -> str:
-    """Fetch MD from URL with local file cache. Returns content string."""
-    platform = get_platform()
-    cache_dir = platform.cache_dir()
-    cache_dir.mkdir(parents=True, exist_ok=True)
-
-    cache_file = cache_dir / (cache_name or _url_to_filename(url))
-
-    # Check cache
-    if cache_file.exists():
-        age = time.time() - cache_file.stat().st_mtime
-        if age < CACHE_TTL:
-            return cache_file.read_text(encoding="utf-8")
-
-    # Fetch
-    try:
-        req = Request(url, headers={"User-Agent": "claude-monitor/3.0"})
-        with urlopen(req, timeout=15) as resp:
-            content = resp.read().decode("utf-8")
-        cache_file.write_text(content, encoding="utf-8")
-        return content
-    except (URLError, OSError) as e:
-        log.warning("Failed to fetch %s: %s", url, e)
-        # Fallback to stale cache
-        if cache_file.exists():
-            return cache_file.read_text(encoding="utf-8")
-        return ""
-
-
 def fetch_local_md(path: Path) -> str:
     """Read MD from local file."""
     if path.exists():
         return path.read_text(encoding="utf-8")
     return ""
-
-
-def _url_to_filename(url: str) -> str:
-    return re.sub(r"[^a-zA-Z0-9]", "_", url)[-80:] + ".md"
 
 
 # --- Line format: - [Title](url) — description ---

@@ -50,10 +50,3 @@ class CostCalculator:
             combined.calls += mu.calls
         return self._cost_for_usage(combined, pricing)
 
-    def monthly_projection(self, stats: TokenStats) -> float:
-        return self.calculate_cost(stats).total_cost * 30
-
-    def savings_vs(self, stats: TokenStats, target_model: str) -> float:
-        actual = self.calculate_cost(stats).total_cost
-        alt = self.what_if_model(stats, target_model).total_cost
-        return actual - alt

@@ -1,6 +1,5 @@
 """Tests for Docker metrics collector."""
 
-import pytest
 from unittest.mock import MagicMock, patch
 from plugins.docker_monitor.collector import collect_containers
 

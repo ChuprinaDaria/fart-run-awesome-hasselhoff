@@ -1,7 +1,6 @@
 """Docker & MCP page — container list with Fart Off/Start/Restart/Logs/Remove + MCP servers."""
 
 import json
-import os
 from pathlib import Path
 
 from PyQt5.QtWidgets import (

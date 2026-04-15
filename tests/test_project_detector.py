@@ -1,5 +1,4 @@
 """Tests for project detector."""
-import tempfile
 from pathlib import Path
 from core.project_detector import detect_projects, get_last_project, save_last_project
 from core.history import HistoryDB

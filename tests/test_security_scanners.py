@@ -1,6 +1,5 @@
 """Tests for security scanners."""
 
-import pytest
 from pathlib import Path
 from unittest.mock import patch, MagicMock
 from plugins.security_scan.scanners import (
