@@ -1,0 +1,342 @@
+//! Check 4.5 — Overengineering Detector.
+//!
+//! Finds: classes with 1 method, tiny files with 1 function,
+//! deeply nested dirs with 1 file each.
+
+use std::collections::HashMap;
+use std::fs;
+use std::path::Path;
+
+use ignore::WalkBuilder;
+use pyo3::prelude::*;
+
+use crate::common::{should_skip, SOURCE_EXTENSIONS};
+
+#[pyclass]
+#[derive(Clone)]
+pub struct OverengineeringIssue {
+    #[pyo3(get)]
+    pub path: String,
+    #[pyo3(get)]
+    pub line: u32,
+    #[pyo3(get)]
+    pub kind: String, // "single_method_class", "tiny_file", "deep_nesting"
+    #[pyo3(get)]
+    pub description: String,
+}
+
+#[pyclass]
+#[derive(Clone)]
+pub struct OverengineeringResult {
+    #[pyo3(get)]
+    pub issues: Vec<OverengineeringIssue>,
+}
+
+fn walk_nodes<F>(cursor: &mut tree_sitter::TreeCursor, f: &mut F)
+where
+    F: FnMut(tree_sitter::Node),
+{
+    f(cursor.node());
+    if cursor.goto_first_child() {
+        loop {
+            walk_nodes(cursor, f);
+            if !cursor.goto_next_sibling() {
+                break;
+            }
+        }
+        cursor.goto_parent();
+    }
+}
+
+/// Check for single-method classes in Python.
+fn check_single_method_classes_python(
+    content: &str,
+    rel_path: &str,
+) -> Vec<OverengineeringIssue> {
+    let mut parser = tree_sitter::Parser::new();
+    if parser
+        .set_language(&tree_sitter_python::LANGUAGE.into())
+        .is_err()
+    {
+        return vec![];
+    }
+    let tree = match parser.parse(content, None) {
+        Some(t) => t,
+        None => return vec![],
+    };
+
+    let mut issues = Vec::new();
+    let root = tree.root_node();
+
+    // Iterate top-level class definitions
+    for i in 0..root.child_count() {
+        if let Some(node) = root.child(i as u32) {
+            if node.kind() == "class_definition" {
+                let class_name = node
+                    .child_by_field_name("name")
+                    .and_then(|n| n.utf8_text(content.as_bytes()).ok())
+                    .unwrap_or("");
+                let line = node.start_position().row as u32 + 1;
+
+                // Count methods (function_definition inside class body)
+                let mut method_count = 0;
+                let mut non_init_methods = 0;
+                if let Some(body) = node.child_by_field_name("body") {
+                    for j in 0..body.child_count() {
+                        if let Some(child) = body.child(j as u32) {
+                            if child.kind() == "function_definition" {
+                                method_count += 1;
+                                let method_name = child
+                                    .child_by_field_name("name")
+                                    .and_then(|n| n.utf8_text(content.as_bytes()).ok())
+                                    .unwrap_or("");
+                                if method_name != "__init__" && !method_name.starts_with("__") {
+                                    non_init_methods += 1;
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // Class with only 1 non-dunder method (+ optional __init__)
+                if non_init_methods == 1 && method_count <= 2 {
+                    issues.push(OverengineeringIssue {
+                        path: rel_path.to_string(),
+                        line,
+                        kind: "single_method_class".to_string(),
+                        description: format!(
+                            "class {} has only 1 method. Maybe just a function?",
+                            class_name
+                        ),
+                    });
+                }
+            }
+        }
+    }
+
+    issues
+}
+
+/// Check for single-method classes in JS/TS.
+fn check_single_method_classes_js(
+    content: &str,
+    rel_path: &str,
+    is_ts: bool,
+) -> Vec<OverengineeringIssue> {
+    let mut parser = tree_sitter::Parser::new();
+    let lang = if is_ts {
+        tree_sitter_typescript::LANGUAGE_TYPESCRIPT.into()
+    } else {
+        tree_sitter_javascript::LANGUAGE.into()
+    };
+    if parser.set_language(&lang).is_err() {
+        return vec![];
+    }
+    let tree = match parser.parse(content, None) {
+        Some(t) => t,
+        None => return vec![],
+    };
+
+    let mut issues = Vec::new();
+    let root = tree.root_node();
+
+    let mut cursor = root.walk();
+    walk_nodes(&mut cursor, &mut |node| {
+        if node.kind() == "class_declaration" {
+            let class_name = node
+                .child_by_field_name("name")
+                .and_then(|n| n.utf8_text(content.as_bytes()).ok())
+                .unwrap_or("");
+            let line = node.start_position().row as u32 + 1;
+
+            if let Some(body) = node.child_by_field_name("body") {
+                let mut method_count = 0;
+                let mut non_constructor = 0;
+                for j in 0..body.child_count() {
+                    if let Some(child) = body.child(j as u32) {
+                        if child.kind() == "method_definition" {
+                            method_count += 1;
+                            let name = child
+                                .child_by_field_name("name")
+                                .and_then(|n| n.utf8_text(content.as_bytes()).ok())
+                                .unwrap_or("");
+                            if name != "constructor" {
+                                non_constructor += 1;
+                            }
+                        }
+                    }
+                }
+                if non_constructor == 1 && method_count <= 2 {
+                    issues.push(OverengineeringIssue {
+                        path: rel_path.to_string(),
+                        line,
+                        kind: "single_method_class".to_string(),
+                        description: format!(
+                            "class {} has only 1 method. Maybe just a function?",
+                            class_name
+                        ),
+                    });
+                }
+            }
+        }
+    });
+
+    issues
+}
+
+#[pyfunction]
+pub fn scan_overengineering(path: &str) -> PyResult<OverengineeringResult> {
+    let root = Path::new(path);
+    if !root.is_dir() {
+        return Err(pyo3::exceptions::PyValueError::new_err(
+            format!("Not a directory: {}", path),
+        ));
+    }
+
+    let mut issues: Vec<OverengineeringIssue> = Vec::new();
+
+    // Track directory nesting: dir_path → file count
+    let mut dir_file_counts: HashMap<String, u32> = HashMap::new();
+
+    let walker = WalkBuilder::new(root)
+        .hidden(false)
+        .git_ignore(true)
+        .git_global(false)
+        .git_exclude(true)
+        .filter_entry(|entry| {
+            if let Some(name) = entry.file_name().to_str() {
+                !should_skip(name)
+            } else {
+                true
+            }
+        })
+        .build();
+
+    for entry in walker.flatten() {
+        let entry_path = entry.path();
+        if !entry_path.is_file() {
+            continue;
+        }
+
+        let ext = match entry_path.extension().and_then(|e| e.to_str()) {
+            Some(e) => e,
+            None => continue,
+        };
+        if !SOURCE_EXTENSIONS.contains(&ext) {
+            continue;
+        }
+
+        let rel_path = match entry_path.strip_prefix(root) {
+            Ok(r) => r.to_string_lossy().to_string(),
+            Err(_) => continue,
+        };
+
+        // Track dir file counts
+        if let Some(parent) = entry_path.parent() {
+            if let Ok(rel_parent) = parent.strip_prefix(root) {
+                let dir_key = rel_parent.to_string_lossy().to_string();
+                *dir_file_counts.entry(dir_key).or_insert(0) += 1;
+            }
+        }
+
+        // Skip test files
+        if rel_path.contains("/test") || rel_path.starts_with("test") {
+            continue;
+        }
+
+        let content = match fs::read_to_string(entry_path) {
+            Ok(c) => c,
+            Err(_) => continue,
+        };
+
+        // Check tiny files (<20 non-empty lines with only 1 function, no classes)
+        let non_empty_lines = content.lines().filter(|l| !l.trim().is_empty()).count();
+        if non_empty_lines > 0 && non_empty_lines < 20 && !rel_path.ends_with("__init__.py") {
+            let mut func_count = 0u32;
+            let mut class_count = 0u32;
+
+            // Quick count via tree-sitter
+            if ext == "py" {
+                let mut parser = tree_sitter::Parser::new();
+                if parser
+                    .set_language(&tree_sitter_python::LANGUAGE.into())
+                    .is_ok()
+                {
+                    if let Some(tree) = parser.parse(&content, None) {
+                        let r = tree.root_node();
+                        for i in 0..r.child_count() {
+                            if let Some(child) = r.child(i as u32) {
+                                match child.kind() {
+                                    "function_definition" => func_count += 1,
+                                    "class_definition" => class_count += 1,
+                                    _ => {}
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            if func_count == 1 && class_count == 0 && non_empty_lines < 15 {
+                issues.push(OverengineeringIssue {
+                    path: rel_path.clone(),
+                    line: 1,
+                    kind: "tiny_file".to_string(),
+                    description: format!(
+                        "{} — {} lines, 1 function. Maybe inline it where it's used?",
+                        rel_path, non_empty_lines
+                    ),
+                });
+            }
+        }
+
+        // Check single-method classes
+        if ext == "py" {
+            issues.extend(check_single_method_classes_python(&content, &rel_path));
+        } else {
+            let is_ts = ext == "ts" || ext == "tsx" || ext == "mts" || ext == "cts";
+            issues.extend(check_single_method_classes_js(&content, &rel_path, is_ts));
+        }
+    }
+
+    // Check deep nesting: >3 levels where each level has only 1 source file
+    // Walk dir tree to find chains of single-file dirs
+    let mut nested_chains: Vec<(String, u32)> = Vec::new();
+    for (dir, count) in &dir_file_counts {
+        if *count == 1 && !dir.is_empty() {
+            // Check parent chain
+            let depth = dir.matches('/').count() + 1;
+            if depth >= 3 {
+                // Check if all ancestor dirs also have 1 file
+                let parts: Vec<&str> = dir.split('/').collect();
+                let mut all_single = true;
+                for i in 1..parts.len() {
+                    let ancestor = parts[..i].join("/");
+                    if let Some(ancestor_count) = dir_file_counts.get(&ancestor) {
+                        if *ancestor_count > 1 {
+                            all_single = false;
+                            break;
+                        }
+                    }
+                }
+                if all_single {
+                    nested_chains.push((dir.clone(), depth as u32));
+                }
+            }
+        }
+    }
+
+    for (dir, depth) in nested_chains {
+        issues.push(OverengineeringIssue {
+            path: dir.clone(),
+            line: 0,
+            kind: "deep_nesting".to_string(),
+            description: format!(
+                "{} — {} levels deep with 1 file each. Flatten the structure.",
+                dir, depth
+            ),
+        });
+    }
+
+    Ok(OverengineeringResult { issues })
+}
