@@ -51,6 +51,28 @@ class HistoryDB:
                 config_checksums TEXT DEFAULT '{}'
             )
         """)
+        self._conn.execute("""
+            CREATE TABLE IF NOT EXISTS app_state (
+                key TEXT PRIMARY KEY,
+                value TEXT NOT NULL
+            )
+        """)
+        self._conn.commit()
+
+    def get_state(self, key: str) -> str | None:
+        self._ensure_conn()
+        cursor = self._conn.execute(
+            "SELECT value FROM app_state WHERE key = ?", (key,)
+        )
+        row = cursor.fetchone()
+        return row[0] if row else None
+
+    def set_state(self, key: str, value: str) -> None:
+        self._ensure_conn()
+        self._conn.execute(
+            "INSERT OR REPLACE INTO app_state (key, value) VALUES (?, ?)",
+            (key, value),
+        )
         self._conn.commit()
 
     def save_daily_stats(self, date: str, tokens: int, cost: float,
