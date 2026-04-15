@@ -423,4 +423,21 @@ STRINGS = {
     # Copy widgets
     "copy_all": "Копіювати все",
     "copy_done": "Скопійовано!",
+
+    # === Claude Status Monitor ===
+    "status_ok": "API: OK",
+    "status_degraded": "API: Деградація",
+    "status_down": "API: Не працює",
+    "status_unknown": "API: Невідомо",
+    "status_claude_not_found": "Claude: не знайдено",
+    "status_checked_ago": "Перевірено {ago}",
+    "status_check_now": "Перевірити",
+    "status_dont_panic": "Якщо AI фічі не працюють — це не твій код. В Anthropic проблеми. Зачекай.",
+    "status_haiku_unavailable": "Haiku недоступний — перевір API ключ в Settings",
+    "status_all_day_ok": "Весь день: OK",
+    "status_last_24h": "Останні 24г",
+    "status_version_history": "Історія версій",
+    "status_claude_status": "Claude Code",
+    "status_version": "Версія: {version}",
+    "status_show_changelog": "Повний changelog",
 }

@@ -41,6 +41,10 @@ max_save_points = 20
 auto_gitignore = true
 show_hints = true
 
+[status]
+check_interval_minutes = 5
+enabled = true
+
 [alert_filters]
 docker = true
 security = true

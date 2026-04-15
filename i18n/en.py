@@ -423,4 +423,21 @@ STRINGS = {
     # Copy widgets
     "copy_all": "Copy all",
     "copy_done": "Copied!",
+
+    # === Claude Status Monitor ===
+    "status_ok": "API: OK",
+    "status_degraded": "API: Degraded",
+    "status_down": "API: Down",
+    "status_unknown": "API: Unknown",
+    "status_claude_not_found": "Claude: not found",
+    "status_checked_ago": "Checked {ago}",
+    "status_check_now": "Check Now",
+    "status_dont_panic": "If AI features aren't working right now, it's not your code. Anthropic is having issues. Wait it out.",
+    "status_haiku_unavailable": "Haiku unavailable -- check API key in Settings",
+    "status_all_day_ok": "All day: OK",
+    "status_last_24h": "Last 24h",
+    "status_version_history": "Version History",
+    "status_claude_status": "Claude Code",
+    "status_version": "Version: {version}",
+    "status_show_changelog": "Show Full Changelog",
 }
