@@ -13,10 +13,12 @@ from pathlib import Path
 
 import pytest
 
+from core import mcp_server
 from core.mcp_server import (
     _get_status, _list_save_points, _list_frozen,
     _freeze_file, _unfreeze_file, _detect_stack,
     _search_code, _rollback, _create_save_point,
+    _db, _reset_db_for_tests,
 )
 from core.history import HistoryDB
 
@@ -35,11 +37,30 @@ def fresh_cwd(tmp_path, monkeypatch):
 
     monkeypatch.setattr(h.HistoryDB, "__init__", patched_init)
     monkeypatch.chdir(tmp_path)
-    return tmp_path
+
+    # Drop any cached singleton from a previous test so this one
+    # opens a fresh DB at the patched path.
+    from core import mcp_server
+    mcp_server._reset_db_for_tests()
+    yield tmp_path
+    mcp_server._reset_db_for_tests()
 
 
 def _text(result) -> str:
     return "\n".join(r.text for r in result)
+
+
+class TestDBSingleton:
+    def test_db_is_cached_within_a_session(self, fresh_cwd):
+        a = _db()
+        b = _db()
+        assert a is b, "second _db() call should return the cached instance"
+
+    def test_reset_drops_singleton(self, fresh_cwd):
+        a = _db()
+        _reset_db_for_tests()
+        b = _db()
+        assert a is not b, "reset should force a fresh instance"
 
 
 class TestStatus:

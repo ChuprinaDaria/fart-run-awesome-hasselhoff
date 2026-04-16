@@ -12,6 +12,7 @@ import asyncio
 import json
 import logging
 import os
+import sys
 from pathlib import Path
 from typing import Any
 
@@ -42,10 +43,34 @@ def _resolve_project_dir(project_dir: str | None) -> str:
     return str(Path.cwd())
 
 
+_DB_INSTANCE: HistoryDB | None = None
+
+
 def _db() -> HistoryDB:
-    db = HistoryDB()
-    db.init()
-    return db
+    """Return the process-wide HistoryDB, creating it on first call.
+
+    The MCP server is a long-running stdio process: opening a fresh
+    SQLite connection per tool call (the old behaviour) wasted file
+    descriptors and risked write-lock contention when an agent fires
+    several tools in quick succession.
+    """
+    global _DB_INSTANCE
+    if _DB_INSTANCE is None:
+        _DB_INSTANCE = HistoryDB()
+        _DB_INSTANCE.init()
+    return _DB_INSTANCE
+
+
+def _reset_db_for_tests() -> None:
+    """Drop the cached singleton. Tests use this between runs so each
+    test gets a HistoryDB pointing at its own tmp_path."""
+    global _DB_INSTANCE
+    if _DB_INSTANCE is not None:
+        try:
+            _DB_INSTANCE.close()
+        except Exception as e:
+            log.warning("close cached HistoryDB: %s", e)
+    _DB_INSTANCE = None
 
 
 def _ok(text: str) -> list[mcp_types.TextContent]:
@@ -405,8 +430,8 @@ async def _build_prompt(args) -> list[mcp_types.TextContent]:
         client = HaikuClient()
         if client.is_available():
             haiku = client
-    except Exception:
-        pass
+    except Exception as e:
+        log.warning("Haiku client unavailable, falling back to deterministic prompt: %s", e)
 
     frozen = [f["path"] for f in _db().get_frozen_files(project_dir)]
     result = build_prompt(
@@ -524,7 +549,32 @@ async def _rollback(args) -> list[mcp_types.TextContent]:
 
 # ------------------------------------------------------------ entrypoint
 
+def _log_startup() -> None:
+    """Announce startup to stderr — Claude Code captures it in its MCP
+    logs, so when the server fails to load the user can actually see why.
+
+    Kept defensive: anything in here is best-effort, never raises."""
+    try:
+        # Lazy import to avoid pulling tomllib at module level.
+        try:
+            import tomllib
+            pyproject = Path(__file__).resolve().parent.parent / "pyproject.toml"
+            with open(pyproject, "rb") as f:
+                version = tomllib.load(f).get("project", {}).get("version", "?")
+        except Exception:
+            version = "?"
+        db = _db()
+        log.info(
+            "fartrun MCP server starting (v%s, db=%s)",
+            version, db._path,
+        )
+    except Exception as e:
+        # Even logging itself shouldn't kill the server.
+        log.warning("startup banner failed: %s", e)
+
+
 async def _run() -> None:
+    _log_startup()
     async with stdio_server() as (read, write):
         await server.run(read, write,
                           server.create_initialization_options())
@@ -532,6 +582,13 @@ async def _run() -> None:
 
 def main() -> None:
     """Run stdio MCP server. Used by `fartrun mcp` and Claude Code."""
+    # Direct startup diagnostics to stderr so they show up in Claude
+    # Code's MCP logs (stdout is reserved for JSON-RPC).
+    logging.basicConfig(
+        level=logging.INFO,
+        stream=sys.stderr,
+        format="%(asctime)s %(name)s %(levelname)s: %(message)s",
+    )
     asyncio.run(_run())
 
 
