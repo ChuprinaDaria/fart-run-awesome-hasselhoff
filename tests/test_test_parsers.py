@@ -79,3 +79,18 @@ def test_jest_parser_garbage_returns_none():
     r = jest_parser.parse("npm WARN something\nrandom text\n", exit_code=1)
     assert r.passed is None
     assert r.failed is None
+
+
+from core.health.test_parsers import vitest as vitest_parser
+
+
+def test_vitest_parser_passed():
+    r = vitest_parser.parse(_load("vitest_passed.json"), exit_code=0)
+    assert r.passed == 8
+    assert r.failed == 0
+
+
+def test_vitest_parser_failed():
+    r = vitest_parser.parse(_load("vitest_failed.json"), exit_code=1)
+    assert r.passed == 5
+    assert r.failed == 3
