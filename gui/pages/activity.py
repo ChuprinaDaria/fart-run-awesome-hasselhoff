@@ -16,9 +16,57 @@ from PyQt5.QtGui import QFont
 from i18n import get_string as _t
 from core.activity_tracker import ActivityTracker, serialize_activity
 from core.models import ActivityEntry, FileChange, DockerChange, PortChange
+from core.prompt_parser import (
+    UserPrompt, get_recent_prompts, format_prompts_for_haiku,
+)
 from gui.copyable_widgets import make_copy_all_button
 
 log = logging.getLogger(__name__)
+
+
+class HaikuPromptsThread(QThread):
+    """Ask Haiku to summarize a list of user prompts ('what were you trying to do?')."""
+
+    result_ready = pyqtSignal(str)
+
+    def __init__(self, prompts_text: str, config: dict,
+                 on_api_error=None, parent=None):
+        super().__init__(parent)
+        self._text = prompts_text
+        self._config = config
+        self._on_api_error = on_api_error
+
+    def run(self):
+        try:
+            from core.haiku_client import HaikuClient
+            client = HaikuClient(config=self._config,
+                                 on_api_error=self._on_api_error)
+            if not client.is_available():
+                self.result_ready.emit("")
+                return
+
+            lang = self._config.get("general", {}).get("language", "en")
+            if lang == "ua":
+                prompt = (
+                    "Ти — помічник для vibe-кодерів. Нижче — список промптів, "
+                    "що юзер писав у Claude Code (від старих до нових). "
+                    "Напиши 2-4 речення простою мовою: з чого почали, "
+                    "що робили далі, де застрягли. Без технічного жаргону.\n\n"
+                    + self._text
+                )
+            else:
+                prompt = (
+                    "You're a helper for vibe coders. Below is a list of "
+                    "prompts the developer sent to Claude Code (oldest to "
+                    "newest). Write 2-4 plain-English sentences: what they "
+                    "started with, what they did next, where they got stuck. "
+                    "No tech jargon.\n\n" + self._text
+                )
+            summary = client.ask(prompt, max_tokens=300)
+            self.result_ready.emit(summary or "")
+        except Exception as e:
+            log.debug("HaikuPromptsThread error: %s", e)
+            self.result_ready.emit("")
 
 
 class HaikuContextThread(QThread):
@@ -330,6 +378,9 @@ class ActivityPage(QWidget):
         self._content_layout.addWidget(where_box)
         self._all_texts.append(_t("activity_where_stopped"))
 
+        # --- What you asked Claude ---
+        self._render_prompts_section()
+
         if not self._tracker or not self._tracker.is_git_repo():
             self._where_stopped_label.setText(_t("activity_no_git"))
             self._content_layout.addStretch()
@@ -417,6 +468,112 @@ class ActivityPage(QWidget):
             self._content_layout.addWidget(group)
 
         self._content_layout.addStretch()
+
+    def _render_prompts_section(self) -> None:
+        """Add 'What you asked Claude' box with prompt list + Analyze button."""
+        if not self._project_dir:
+            return
+
+        prompts = get_recent_prompts(self._project_dir, limit=10)
+
+        box = QFrame()
+        box.setStyleSheet(
+            "QFrame { border: 2px solid #a0a0d0; background: #f0f0ff; "
+            "border-radius: 4px; padding: 6px; margin-top: 4px; margin-bottom: 4px; }"
+        )
+        bl = QVBoxLayout(box)
+        bl.setContentsMargins(8, 6, 8, 6)
+        bl.setSpacing(4)
+
+        title = QLabel(f"-- {_t('prompts_header').format(len(prompts))} --")
+        title.setStyleSheet("font-weight: bold; color: #000080; font-size: 12px;")
+        bl.addWidget(title)
+        self._all_texts.append(title.text())
+
+        if not prompts:
+            empty = QLabel(_t("prompts_empty"))
+            empty.setStyleSheet("color: #808080; font-size: 11px; padding: 4px;")
+            bl.addWidget(empty)
+        else:
+            for p in prompts:
+                ts = p.timestamp[5:16].replace("T", " ") if p.timestamp else "?"
+                line = QLabel(f"[{ts}] {p.short}")
+                line.setWordWrap(True)
+                line.setStyleSheet(
+                    "font-family: monospace; font-size: 11px; "
+                    "padding: 2px 4px; color: #222;"
+                )
+                bl.addWidget(line)
+                self._all_texts.append(line.text())
+
+            # Analyze button + placeholder for haiku summary
+            self._analyze_btn = QPushButton(_t("prompts_analyze_btn"))
+            self._analyze_btn.setStyleSheet(
+                "QPushButton { padding: 4px 12px; margin-top: 4px; }"
+                "QPushButton:pressed { border: 2px inset #808080; }"
+            )
+            self._analyze_btn.clicked.connect(
+                lambda: self._on_analyze_prompts(prompts)
+            )
+            bl.addWidget(self._analyze_btn)
+
+            self._analyze_label = QLabel("")
+            self._analyze_label.setWordWrap(True)
+            self._analyze_label.setStyleSheet(
+                "color: #000080; font-size: 12px; padding: 6px; "
+                "background: white; border: 1px inset #808080;"
+            )
+            self._analyze_label.hide()
+            bl.addWidget(self._analyze_label)
+
+        self._content_layout.addWidget(box)
+
+    def _on_analyze_prompts(self, prompts: list[UserPrompt]) -> None:
+        if not prompts:
+            return
+
+        # Quick pre-check: if no API key, tell the user why nothing happens
+        from core.haiku_client import HaikuClient
+        client = HaikuClient(config=self._config)
+        if not client.is_available():
+            self._analyze_label.setText(_t("prompts_analyze_unavailable"))
+            self._analyze_label.setStyleSheet(
+                "color: #808000; font-size: 12px; padding: 6px; "
+                "background: #fffff0; border: 1px solid #cccc00;"
+            )
+            self._analyze_label.show()
+            return
+
+        self._analyze_label.setText(_t("prompts_analyze_loading"))
+        self._analyze_label.setStyleSheet(
+            "color: #808080; font-size: 12px; padding: 6px; "
+            "background: white; border: 1px inset #808080; font-style: italic;"
+        )
+        self._analyze_label.show()
+        self._analyze_btn.setEnabled(False)
+
+        text = format_prompts_for_haiku(prompts)
+        self._prompts_thread = HaikuPromptsThread(
+            text, self._config,
+            on_api_error=self._haiku_error_callback, parent=self,
+        )
+        self._prompts_thread.result_ready.connect(self._on_prompts_analyzed)
+        self._prompts_thread.finished.connect(
+            lambda: self._analyze_btn.setEnabled(True)
+        )
+        self._prompts_thread.start()
+
+    def _on_prompts_analyzed(self, summary: str) -> None:
+        if not summary:
+            self._analyze_label.setText(_t("prompts_analyze_unavailable"))
+            return
+        self._analyze_label.setText(summary)
+        self._analyze_label.setStyleSheet(
+            "color: #000080; font-size: 12px; padding: 6px; "
+            "background: white; border: 1px inset #808080;"
+        )
+        if summary not in self._all_texts:
+            self._all_texts.append(summary)
 
     def _make_group(self, title: str) -> QGroupBox:
         group = QGroupBox(title)

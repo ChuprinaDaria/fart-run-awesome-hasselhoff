@@ -317,6 +317,13 @@ STRINGS = {
                               "files are now blocked at the tool level.",
     "frozen_hook_removed": "Claude Code hook removed. AI is still told about "
                             "locked files via CLAUDE.md.",
+    # Activity Log — prompts section
+    "prompts_header": "What you asked Claude (last {})",
+    "prompts_empty": "No prompts found for this project yet.",
+    "prompts_analyze_btn": "Analyze with AI",
+    "prompts_analyze_loading": "AI is reading your prompts...",
+    "prompts_analyze_unavailable": "AI analysis needs a Haiku API key. "
+                                     "Set it in Settings.",
     "sp_header": "Save Points",
     "sp_save_btn": "Save before feature",
     "sp_placeholder": "what are you about to do?",

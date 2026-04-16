@@ -317,6 +317,13 @@ STRINGS = {
                               "заморожених файлів тепер блокується.",
     "frozen_hook_removed": "Claude Code hook прибрано. AI дізнається про "
                             "заморожені файли тільки через CLAUDE.md.",
+    # Activity Log — секція промптів
+    "prompts_header": "Що ти просив у Claude (останні {})",
+    "prompts_empty": "Промптів для цього проєкту ще немає.",
+    "prompts_analyze_btn": "Проаналізувати через AI",
+    "prompts_analyze_loading": "AI читає твої промпти...",
+    "prompts_analyze_unavailable": "Для AI-аналізу треба Haiku API ключ. "
+                                     "Встанови його в Налаштуваннях.",
     "sp_header": "Точки збереження",
     "sp_save_btn": "Збережись перед фічею",
     "sp_placeholder": "що збираєшся робити?",
