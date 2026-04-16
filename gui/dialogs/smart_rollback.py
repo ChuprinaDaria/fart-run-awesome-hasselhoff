@@ -31,7 +31,7 @@ class FeatureGroupingThread(QThread):
     def __init__(self, files: list[FileChange], config: dict, parent=None):
         super().__init__(parent)
         self._files = files
-        self._config = config
+        self._config = dict(config or {})
 
     def run(self):
         haiku = None

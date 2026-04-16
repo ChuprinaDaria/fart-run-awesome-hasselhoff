@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 from pathlib import Path
 
 from PyQt5.QtWidgets import (
@@ -14,6 +15,8 @@ from PyQt5.QtGui import QFont
 from i18n import get_string as _t, get_language
 from core.health.models import HealthReport, HealthFinding
 from gui.copyable_widgets import make_copy_all_button
+
+log = logging.getLogger("fartrun.health_page")
 
 
 class HealthScanThread(QThread):
@@ -37,7 +40,7 @@ class HaikuHealthThread(QThread):
     def __init__(self, findings: list, config: dict, on_api_error=None, parent=None):
         super().__init__(parent)
         self._findings = findings
-        self._config = config
+        self._config = dict(config or {})
         self._on_api_error = on_api_error
 
     def run(self):
@@ -65,8 +68,8 @@ class HaikuHealthThread(QThread):
                 f"Give overall assessment in 2-3 sentences. Simple words, no jargon. Respond in {lang_name}.",
                 max_tokens=200
             ) or ""
-        except Exception:
-            pass
+        except Exception as e:
+            log.warning("Haiku health summary failed, using empty summary: %s", e)
         self.done.emit(explanations, summary)
 
 

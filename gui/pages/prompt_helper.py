@@ -35,7 +35,9 @@ class _BuilderThread(QThread):
         self._text = user_text
         self._dir = project_dir
         self._frozen = frozen_paths
-        self._config = config
+        # Shallow copy: shield the running thread from config mutations
+        # made by Settings while it works.
+        self._config = dict(config or {})
         self._on_api_error = on_api_error
 
     def run(self):
@@ -212,6 +214,11 @@ class PromptHelperPage(QWidget):
         return self._db
 
     def _on_build(self) -> None:
+        # Defence in depth: button is disabled while running, but a
+        # programmatic trigger or a queued click could still reach this.
+        if self._thread is not None and self._thread.isRunning():
+            return
+
         text = self._input.toPlainText().strip()
         if not text or not self._project_dir:
             return
@@ -220,7 +227,8 @@ class PromptHelperPage(QWidget):
         try:
             frozen = [f["path"] for f in
                       self._get_db().get_frozen_files(self._project_dir)]
-        except Exception:
+        except Exception as e:
+            log.warning("frozen-files lookup failed for prompt build: %s", e)
             frozen = []
 
         self._status.setText(_t("ph_working"))
@@ -240,6 +248,7 @@ class PromptHelperPage(QWidget):
         self._thread.finished.connect(
             lambda: self._btn_build.setEnabled(True)
         )
+        self._thread.finished.connect(self._thread.deleteLater)
         self._thread.start()
 
     def _on_result(self, result: PromptBuildResult) -> None:

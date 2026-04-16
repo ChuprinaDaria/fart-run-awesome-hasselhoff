@@ -31,7 +31,7 @@ class HaikuSnapshotThread(QThread):
     def __init__(self, diff_text: str, config: dict, on_api_error=None, parent=None):
         super().__init__(parent)
         self._diff_text = diff_text
-        self._config = config
+        self._config = dict(config or {})
         self._on_api_error = on_api_error
 
     def run(self):
@@ -453,8 +453,13 @@ class SnapshotsPage(QWidget):
         # Trigger Haiku explanation in background
         diff_text = self._build_diff_text(diff, old_snap, new_snap)
         if diff_text and self._config.get("haiku", {}).get("api_key", ""):
+            # Don't replace a still-running thread — Qt's GC would collect
+            # the live QThread underneath us → segfault.
+            if self._haiku_thread is not None and self._haiku_thread.isRunning():
+                return
             self._haiku_thread = HaikuSnapshotThread(diff_text, self._config, on_api_error=self._haiku_error_callback, parent=self)
             self._haiku_thread.result_ready.connect(self._on_haiku_compare_ready)
+            self._haiku_thread.finished.connect(self._haiku_thread.deleteLater)
             self._haiku_thread.start()
         else:
             self._haiku_compare_label.hide()

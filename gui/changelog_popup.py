@@ -11,7 +11,7 @@ class HaikuChangelogThread(QThread):
         super().__init__(parent)
         self._old = old_version
         self._new = new_version
-        self._config = config
+        self._config = dict(config or {})
     def run(self):
         try:
             from core.haiku_client import HaikuClient

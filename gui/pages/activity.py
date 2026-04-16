@@ -33,7 +33,9 @@ class HaikuPromptsThread(QThread):
                  on_api_error=None, parent=None):
         super().__init__(parent)
         self._text = prompts_text
-        self._config = config
+        # Shallow copy so a Settings save mid-run doesn't pull config
+        # out from under us.
+        self._config = dict(config or {})
         self._on_api_error = on_api_error
 
     def run(self):
@@ -77,7 +79,7 @@ class HaikuContextThread(QThread):
     def __init__(self, entry: ActivityEntry, config: dict, on_api_error=None, parent=None):
         super().__init__(parent)
         self._entry = entry
-        self._config = config
+        self._config = dict(config or {})
         self._on_api_error = on_api_error
 
     def run(self):
@@ -147,6 +149,7 @@ class ActivityPage(QWidget):
         self._tracker: ActivityTracker | None = None
         self._config: dict = {}
         self._haiku_thread: HaikuContextThread | None = None
+        self._prompts_thread: HaikuPromptsThread | None = None
         self._all_texts: list[str] = []
         self._where_stopped_label: QLabel | None = None
         self._last_haiku_context: str = ""
@@ -316,6 +319,7 @@ class ActivityPage(QWidget):
 
         self._haiku_thread = HaikuContextThread(entry, self._config, on_api_error=self._haiku_error_callback, parent=self)
         self._haiku_thread.result_ready.connect(self._on_haiku_ready)
+        self._haiku_thread.finished.connect(self._haiku_thread.deleteLater)
         self._haiku_thread.start()
 
     def _on_haiku_ready(self, haiku_context: str, haiku_summary: str) -> None:
@@ -339,11 +343,11 @@ class ActivityPage(QWidget):
                 if self._project_dir:
                     rows = db.get_activity_log(self._project_dir, limit=1)
                     if rows:
-                        db._conn.execute(
+                        db.execute(
                             "UPDATE activity_log SET haiku_context=?, haiku_summary=? WHERE id=?",
                             (haiku_context, haiku_summary, rows[0]["id"]),
                         )
-                        db._conn.commit()
+                        db.commit()
             except Exception as e:
                 log.error("Haiku context save error: %s", e)
 
@@ -532,6 +536,11 @@ class ActivityPage(QWidget):
         if not prompts:
             return
 
+        # Defence in depth — button is disabled while running but a
+        # programmatic call could still race in.
+        if self._prompts_thread is not None and self._prompts_thread.isRunning():
+            return
+
         # Quick pre-check: if no API key, tell the user why nothing happens
         from core.haiku_client import HaikuClient
         client = HaikuClient(config=self._config)
@@ -561,6 +570,7 @@ class ActivityPage(QWidget):
         self._prompts_thread.finished.connect(
             lambda: self._analyze_btn.setEnabled(True)
         )
+        self._prompts_thread.finished.connect(self._prompts_thread.deleteLater)
         self._prompts_thread.start()
 
     def _on_prompts_analyzed(self, summary: str) -> None:
