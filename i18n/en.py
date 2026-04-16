@@ -284,6 +284,16 @@ STRINGS = {
 
     # Snapshots
     "side_snapshots": "Snapshots",
+    "side_save_points": "Save Points",
+    "sp_header": "Save Points",
+    "sp_save_btn": "Save before feature",
+    "sp_placeholder": "what are you about to do?",
+    "sp_tab_code": "Code",
+    "sp_tab_env": "Environment",
+    "sp_hint": "Before AI rewrites your project — click the button.\n"
+               "It remembers your code AND your environment (Docker, ports, configs).\n"
+               "If AI breaks something — pick 'Rollback' on the Code tab, or compare environments.\n"
+               "Nothing gets lost.",
     "snap_header": "Snapshots",
     "snap_no_dir": "No project directory selected",
     "snap_select_dir": "Select project directory",
@@ -394,7 +404,7 @@ STRINGS = {
     "safety_rollback_confirm": "Return to Save Point #{} \"{}\"?\n\nCurrent changes ({} files) will be saved to a separate branch. Nothing will be lost.",
     "safety_rollback_done": "Done. Code restored to Save Point #{}.",
     "safety_rollback_no_changes": "Nothing to rollback — code hasn't changed since Save Point #{}",
-    "safety_pick_btn": "Pick Changes",
+    "safety_pick_btn": "Pick what works",
     "safety_pick_title": "Pick Changes from {}",
     "safety_pick_desc": "These files changed in the broken attempt.\nPick what works. Leave what doesn't.",
     "safety_pick_apply": "Apply Selected",

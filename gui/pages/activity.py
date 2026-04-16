@@ -579,8 +579,8 @@ class ActivityPage(QWidget):
     def _on_save_point(self) -> None:
         """Quick Save Point — delegates to Safety Net page if available."""
         parent = self.window()
-        if hasattr(parent, 'page_safety_net'):
-            parent.page_safety_net.create_save_point_quick()
+        if hasattr(parent, 'page_save_points'):
+            parent.page_save_points.create_save_point_quick()
             self._btn_save_point.setText("Saved!")
             self._btn_save_point.setStyleSheet(
                 "QPushButton { background: #008800; color: white; padding: 4px 12px; "

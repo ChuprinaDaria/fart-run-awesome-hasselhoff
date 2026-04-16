@@ -188,6 +188,11 @@ class SafetyNetPage(QWidget):
         if hasattr(self, '_dir_label'):
             self._dir_label.hide()
 
+    def hide_save_section(self) -> None:
+        """Hide internal save UI — used when embedded under a unified save button."""
+        if hasattr(self, '_save_group'):
+            self._save_group.hide()
+
     def _get_db(self) -> HistoryDB:
         if self._db is None:
             self._db = HistoryDB()
@@ -269,6 +274,7 @@ class SafetyNetPage(QWidget):
         sg_layout.addWidget(self._status_label)
 
         layout.addWidget(save_group)
+        self._save_group = save_group
 
         # Scroll area for save points + backups + what happened
         scroll = QScrollArea()

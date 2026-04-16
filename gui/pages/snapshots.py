@@ -94,6 +94,13 @@ class SnapshotsPage(QWidget):
         if hasattr(self, '_dir_label'):
             self._dir_label.hide()
 
+    def hide_save_section(self) -> None:
+        """Hide internal save buttons — used when embedded under a unified save button."""
+        if hasattr(self, '_btn_take'):
+            self._btn_take.hide()
+        if hasattr(self, '_btn_save_code'):
+            self._btn_save_code.hide()
+
     def _get_db(self) -> HistoryDB:
         if self._db is None:
             self._db = HistoryDB()
@@ -506,10 +513,10 @@ class SnapshotsPage(QWidget):
             self._refresh_list()
 
     def _on_save_code(self) -> None:
-        """Quick Save Code — delegates to Safety Net page."""
+        """Quick Save Code — delegates to Save Points page."""
         parent = self.window()
-        if hasattr(parent, 'page_safety_net'):
-            parent.page_safety_net.create_save_point_quick()
+        if hasattr(parent, 'page_save_points'):
+            parent.page_save_points.create_save_point_quick()
 
     @staticmethod
     def _section_label(text: str) -> QLabel:

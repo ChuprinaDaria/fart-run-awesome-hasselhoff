@@ -35,8 +35,7 @@ from gui.pages.hasselhoff_wizard import HasselhoffWizardPage
 from gui.pages.discover import DiscoverTab
 from gui.pages.activity import ActivityPage
 from gui.pages.health_page import HealthPage
-from gui.pages.snapshots import SnapshotsPage
-from gui.pages.safety_net_page import SafetyNetPage
+from gui.pages.save_points_page import SavePointsPage
 from core.changelog_watcher import check_for_update, dismiss_version, _ensure_version_table
 from core.history import HistoryDB
 from core.status_checker import StatusChecker
@@ -138,8 +137,7 @@ class MonitorApp(QMainWindow):
         sidebar_items = [
             SidebarItem(_t("side_overview"), "overview"),
             SidebarItem(_t("side_activity"), "activity"),
-            SidebarItem(_t("side_snapshots"), "snapshots"),
-            SidebarItem(_t("side_safety_net"), "safety_net"),
+            SidebarItem(_t("side_save_points"), "save_points"),
             SidebarItem(_t("side_health"), "health"),
             SidebarItem(_t("side_security"), "security"),
             SidebarItem(_t("side_usage"), "usage"),
@@ -167,10 +165,8 @@ class MonitorApp(QMainWindow):
         self.page_discover = DiscoverTab()
         self.page_activity = ActivityPage()
         self.page_activity.set_config(config)
-        self.page_snapshots = SnapshotsPage()
-        self.page_snapshots.set_config(config)
-        self.page_safety_net = SafetyNetPage()
-        self.page_safety_net.set_config(config)
+        self.page_save_points = SavePointsPage()
+        self.page_save_points.set_config(config)
         self.page_health = HealthPage()
         self.page_health.set_config(config)
         self.page_settings = SettingsPage(config)
@@ -178,8 +174,7 @@ class MonitorApp(QMainWindow):
         for key, page in [
             ("overview", self.page_overview),
             ("activity", self.page_activity),
-            ("snapshots", self.page_snapshots),
-            ("safety_net", self.page_safety_net),
+            ("save_points", self.page_save_points),
             ("health", self.page_health),
             ("security", self.page_security),
             ("usage", self.page_usage),
@@ -232,12 +227,11 @@ class MonitorApp(QMainWindow):
         if hasattr(self.page_activity, 'hide_dir_picker'):
             self.page_activity.hide_dir_picker()
         self.page_health.hide_dir_picker()
-        self.page_snapshots.hide_dir_picker()
-        self.page_safety_net.hide_dir_picker()
+        self.page_save_points.hide_dir_picker()
 
         # Propagate Haiku API error callback — triggers status re-check on failure
         self._on_haiku_api_error = lambda e: self._check_api_status()
-        for page in (self.page_activity, self.page_health, self.page_snapshots):
+        for page in (self.page_activity, self.page_health, self.page_save_points):
             if hasattr(page, "set_haiku_error_callback"):
                 page.set_haiku_error_callback(self._on_haiku_api_error)
 
@@ -317,17 +311,14 @@ class MonitorApp(QMainWindow):
             self.page_activity.set_config(new_config)
         if hasattr(self.page_health, 'set_config'):
             self.page_health.set_config(new_config)
-        if hasattr(self.page_snapshots, 'set_config'):
-            self.page_snapshots.set_config(new_config)
-        if hasattr(self.page_safety_net, 'set_config'):
-            self.page_safety_net.set_config(new_config)
+        if hasattr(self.page_save_points, 'set_config'):
+            self.page_save_points.set_config(new_config)
         self._claude_statusbar.showMessage("Settings applied", 3000)
 
     def _on_project_changed(self, path: str) -> None:
         """Sync selected project to Activity, Snapshots, and Health pages."""
         self.page_activity.set_project_dir(path)
-        self.page_snapshots.set_project_dir(path)
-        self.page_safety_net.set_project_dir(path)
+        self.page_save_points.set_project_dir(path)
         # Health: set dir + enable scan button + update label
         self.page_health._project_dir = path
         display = path if len(path) <= 50 else "..." + path[-47:]
@@ -432,7 +423,7 @@ class MonitorApp(QMainWindow):
         # Auto-snapshot on first data collection (app start)
         if not hasattr(self, "_start_snapshot_taken"):
             self._start_snapshot_taken = True
-            self.page_snapshots.take_auto_snapshot(
+            self.page_save_points.take_auto_snapshot(
                 label=_t("snap_start_label"),
                 docker_data=infos,
                 port_data=ports,
@@ -689,7 +680,7 @@ class MonitorApp(QMainWindow):
         """Take auto-snapshot if snapshots page has a project dir."""
         from datetime import datetime
         time_str = datetime.now().strftime("%H:%M")
-        self.page_snapshots.take_auto_snapshot(
+        self.page_save_points.take_auto_snapshot(
             label=f"{_t('snap_auto_label')} ({time_str})",
         )
 
