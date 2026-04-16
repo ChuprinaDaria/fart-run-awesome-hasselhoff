@@ -225,6 +225,7 @@ class MonitorApp(QMainWindow):
         # Collector thread state (must init before any refresh calls)
         self._collector_thread = None
         self._collecting = False
+        self._scan_thread = None
         self._last_security_score = 100
         self._history_db = None
 
@@ -348,6 +349,7 @@ class MonitorApp(QMainWindow):
         client = self._state.docker_client if self._state.docker_available else None
         self._collector_thread = DataCollectorThread(client, self)
         self._collector_thread.data_ready.connect(self._on_data_ready)
+        self._collector_thread.finished.connect(self._collector_thread.deleteLater)
         self._collector_thread.start()
 
         # Claude stats
@@ -562,8 +564,11 @@ class MonitorApp(QMainWindow):
                 for f in findings
             ]
 
+        if self._scan_thread and self._scan_thread.isRunning():
+            return
         self._scan_thread = SecurityScanThread(scan)
         self._scan_thread.scan_done.connect(self._on_scan_done)
+        self._scan_thread.finished.connect(self._scan_thread.deleteLater)
         self._scan_thread.start()
 
     def _on_scan_done(self, findings: list[dict]):

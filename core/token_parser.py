@@ -50,7 +50,7 @@ class TokenParser:
         day_end_ms = int(target_dt.replace(hour=23, minute=59, second=59).timestamp() * 1000)
 
         sessions: dict[str, str] = {}
-        with open(history_file) as f:
+        with open(history_file, encoding="utf-8", errors="replace") as f:
             for line in f:
                 try:
                     entry = _loads(line.strip())
@@ -67,7 +67,7 @@ class TokenParser:
     def _parse_session_jsonl(self, jsonl_path: str) -> dict[str, ModelUsage]:
         model_stats: dict[str, ModelUsage] = {}
         try:
-            with open(jsonl_path) as f:
+            with open(jsonl_path, encoding="utf-8", errors="replace") as f:
                 for line in f:
                     try:
                         entry = _loads(line.strip())

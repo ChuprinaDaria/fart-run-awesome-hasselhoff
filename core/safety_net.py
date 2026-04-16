@@ -76,13 +76,25 @@ class SafetyNet:
     # --- helpers ---
 
     def _git(self, *args: str, check: bool = True) -> subprocess.CompletedProcess:
-        return subprocess.run(
-            ["git"] + list(args),
-            cwd=self._dir,
-            capture_output=True,
-            text=True,
-            check=check,
-        )
+        try:
+            return subprocess.run(
+                ["git"] + list(args),
+                cwd=self._dir,
+                capture_output=True,
+                text=True,
+                check=check,
+                timeout=30,
+            )
+        except subprocess.TimeoutExpired:
+            log.warning("git %s timed out after 30s", args)
+            if check:
+                raise
+            return subprocess.CompletedProcess(
+                args=["git"] + list(args),
+                returncode=-1,
+                stdout="",
+                stderr="timeout",
+            )
 
     def _git_ok(self, *args: str) -> str:
         """Run git command, return stdout. Empty string on failure."""
@@ -125,7 +137,8 @@ class SafetyNet:
                 continue
             # skip binary-looking files
             try:
-                total += sum(1 for _ in open(full, errors="ignore"))
+                with open(full, encoding="utf-8", errors="ignore") as f:
+                    total += sum(1 for _ in f)
             except (OSError, UnicodeDecodeError):
                 pass
         return total

@@ -102,7 +102,7 @@ def parse_all_sessions() -> list[dict]:
 
         project_name = get_project_name(jsonl_file)
 
-        with open(jsonl_file, errors="ignore") as f:
+        with open(jsonl_file, encoding="utf-8", errors="ignore") as f:
             for line in f:
                 line = line.strip()
                 if not line:
