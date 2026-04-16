@@ -2,6 +2,10 @@
 
 from __future__ import annotations
 
+import logging
+
+log = logging.getLogger("fartrun.docker_collector")
+
 
 def _calc_cpu_percent(stats: dict) -> float:
     cpu = stats.get("cpu_stats", {})
@@ -71,8 +75,8 @@ def collect_containers(containers: list) -> list[dict]:
                 for iface_stats in networks.values():
                     info["net_rx"] += iface_stats.get("rx_bytes", 0)
                     info["net_tx"] += iface_stats.get("tx_bytes", 0)
-            except Exception:
-                pass
+            except Exception as e:
+                log.warning("docker stats for %s skipped: %s", info.get("name", "?"), e)
 
         results.append(info)
     return results

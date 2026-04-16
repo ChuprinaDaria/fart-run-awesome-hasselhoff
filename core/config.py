@@ -2,9 +2,12 @@
 
 from __future__ import annotations
 
+import logging
 import os
 import tomllib
 from pathlib import Path
+
+log = logging.getLogger("fartrun.config")
 
 DEFAULTS = {
     "general": {
@@ -82,8 +85,8 @@ def load_config(path: Path | None = None) -> dict:
                 platform_config = get_platform().config_dir() / "config.toml"
                 if platform_config.exists():
                     path = platform_config
-            except Exception:
-                pass
+            except Exception as e:
+                log.warning("platform config_dir lookup failed, falling back to project root: %s", e)
             if path is None:
                 path = _project_root() / "config.toml"
 

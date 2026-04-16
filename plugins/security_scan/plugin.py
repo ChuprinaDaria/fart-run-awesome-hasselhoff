@@ -2,10 +2,13 @@
 
 from __future__ import annotations
 
+import logging
 import time
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import TYPE_CHECKING
+
+log = logging.getLogger("fartrun.security_scan")
 
 from core.plugin import Plugin, Alert
 from plugins.security_scan.scanners import (
@@ -79,8 +82,8 @@ class SecurityScanPlugin(Plugin):
             from plugins.docker_monitor.collector import collect_containers
             infos = collect_containers(containers)
             all_findings.extend(scan_docker_security(infos))
-        except Exception:
-            pass
+        except Exception as e:
+            log.warning("docker security scan skipped: %s", e)
 
         all_findings.extend(scan_env_in_git(self._scan_paths))
 
@@ -88,8 +91,8 @@ class SecurityScanPlugin(Plugin):
             from plugins.port_map.collector import collect_ports
             ports = collect_ports()
             all_findings.extend(scan_exposed_ports(ports))
-        except Exception:
-            pass
+        except Exception as e:
+            log.warning("exposed-ports scan skipped: %s", e)
 
         # Rust sentinel scanners
         all_findings.extend(scan_sentinel_processes())

@@ -214,8 +214,8 @@ class SafetyNetPage(QWidget):
                 haiku = HaikuClient(config=self._config)
                 if not haiku.is_available():
                     haiku = None
-            except Exception:
-                pass
+            except Exception as e:
+                log.warning("Haiku unavailable for GitEducator, falling back to silent mode: %s", e)
             self._educator = GitEducator(self._project_dir, self._get_db(), haiku)
         return self._educator
 
@@ -665,8 +665,8 @@ class SafetyNetPage(QWidget):
                 if auto_keep:
                     merged = list({*keep_paths, *auto_keep})
                     keep_paths = merged
-            except Exception:
-                pass
+            except Exception as e:
+                log.warning("auto-keep frozen files lookup failed during rollback: %s", e)
         else:
             reply = QMessageBox.question(
                 self,
