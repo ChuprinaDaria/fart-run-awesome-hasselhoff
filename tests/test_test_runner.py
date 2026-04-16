@@ -54,3 +54,40 @@ def test_runner_kills_on_timeout(tmp_path):
     assert run.timed_out is True
     assert run.exit_code is None
     assert elapsed < 5  # killed within ~1s + 2s wait grace
+
+
+def test_runner_command_not_found(tmp_path):
+    runner = TestRunner(parser=_for_framework("generic"), timeout_s=5,
+                        framework="generic")
+    run = runner.run(tmp_path, ["definitely-not-a-binary-12345"])
+    assert run.exit_code == -1
+    assert "not found" in run.output_tail.lower()
+
+
+def test_runner_truncates_output_to_tail(tmp_path):
+    """Subprocess prints 500 lines; we keep only the last 200."""
+    runner = TestRunner(parser=_for_framework("generic"), timeout_s=10,
+                        framework="generic")
+    # Use python -c so it works cross-platform.
+    import sys
+    code = "for i in range(500): print(f'line-{i}')"
+    run = runner.run(tmp_path, [sys.executable, "-c", code])
+    assert run.exit_code == 0
+    lines = run.output_tail.splitlines()
+    assert len(lines) == 200
+    assert lines[-1] == "line-499"
+    assert lines[0] == "line-300"
+
+
+def test_runner_swallows_parser_exceptions(tmp_path):
+    """Parser raising must not crash the run."""
+    class BadParser:
+        def parse(self, output, exit_code):
+            raise RuntimeError("boom")
+
+    runner = TestRunner(parser=BadParser(), timeout_s=5, framework="generic")
+    import sys
+    run = runner.run(tmp_path, [sys.executable, "-c", "print('hi')"])
+    assert run.exit_code == 0
+    assert run.passed is None and run.failed is None
+    assert "hi" in run.output_tail
