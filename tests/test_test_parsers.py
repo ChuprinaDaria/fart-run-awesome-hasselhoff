@@ -94,3 +94,14 @@ def test_vitest_parser_failed():
     r = vitest_parser.parse(_load("vitest_failed.json"), exit_code=1)
     assert r.passed == 5
     assert r.failed == 3
+
+
+from core.health.test_parsers import generic as generic_parser
+
+
+def test_generic_parser_returns_all_none():
+    r = generic_parser.parse("any output at all", exit_code=0)
+    assert r.passed is None
+    assert r.failed is None
+    assert r.errors is None
+    assert r.skipped is None
