@@ -285,6 +285,18 @@ STRINGS = {
     # Snapshots
     "side_snapshots": "Snapshots",
     "side_save_points": "Save Points",
+    "sr_title": "Rollback to Save Point #{}",
+    "sr_explain": "You're about to rollback to \"{}\".\n\n"
+                  "Changes made since then are grouped by feature below.\n"
+                  "Tick the features that WORKED — they'll stay after rollback.\n"
+                  "Everything unticked gets thrown away.\n\n"
+                  "Don't know? Pick \"Rollback everything\" to just reset.",
+    "sr_loading": "AI is figuring out what changed...",
+    "sr_files_suffix": "files",
+    "sr_rollback_all": "Rollback everything",
+    "sr_rollback_keep": "Rollback + keep ticked",
+    "sr_cancel": "Cancel",
+    "sr_done_keep": "Rolled back to #{}. Kept {} file(s) that worked.",
     "sp_header": "Save Points",
     "sp_save_btn": "Save before feature",
     "sp_placeholder": "what are you about to do?",

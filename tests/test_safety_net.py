@@ -118,6 +118,62 @@ class TestRollback:
         assert reason == "already_at_save_point"
 
 
+class TestSmartRollback:
+    def test_get_changes_since(self, sn, git_repo, db):
+        _add_file(git_repo, "app.py", "v1\n")
+        sn.create_save_point("baseline")
+
+        _add_file(git_repo, "app.py", "v2\n")
+        _add_file(git_repo, "new.py", "hello\n")
+
+        sp = db.get_save_points(str(git_repo))[0]
+        changes = sn.get_changes_since(sp["id"])
+        paths = {c.path for c in changes}
+        assert "app.py" in paths
+        assert "new.py" in paths
+        # new.py is 'added'
+        new_entry = next(c for c in changes if c.path == "new.py")
+        assert new_entry.status == "added"
+
+    def test_get_changes_skips_junk_dirs(self, sn, git_repo, db):
+        _add_file(git_repo, "app.py", "v1\n")
+        sn.create_save_point("baseline")
+        (git_repo / "node_modules").mkdir()
+        (git_repo / "node_modules" / "trash.js").write_text("never\n")
+        _add_file(git_repo, "real.py", "code\n")
+
+        sp = db.get_save_points(str(git_repo))[0]
+        changes = sn.get_changes_since(sp["id"])
+        paths = {c.path for c in changes}
+        assert "real.py" in paths
+        assert "node_modules/trash.js" not in paths
+
+    def test_rollback_with_picks_keeps_selected(self, sn, git_repo, db):
+        _add_file(git_repo, "app.py", "v1\n")
+        sn.create_save_point("baseline")
+
+        _add_file(git_repo, "good.py", "works\n")
+        _add_file(git_repo, "bad.py", "broken\n")
+
+        sp = db.get_save_points(str(git_repo))[0]
+        result = sn.rollback_with_picks(sp["id"], keep_paths=["good.py"])
+
+        assert isinstance(result, RollbackResult)
+        assert (git_repo / "good.py").read_text() == "works\n"
+        assert not (git_repo / "bad.py").exists()
+
+    def test_rollback_with_picks_empty_behaves_like_rollback(self, sn, git_repo, db):
+        _add_file(git_repo, "app.py", "v1\n")
+        sn.create_save_point("baseline")
+
+        _add_file(git_repo, "trash.py", "oops\n")
+
+        sp = db.get_save_points(str(git_repo))[0]
+        result = sn.rollback_with_picks(sp["id"], keep_paths=[])
+        assert isinstance(result, RollbackResult)
+        assert not (git_repo / "trash.py").exists()
+
+
 class TestPickFiles:
     def test_pick_selective(self, sn, git_repo, db):
         # Save point

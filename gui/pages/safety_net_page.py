@@ -626,7 +626,6 @@ class SafetyNetPage(QWidget):
         can, reason = sn.can_rollback(save_point_id)
         if not can:
             if reason == "already_at_save_point":
-                sp = self._get_db().get_save_point(save_point_id)
                 msg = _t("safety_rollback_no_changes").format(save_point_id)
                 QMessageBox.information(self, "Info", msg)
             elif reason == "merge_in_progress":
@@ -637,18 +636,37 @@ class SafetyNetPage(QWidget):
         if not preview:
             return
 
-        reply = QMessageBox.question(
-            self,
-            _t("safety_rollback_btn"),
-            _t("safety_rollback_confirm").format(
-                save_point_id, preview.target_label, preview.files_affected
-            ),
-            QMessageBox.Ok | QMessageBox.Cancel,
-        )
-        if reply != QMessageBox.Ok:
-            return
+        # Smart Rollback flow: if there are actual file changes, let user
+        # pick which features to keep via the dialog. Otherwise fall back
+        # to the simple confirm.
+        changes = sn.get_changes_since(save_point_id)
+        keep_paths: list[str] = []
 
-        result = sn.rollback(save_point_id)
+        if changes:
+            from gui.dialogs.smart_rollback import SmartRollbackDialog
+            dlg = SmartRollbackDialog(
+                save_point_label=preview.target_label,
+                save_point_id=save_point_id,
+                files=changes,
+                config=self._config,
+                parent=self,
+            )
+            if dlg.exec_() != dlg.Accepted:
+                return
+            keep_paths = dlg.get_kept_paths()
+        else:
+            reply = QMessageBox.question(
+                self,
+                _t("safety_rollback_btn"),
+                _t("safety_rollback_confirm").format(
+                    save_point_id, preview.target_label, preview.files_affected
+                ),
+                QMessageBox.Ok | QMessageBox.Cancel,
+            )
+            if reply != QMessageBox.Ok:
+                return
+
+        result = sn.rollback_with_picks(save_point_id, keep_paths)
 
         educator = self._get_educator()
         lang = get_language()
@@ -657,11 +675,17 @@ class SafetyNetPage(QWidget):
         }, lang=lang)
         hoff = GitEducator.get_hoff_line("rollback")
 
-        result_text = (
-            f"{_t('safety_rollback_done').format(save_point_id)}\n\n"
-            f"Your recent changes saved to: {result.backup_branch}\n"
-            f"Files restored: {result.files_restored}"
-        )
+        if keep_paths:
+            result_text = (
+                f"{_t('sr_done_keep').format(save_point_id, len(keep_paths))}\n\n"
+                f"Your recent changes saved to: {result.backup_branch}"
+            )
+        else:
+            result_text = (
+                f"{_t('safety_rollback_done').format(save_point_id)}\n\n"
+                f"Your recent changes saved to: {result.backup_branch}\n"
+                f"Files restored: {result.files_restored}"
+            )
 
         self._refresh()
         self._show_what_happened(hint, result_text, hoff)
