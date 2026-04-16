@@ -324,6 +324,27 @@ STRINGS = {
     "prompts_analyze_loading": "AI читає твої промпти...",
     "prompts_analyze_unavailable": "Для AI-аналізу треба Haiku API ключ. "
                                      "Встанови його в Налаштуваннях.",
+    # Помічник промптів
+    "side_prompt_helper": "Помічник промптів",
+    "ph_header": "Помічник промптів",
+    "ph_hint": "Опиши своїми словами що хочеш. Ми подивимось у твоєму коді, "
+               "знайдемо потрібні файли, і дамо структурований промпт щоб "
+               "вставити в Claude Code.",
+    "ph_input_placeholder": "напр.: отам кнопка не показує текст",
+    "ph_build_btn": "Допоможи скласти промпт",
+    "ph_copy_btn": "Скопіювати промпт",
+    "ph_no_project": "Спочатку обери проєкт.",
+    "ph_working": "Шукаю по твоєму проєкту і пишу промпт...",
+    "ph_no_ai": "(немає Haiku API ключа — використовую шаблон)",
+    "ph_output_title": "Готово, вставляй у Claude Code:",
+    "ph_context7_missing": "Context7 MCP не встановлено. Встанови щоб "
+                            "Claude Code міг тягнути актуальну документацію.",
+    "ph_context7_install_btn": "Встановити Context7 MCP",
+    "ph_context7_installed": "Context7 MCP встановлено.",
+    "ph_npx_missing": "Увага: npx не знайдено у PATH. Context7 потребує "
+                       "Node.js — встанови його перед запуском Context7.",
+    "ph_context7_done": "Context7 додано в ~/.claude/settings.json. "
+                         "Перезапусти Claude Code щоб він підхопив.",
     "sp_header": "Точки збереження",
     "sp_save_btn": "Збережись перед фічею",
     "sp_placeholder": "що збираєшся робити?",

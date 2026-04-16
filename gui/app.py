@@ -36,6 +36,7 @@ from gui.pages.discover import DiscoverTab
 from gui.pages.activity import ActivityPage
 from gui.pages.health_page import HealthPage
 from gui.pages.save_points_page import SavePointsPage
+from gui.pages.prompt_helper import PromptHelperPage
 from core.changelog_watcher import check_for_update, dismiss_version, _ensure_version_table
 from core.history import HistoryDB
 from core.status_checker import StatusChecker
@@ -138,6 +139,7 @@ class MonitorApp(QMainWindow):
             SidebarItem(_t("side_overview"), "overview"),
             SidebarItem(_t("side_activity"), "activity"),
             SidebarItem(_t("side_save_points"), "save_points"),
+            SidebarItem(_t("side_prompt_helper"), "prompt_helper"),
             SidebarItem(_t("side_health"), "health"),
             SidebarItem(_t("side_security"), "security"),
             SidebarItem(_t("side_usage"), "usage"),
@@ -167,6 +169,8 @@ class MonitorApp(QMainWindow):
         self.page_activity.set_config(config)
         self.page_save_points = SavePointsPage()
         self.page_save_points.set_config(config)
+        self.page_prompt_helper = PromptHelperPage()
+        self.page_prompt_helper.set_config(config)
         self.page_health = HealthPage()
         self.page_health.set_config(config)
         self.page_settings = SettingsPage(config)
@@ -175,6 +179,7 @@ class MonitorApp(QMainWindow):
             ("overview", self.page_overview),
             ("activity", self.page_activity),
             ("save_points", self.page_save_points),
+            ("prompt_helper", self.page_prompt_helper),
             ("health", self.page_health),
             ("security", self.page_security),
             ("usage", self.page_usage),
@@ -231,7 +236,8 @@ class MonitorApp(QMainWindow):
 
         # Propagate Haiku API error callback — triggers status re-check on failure
         self._on_haiku_api_error = lambda e: self._check_api_status()
-        for page in (self.page_activity, self.page_health, self.page_save_points):
+        for page in (self.page_activity, self.page_health,
+                      self.page_save_points, self.page_prompt_helper):
             if hasattr(page, "set_haiku_error_callback"):
                 page.set_haiku_error_callback(self._on_haiku_api_error)
 
@@ -313,12 +319,15 @@ class MonitorApp(QMainWindow):
             self.page_health.set_config(new_config)
         if hasattr(self.page_save_points, 'set_config'):
             self.page_save_points.set_config(new_config)
+        if hasattr(self.page_prompt_helper, 'set_config'):
+            self.page_prompt_helper.set_config(new_config)
         self._claude_statusbar.showMessage("Settings applied", 3000)
 
     def _on_project_changed(self, path: str) -> None:
         """Sync selected project to Activity, Snapshots, and Health pages."""
         self.page_activity.set_project_dir(path)
         self.page_save_points.set_project_dir(path)
+        self.page_prompt_helper.set_project_dir(path)
         # Health: set dir + enable scan button + update label
         self.page_health._project_dir = path
         display = path if len(path) <= 50 else "..." + path[-47:]

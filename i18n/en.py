@@ -324,6 +324,27 @@ STRINGS = {
     "prompts_analyze_loading": "AI is reading your prompts...",
     "prompts_analyze_unavailable": "AI analysis needs a Haiku API key. "
                                      "Set it in Settings.",
+    # Prompt Helper
+    "side_prompt_helper": "Prompt Helper",
+    "ph_header": "Prompt Helper",
+    "ph_hint": "Describe what you want in your own words. We'll look through "
+               "your codebase, figure out where the relevant files are, and "
+               "give you a well-structured prompt to paste into Claude Code.",
+    "ph_input_placeholder": "e.g. the button over there doesn't show text",
+    "ph_build_btn": "Help me write the prompt",
+    "ph_copy_btn": "Copy prompt",
+    "ph_no_project": "Select a project first.",
+    "ph_working": "Searching your project and drafting the prompt...",
+    "ph_no_ai": "(no Haiku API key — using template fallback)",
+    "ph_output_title": "Ready to paste into Claude Code:",
+    "ph_context7_missing": "Context7 MCP is not installed. Install it so "
+                            "Claude Code can fetch up-to-date docs.",
+    "ph_context7_install_btn": "Install Context7 MCP",
+    "ph_context7_installed": "Context7 MCP is installed.",
+    "ph_npx_missing": "Heads up: npx not found on PATH. Context7 needs "
+                       "Node.js — install it before Context7 can actually run.",
+    "ph_context7_done": "Context7 added to ~/.claude/settings.json. "
+                         "Restart Claude Code once to pick it up.",
     "sp_header": "Save Points",
     "sp_save_btn": "Save before feature",
     "sp_placeholder": "what are you about to do?",
