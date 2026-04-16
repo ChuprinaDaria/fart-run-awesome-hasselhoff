@@ -11,16 +11,34 @@ from core.health.models import HealthFinding, HealthReport
 log = logging.getLogger(__name__)
 
 
+_README_EXTS = {"", ".md", ".mdx", ".rst", ".txt", ".adoc"}
+
+
+def _find_readme(project_dir: str) -> Path | None:
+    """Return the project-root README file if present, matching case-insensitively.
+
+    Accepts `README`, `README.md`, `README.MD`, `Readme.md`, `readme`,
+    `README.rst`, `README.mdx`, `README.adoc`, etc. Only the top-level
+    directory is scanned — a README inside `docs/` is not the project README.
+    """
+    root = Path(project_dir)
+    try:
+        entries = list(root.iterdir())
+    except OSError:
+        return None
+    for entry in entries:
+        if not entry.is_file():
+            continue
+        if entry.stem.lower() != "readme":
+            continue
+        if entry.suffix.lower() in _README_EXTS:
+            return entry
+    return None
+
+
 def check_readme(report: HealthReport, project_dir: str) -> None:
     """Check 6.1 — README existence and quality."""
-    root = Path(project_dir)
-
-    readme = None
-    for name in ["README.md", "README.rst", "README.txt", "README", "readme.md"]:
-        candidate = root / name
-        if candidate.exists():
-            readme = candidate
-            break
+    readme = _find_readme(project_dir)
 
     if not readme:
         report.findings.append(HealthFinding(
