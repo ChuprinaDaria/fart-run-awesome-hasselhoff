@@ -1,4 +1,5 @@
 """Tests for core.health.test_runner."""
+import time
 from pathlib import Path
 
 from core.health.test_runner import TestRun, ParseResult, Parser, TestRunner
@@ -39,3 +40,17 @@ def test_runner_executes_pytest_fixture():
     assert run.timed_out is False
     assert run.duration_s > 0
     assert "1 failed" in run.output_tail or "1 passed" in run.output_tail
+
+
+from core.health.test_parsers import for_framework as _for_framework
+
+
+def test_runner_kills_on_timeout(tmp_path):
+    runner = TestRunner(parser=_for_framework("generic"), timeout_s=1,
+                        framework="generic")
+    start = time.time()
+    run = runner.run(tmp_path, ["sleep", "60"])
+    elapsed = time.time() - start
+    assert run.timed_out is True
+    assert run.exit_code is None
+    assert elapsed < 5  # killed within ~1s + 2s wait grace
