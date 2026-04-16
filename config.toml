@@ -33,7 +33,9 @@ auto_interval_minutes = 30
 max_snapshots = 50
 
 [haiku]
-api_key = "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"
+# Put your Anthropic API key here, or set ANTHROPIC_API_KEY in the env.
+# Never commit a real key — the previous value was revoked 2026-04.
+api_key = ""
 
 [safety_net]
 max_save_points = 20
