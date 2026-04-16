@@ -105,3 +105,18 @@ def test_generic_parser_returns_all_none():
     assert r.failed is None
     assert r.errors is None
     assert r.skipped is None
+
+
+from core.health.test_parsers import for_framework
+
+
+def test_for_framework_known():
+    p = for_framework("pytest")
+    r = p.parse(_load("pytest_passed.txt"), exit_code=0)
+    assert r.passed == 3
+
+
+def test_for_framework_unknown_returns_generic():
+    p = for_framework("unknown-thing")
+    r = p.parse("anything", exit_code=0)
+    assert r.passed is None  # generic
