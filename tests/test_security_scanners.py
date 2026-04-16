@@ -66,7 +66,7 @@ def test_env_in_git(tmp_path):
     env_file = tmp_path / ".env"
     env_file.write_text("SECRET=password123")
 
-    with patch("plugins.security_scan.scanners.subprocess") as mock_sub:
+    with patch("plugins.security_scan.scanners.git.subprocess") as mock_sub:
         mock_sub.run.return_value = MagicMock(
             returncode=0, stdout=".env\nconfig/.env.prod\n",
         )
