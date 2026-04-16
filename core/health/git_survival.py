@@ -3,12 +3,91 @@
 from __future__ import annotations
 
 import logging
+from dataclasses import dataclass, field
 from pathlib import Path
 
 from core.health.models import HealthFinding, HealthReport
 from core.health.git_utils import run_git as _run_git, is_git_repo as _is_git_repo
 
 log = logging.getLogger(__name__)
+
+
+@dataclass
+class GitStatusCounts:
+    """Structured breakdown of `git status --porcelain=v1` output.
+
+    Each list holds distinct filenames. A file with combined status
+    (e.g. `MM`) can appear in both `staged` and `modified`; `total`
+    counts distinct files so the sum reconciles with the raw line count.
+    """
+    staged: list[str] = field(default_factory=list)
+    modified: list[str] = field(default_factory=list)
+    deleted: list[str] = field(default_factory=list)
+    untracked: list[str] = field(default_factory=list)
+    renamed: list[str] = field(default_factory=list)
+    unmerged: list[str] = field(default_factory=list)
+
+    @property
+    def total(self) -> int:
+        """Distinct files reported, matching `git status --porcelain` line count."""
+        seen: set[str] = set()
+        for bucket in (
+            self.staged, self.modified, self.deleted,
+            self.untracked, self.renamed, self.unmerged,
+        ):
+            for f in bucket:
+                seen.add(f)
+        return len(seen)
+
+
+def parse_git_status_porcelain(output: str) -> GitStatusCounts:
+    """Parse `git status --porcelain=v1` output into structured counts.
+
+    Format: `XY path` where X is index status, Y is work-tree status.
+    Classification table:
+
+    | X              | Y    | bucket                            |
+    |----------------|------|-----------------------------------|
+    | `?`            | `?`  | untracked                         |
+    | any of AMDRCT  | ` `  | staged                            |
+    | any of AMDRCT  | M/T  | staged + modified                 |
+    | ` `            | M/T  | modified                          |
+    | ` `            | D    | deleted (unstaged)                |
+    | R              | any  | renamed (staged rename)           |
+    | U / any+U      | any  | unmerged                          |
+    """
+    counts = GitStatusCounts()
+    for line in output.splitlines():
+        if not line or len(line) < 3:
+            continue
+        x, y = line[0], line[1]
+        filename = line[3:]
+
+        if x == "?" and y == "?":
+            counts.untracked.append(filename)
+            continue
+        if x == "U" or y == "U":
+            counts.unmerged.append(filename)
+            continue
+        if x == "R":
+            # staged rename — includes `old -> new` in path
+            counts.renamed.append(filename)
+            if y in {"M", "T"}:
+                counts.modified.append(filename)
+            continue
+
+        # Index column: staged state
+        if x in {"A", "M", "D", "C", "T"}:
+            counts.staged.append(filename)
+        # Work-tree column: unstaged state on top
+        if y == "M" or y == "T":
+            counts.modified.append(filename)
+        elif y == "D" and x == " ":
+            counts.deleted.append(filename)
+        elif y == "R" and x == " ":
+            counts.renamed.append(filename)
+
+    return counts
 
 
 def check_git_status(report: HealthReport, project_dir: str) -> None:
@@ -36,35 +115,21 @@ def check_git_status(report: HealthReport, project_dir: str) -> None:
         ))
         return
 
-    staged = []
-    modified = []
-    untracked = []
+    c = parse_git_status_porcelain(output)
 
-    for line in output.splitlines():
-        if not line.strip():
-            continue
-        index_status = line[0] if len(line) > 0 else " "
-        work_status = line[1] if len(line) > 1 else " "
-        filename = line[3:].strip()
-
-        if index_status in "AMDRC" and work_status == " ":
-            staged.append(filename)
-        elif work_status == "M":
-            modified.append(filename)
-        elif index_status == "?" and work_status == "?":
-            untracked.append(filename)
-        elif index_status in "AMDRC":
-            staged.append(filename)
-            if work_status != " ":
-                modified.append(filename)
-
-    parts = []
-    if staged:
-        parts.append(f"{len(staged)} staged (ready to commit)")
-    if modified:
-        parts.append(f"{len(modified)} modified (changed but not staged)")
-    if untracked:
-        parts.append(f"{len(untracked)} untracked (new files git doesn't know about)")
+    parts: list[str] = []
+    if c.staged:
+        parts.append(f"{len(c.staged)} staged (ready to commit)")
+    if c.modified:
+        parts.append(f"{len(c.modified)} modified (changed but not staged)")
+    if c.deleted:
+        parts.append(f"{len(c.deleted)} deleted (not staged)")
+    if c.renamed:
+        parts.append(f"{len(c.renamed)} renamed")
+    if c.unmerged:
+        parts.append(f"{len(c.unmerged)} unmerged (conflict)")
+    if c.untracked:
+        parts.append(f"{len(c.untracked)} untracked (new files git doesn't know about)")
 
     report.findings.append(HealthFinding(
         check_id="git.status",
@@ -72,9 +137,11 @@ def check_git_status(report: HealthReport, project_dir: str) -> None:
         severity="info",
         message=(
             f"Working tree: {', '.join(parts)}. "
-            + ("Staged files are ready for commit. " if staged else "")
-            + ("Modified files need 'git add' before commit. " if modified else "")
-            + ("Untracked files won't be saved until you 'git add' them." if untracked else "")
+            + ("Staged files are ready for commit. " if c.staged else "")
+            + ("Modified files need 'git add' before commit. " if c.modified else "")
+            + ("Deleted files need 'git add' (or 'git restore') to stage the deletion. " if c.deleted else "")
+            + ("Unmerged files block further work — resolve conflicts first. " if c.unmerged else "")
+            + ("Untracked files won't be saved until you 'git add' them." if c.untracked else "")
         ),
     ))
 
