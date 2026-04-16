@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import sqlite3
+import threading
 from pathlib import Path
 
 from core.platform import get_platform
@@ -19,14 +20,21 @@ class HistoryDB:
             data_dir.mkdir(parents=True, exist_ok=True)
             self._path = str(data_dir / "history.db")
         self._conn: sqlite3.Connection | None = None
+        # Task 18: one connection shared across Qt threads. sqlite3 requires
+        # check_same_thread=False to permit cross-thread use, and we guard
+        # every read/write with a re-entrant lock so concurrent writes
+        # serialize cleanly instead of racing for the same cursor.
+        self._lock = threading.RLock()
 
     def _ensure_conn(self) -> None:
         if self._conn is None:
             self.init()
 
     def init(self) -> None:
-        self._conn = sqlite3.connect(self._path, timeout=10)
-        self._conn.execute("""
+        self._conn = sqlite3.connect(
+            self._path, timeout=10, check_same_thread=False,
+        )
+        self.execute("""
             CREATE TABLE IF NOT EXISTS daily_stats (
                 date TEXT PRIMARY KEY,
                 tokens INTEGER,
@@ -36,7 +44,7 @@ class HistoryDB:
                 security_score INTEGER
             )
         """)
-        self._conn.execute("""
+        self.execute("""
             CREATE TABLE IF NOT EXISTS snapshots (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 timestamp TEXT NOT NULL,
@@ -51,13 +59,13 @@ class HistoryDB:
                 config_checksums TEXT DEFAULT '{}'
             )
         """)
-        self._conn.execute("""
+        self.execute("""
             CREATE TABLE IF NOT EXISTS app_state (
                 key TEXT PRIMARY KEY,
                 value TEXT NOT NULL
             )
         """)
-        self._conn.execute("""
+        self.execute("""
             CREATE TABLE IF NOT EXISTS activity_log (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 project_dir TEXT NOT NULL,
@@ -68,7 +76,7 @@ class HistoryDB:
             )
         """)
         # Safety Net tables
-        self._conn.execute("""
+        self.execute("""
             CREATE TABLE IF NOT EXISTS save_points (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 timestamp TEXT NOT NULL,
@@ -82,7 +90,7 @@ class HistoryDB:
                 hint_level INTEGER DEFAULT 0
             )
         """)
-        self._conn.execute("""
+        self.execute("""
             CREATE TABLE IF NOT EXISTS rollback_backups (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 timestamp TEXT NOT NULL,
@@ -95,7 +103,7 @@ class HistoryDB:
                 FOREIGN KEY (save_point_id) REFERENCES save_points(id)
             )
         """)
-        self._conn.execute("""
+        self.execute("""
             CREATE TABLE IF NOT EXISTS git_education (
                 project_dir TEXT PRIMARY KEY,
                 saves_count INTEGER DEFAULT 0,
@@ -105,7 +113,7 @@ class HistoryDB:
                 git_initialized INTEGER DEFAULT 0
             )
         """)
-        self._conn.execute("""
+        self.execute("""
             CREATE TABLE IF NOT EXISTS frozen_files (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 project_dir TEXT NOT NULL,
@@ -115,43 +123,43 @@ class HistoryDB:
                 UNIQUE(project_dir, path)
             )
         """)
-        self._conn.commit()
+        self.commit()
 
         try:
-            self._conn.execute("SELECT haiku_label FROM snapshots LIMIT 1")
+            self.execute("SELECT haiku_label FROM snapshots LIMIT 1")
         except sqlite3.OperationalError:
-            self._conn.execute("ALTER TABLE snapshots ADD COLUMN haiku_label TEXT DEFAULT ''")
-            self._conn.commit()
+            self.execute("ALTER TABLE snapshots ADD COLUMN haiku_label TEXT DEFAULT ''")
+            self.commit()
 
     # --- Frozen files ---
 
     def add_frozen_file(self, project_dir: str, path: str, note: str = "") -> None:
         from datetime import datetime
         self._ensure_conn()
-        self._conn.execute(
+        self.execute(
             "INSERT OR IGNORE INTO frozen_files "
             "(project_dir, path, note, locked_at) VALUES (?, ?, ?, ?)",
             (project_dir, path, note, datetime.now().isoformat(timespec="seconds")),
         )
         if note:
-            self._conn.execute(
+            self.execute(
                 "UPDATE frozen_files SET note = ? "
                 "WHERE project_dir = ? AND path = ?",
                 (note, project_dir, path),
             )
-        self._conn.commit()
+        self.commit()
 
     def remove_frozen_file(self, project_dir: str, path: str) -> None:
         self._ensure_conn()
-        self._conn.execute(
+        self.execute(
             "DELETE FROM frozen_files WHERE project_dir = ? AND path = ?",
             (project_dir, path),
         )
-        self._conn.commit()
+        self.commit()
 
     def get_frozen_files(self, project_dir: str) -> list[dict]:
         self._ensure_conn()
-        rows = self._conn.execute(
+        rows = self.execute(
             "SELECT id, path, note, locked_at FROM frozen_files "
             "WHERE project_dir = ? ORDER BY locked_at DESC",
             (project_dir,),
@@ -163,7 +171,7 @@ class HistoryDB:
 
     def is_file_frozen(self, project_dir: str, path: str) -> bool:
         self._ensure_conn()
-        row = self._conn.execute(
+        row = self.execute(
             "SELECT 1 FROM frozen_files WHERE project_dir = ? AND path = ? LIMIT 1",
             (project_dir, path),
         ).fetchone()
@@ -171,7 +179,7 @@ class HistoryDB:
 
     def get_state(self, key: str) -> str | None:
         self._ensure_conn()
-        cursor = self._conn.execute(
+        cursor = self.execute(
             "SELECT value FROM app_state WHERE key = ?", (key,)
         )
         row = cursor.fetchone()
@@ -179,26 +187,26 @@ class HistoryDB:
 
     def set_state(self, key: str, value: str) -> None:
         self._ensure_conn()
-        self._conn.execute(
+        self.execute(
             "INSERT OR REPLACE INTO app_state (key, value) VALUES (?, ?)",
             (key, value),
         )
-        self._conn.commit()
+        self.commit()
 
     def save_daily_stats(self, date: str, tokens: int, cost: float,
                          cache_efficiency: float, sessions: int,
                          security_score: int) -> None:
         self._ensure_conn()
-        self._conn.execute("""
+        self.execute("""
             INSERT OR REPLACE INTO daily_stats
             (date, tokens, cost, cache_efficiency, sessions, security_score)
             VALUES (?, ?, ?, ?, ?, ?)
         """, (date, tokens, cost, cache_efficiency, sessions, security_score))
-        self._conn.commit()
+        self.commit()
 
     def get_daily_stats(self, days: int = 30) -> list[dict]:
         self._ensure_conn()
-        cursor = self._conn.execute("""
+        cursor = self.execute("""
             SELECT date, tokens, cost, cache_efficiency, sessions, security_score
             FROM daily_stats
             ORDER BY date DESC
@@ -214,18 +222,18 @@ class HistoryDB:
                       entry_json: str, haiku_summary: str = "",
                       haiku_context: str = "") -> int:
         self._ensure_conn()
-        cursor = self._conn.execute(
+        cursor = self.execute(
             """INSERT INTO activity_log
                (project_dir, timestamp, entry_json, haiku_summary, haiku_context)
                VALUES (?, ?, ?, ?, ?)""",
             (project_dir, timestamp, entry_json, haiku_summary, haiku_context),
         )
-        self._conn.commit()
+        self.commit()
         return cursor.lastrowid
 
     def get_activity_log(self, project_dir: str, limit: int = 20) -> list[dict]:
         self._ensure_conn()
-        cursor = self._conn.execute(
+        cursor = self.execute(
             """SELECT id, timestamp, entry_json, haiku_summary, haiku_context
                FROM activity_log WHERE project_dir = ?
                ORDER BY id DESC LIMIT ?""",
@@ -244,7 +252,7 @@ class HistoryDB:
                        file_count: int = 0, lines_total: int = 0,
                        hint_level: int = 0) -> int:
         self._ensure_conn()
-        cursor = self._conn.execute(
+        cursor = self.execute(
             """INSERT INTO save_points
                (timestamp, label, project_dir, branch, commit_hash, tag_name,
                 file_count, lines_total, hint_level)
@@ -252,12 +260,12 @@ class HistoryDB:
             (timestamp, label, project_dir, branch, commit_hash, tag_name,
              file_count, lines_total, hint_level),
         )
-        self._conn.commit()
+        self.commit()
         return cursor.lastrowid
 
     def get_save_points(self, project_dir: str, limit: int = 20) -> list[dict]:
         self._ensure_conn()
-        cursor = self._conn.execute(
+        cursor = self.execute(
             """SELECT id, timestamp, label, branch, commit_hash, tag_name,
                       file_count, lines_total, hint_level
                FROM save_points WHERE project_dir = ?
@@ -273,7 +281,7 @@ class HistoryDB:
 
     def get_save_point(self, save_point_id: int) -> dict | None:
         self._ensure_conn()
-        cursor = self._conn.execute(
+        cursor = self.execute(
             """SELECT id, timestamp, label, project_dir, branch, commit_hash,
                       tag_name, file_count, lines_total, hint_level
                FROM save_points WHERE id = ?""",
@@ -288,12 +296,12 @@ class HistoryDB:
 
     def delete_save_point(self, save_point_id: int) -> None:
         self._ensure_conn()
-        self._conn.execute("DELETE FROM save_points WHERE id = ?", (save_point_id,))
-        self._conn.commit()
+        self.execute("DELETE FROM save_points WHERE id = ?", (save_point_id,))
+        self.commit()
 
     def count_save_points(self, project_dir: str) -> int:
         self._ensure_conn()
-        cursor = self._conn.execute(
+        cursor = self.execute(
             "SELECT COUNT(*) FROM save_points WHERE project_dir = ?",
             (project_dir,),
         )
@@ -305,7 +313,7 @@ class HistoryDB:
                             save_point_id: int, backup_branch: str,
                             backup_commit: str, files_changed: int = 0) -> int:
         self._ensure_conn()
-        cursor = self._conn.execute(
+        cursor = self.execute(
             """INSERT INTO rollback_backups
                (timestamp, project_dir, save_point_id, backup_branch,
                 backup_commit, files_changed)
@@ -313,12 +321,12 @@ class HistoryDB:
             (timestamp, project_dir, save_point_id, backup_branch,
              backup_commit, files_changed),
         )
-        self._conn.commit()
+        self.commit()
         return cursor.lastrowid
 
     def get_rollback_backups(self, project_dir: str) -> list[dict]:
         self._ensure_conn()
-        cursor = self._conn.execute(
+        cursor = self.execute(
             """SELECT rb.id, rb.timestamp, rb.save_point_id, rb.backup_branch,
                       rb.backup_commit, rb.files_changed, rb.picked_files,
                       sp.label as sp_label
@@ -338,17 +346,17 @@ class HistoryDB:
 
     def update_picked_files(self, backup_id: int, picked_json: str) -> None:
         self._ensure_conn()
-        self._conn.execute(
+        self.execute(
             "UPDATE rollback_backups SET picked_files = ? WHERE id = ?",
             (picked_json, backup_id),
         )
-        self._conn.commit()
+        self.commit()
 
     # --- Safety Net: Git Education ---
 
     def get_git_education(self, project_dir: str) -> dict:
         self._ensure_conn()
-        cursor = self._conn.execute(
+        cursor = self.execute(
             "SELECT saves_count, rollbacks_count, picks_count, gitignore_created, git_initialized "
             "FROM git_education WHERE project_dir = ?",
             (project_dir,),
@@ -365,24 +373,24 @@ class HistoryDB:
 
     def bump_git_education(self, project_dir: str, field: str) -> None:
         self._ensure_conn()
-        self._conn.execute(
+        self.execute(
             "INSERT OR IGNORE INTO git_education (project_dir) VALUES (?)",
             (project_dir,),
         )
         if field in self._BUMP_FIELDS:
             # field is validated against a frozen whitelist — safe for interpolation
-            self._conn.execute(
+            self.execute(
                 f"UPDATE git_education SET {field} = {field} + 1 WHERE project_dir = ?",
                 (project_dir,),
             )
         elif field in self._FLAG_FIELDS:
-            self._conn.execute(
+            self.execute(
                 f"UPDATE git_education SET {field} = 1 WHERE project_dir = ?",
                 (project_dir,),
             )
         else:
             raise ValueError(f"Invalid git_education field: {field!r}")
-        self._conn.commit()
+        self.commit()
 
     def close(self) -> None:
         if self._conn:
@@ -403,18 +411,21 @@ class HistoryDB:
         """Run a parameterised statement and return the cursor.
 
         Does NOT commit — caller decides whether the operation belongs
-        to a larger transaction.
+        to a larger transaction. Thread-safe (guarded by self._lock).
         """
-        self._ensure_conn()
-        return self._conn.execute(sql, params)
+        with self._lock:
+            self._ensure_conn()
+            return self._conn.execute(sql, params)
 
     def executemany(self, sql: str, seq) -> None:
         """Run a parameterised statement over an iterable, then commit."""
-        self._ensure_conn()
-        self._conn.executemany(sql, seq)
-        self._conn.commit()
+        with self._lock:
+            self._ensure_conn()
+            self._conn.executemany(sql, seq)
+            self.commit()
 
     def commit(self) -> None:
         """Commit any pending writes on the shared connection."""
-        self._ensure_conn()
-        self._conn.commit()
+        with self._lock:
+            self._ensure_conn()
+            self._conn.commit()
