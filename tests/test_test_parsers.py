@@ -3,6 +3,7 @@ from pathlib import Path
 
 from core.health.test_parsers import pytest as pytest_parser
 from core.health.test_parsers import cargo as cargo_parser
+from core.health.test_parsers import jest as jest_parser
 
 FIXTURES = Path(__file__).parent / "fixtures" / "parser_outputs"
 
@@ -58,3 +59,23 @@ def test_cargo_parser_failed():
     assert r.passed == 2
     assert r.failed == 1
     assert r.skipped == 1  # cargo "ignored" maps to skipped
+
+
+def test_jest_parser_passed():
+    r = jest_parser.parse(_load("jest_passed.json"), exit_code=0)
+    assert r.passed == 12
+    assert r.failed == 0
+
+
+def test_jest_parser_failed():
+    r = jest_parser.parse(_load("jest_failed.json"), exit_code=1)
+    assert r.passed == 9
+    assert r.failed == 3
+    assert r.skipped == 1
+
+
+def test_jest_parser_garbage_returns_none():
+    """When no JSON object found, parser returns all None (we don't know counters)."""
+    r = jest_parser.parse("npm WARN something\nrandom text\n", exit_code=1)
+    assert r.passed is None
+    assert r.failed is None
