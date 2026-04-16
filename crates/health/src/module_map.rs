@@ -90,27 +90,95 @@ fn collect_imports_recursive(
 
     match lang {
         "python" => {
-            if node.kind() == "import_statement" || node.kind() == "import_from_statement" {
-                // Try named fields first, then scan children
+            if node.kind() == "import_from_statement" {
+                // `from X import Y, Z as W` -> emit "X.Y" and "X.Z"
+                // so resolver can target the specific file/attribute, not just X/__init__.
                 let module_text = node
                     .child_by_field_name("module_name")
-                    .or_else(|| node.child_by_field_name("name"))
                     .and_then(|n| n.utf8_text(source.as_bytes()).ok().map(|s| s.to_string()));
 
-                if let Some(text) = module_text {
-                    imports.push(text);
+                // Gather imported names from `import_list` / `aliased_import` / `dotted_name` children.
+                // Skip `import *` (cannot resolve a specific target).
+                let mut names: Vec<String> = Vec::new();
+                let mut has_star = false;
+                let module_name_id = node.child_by_field_name("module_name").map(|n| n.id());
+                for i in 0..node.child_count() {
+                    if let Some(child) = node.child(i as u32) {
+                        match child.kind() {
+                            "wildcard_import" => has_star = true,
+                            "dotted_name" => {
+                                // The module_name child is the source of the import; every
+                                // other dotted_name sibling is an imported name.
+                                if module_name_id != Some(child.id()) {
+                                    if let Ok(t) = child.utf8_text(source.as_bytes()) {
+                                        names.push(t.to_string());
+                                    }
+                                }
+                            }
+                            "aliased_import" => {
+                                if let Some(name_node) = child.child_by_field_name("name") {
+                                    if let Ok(t) = name_node.utf8_text(source.as_bytes()) {
+                                        names.push(t.to_string());
+                                    }
+                                }
+                            }
+                            _ => {}
+                        }
+                    }
+                }
+
+                if let Some(module) = module_text {
+                    if has_star || names.is_empty() {
+                        imports.push(module);
+                    } else {
+                        // For `from . import x` or `from .. import x`, `module` is
+                        // already the dot prefix — concat without adding another dot.
+                        // For `from .pkg import x` / `from core.pkg import x`,
+                        // join with a dot separator.
+                        let joiner = if module.ends_with('.') { "" } else { "." };
+                        for n in names {
+                            imports.push(format!("{}{}{}", module, joiner, n));
+                        }
+                    }
                 } else {
-                    // Fallback: scan children for dotted_name or relative_import
+                    // Relative-only form: `from . import x` — no module_name field.
+                    // Fall back to the old behavior: emit the first relative_import child.
                     for i in 0..node.child_count() {
                         if let Some(child) = node.child(i as u32) {
-                            if child.kind() == "dotted_name"
-                                || child.kind() == "relative_import"
-                            {
-                                if let Ok(text) = child.utf8_text(source.as_bytes()) {
-                                    imports.push(text.to_string());
+                            if child.kind() == "relative_import" {
+                                if let Ok(t) = child.utf8_text(source.as_bytes()) {
+                                    // Attach each imported name: "..x" -> ["..x.Y", "..x.Z"]
+                                    if names.is_empty() {
+                                        imports.push(t.to_string());
+                                    } else {
+                                        for n in &names {
+                                            imports.push(format!("{}.{}", t, n));
+                                        }
+                                    }
                                 }
                                 break;
                             }
+                        }
+                    }
+                }
+            } else if node.kind() == "import_statement" {
+                // `import foo.bar [as baz]` -> emit "foo.bar"
+                for i in 0..node.child_count() {
+                    if let Some(child) = node.child(i as u32) {
+                        match child.kind() {
+                            "dotted_name" => {
+                                if let Ok(t) = child.utf8_text(source.as_bytes()) {
+                                    imports.push(t.to_string());
+                                }
+                            }
+                            "aliased_import" => {
+                                if let Some(name_node) = child.child_by_field_name("name") {
+                                    if let Ok(t) = name_node.utf8_text(source.as_bytes()) {
+                                        imports.push(t.to_string());
+                                    }
+                                }
+                            }
+                            _ => {}
                         }
                     }
                 }
@@ -160,10 +228,21 @@ fn collect_imports_recursive(
     }
 }
 
-/// Check if an import string looks like a local/relative import.
-fn is_local_import(imp: &str, lang: &str) -> bool {
+/// Check if an import string looks like a local import we can resolve.
+///
+/// `package_roots` is the set of top-level directories in the project
+/// (e.g. {"core", "plugins", "gui"}). A Python import is local if it
+/// either starts with `.` (relative) or its first dotted segment is
+/// one of those roots (absolute project-rooted import).
+fn is_local_import(imp: &str, lang: &str, package_roots: &HashSet<String>) -> bool {
     match lang {
-        "python" => imp.starts_with('.'),
+        "python" => {
+            if imp.starts_with('.') {
+                return true;
+            }
+            let first = imp.split('.').next().unwrap_or("");
+            !first.is_empty() && package_roots.contains(first)
+        }
         "js" => imp.starts_with("./") || imp.starts_with("../"),
         _ => false,
     }
@@ -177,58 +256,96 @@ fn resolve_local_import(
     all_files: &HashSet<String>,
     lang: &str,
 ) -> Option<String> {
-    let source_dir = source_file.parent()?;
+    match lang {
+        "python" => resolve_python_import(imp, source_file, root, all_files),
+        "js" => resolve_js_import(imp, source_file, root, all_files),
+        _ => None,
+    }
+}
 
-    let relative_path = match lang {
-        "python" => {
-            let dots = imp.chars().take_while(|c| *c == '.').count();
-            let module = &imp[dots..];
-            let mut base = source_dir.to_path_buf();
-            for _ in 1..dots {
-                base = base.parent()?.to_path_buf();
-            }
-            if module.is_empty() {
-                return None;
-            }
-            let module_path = module.replace('.', "/");
-            base.join(module_path)
+fn resolve_python_import(
+    imp: &str,
+    source_file: &Path,
+    root: &Path,
+    all_files: &HashSet<String>,
+) -> Option<String> {
+    // Relative imports: `.foo`, `..foo.bar` — resolve against source_file's dir.
+    // Absolute imports: `core.foo.bar` — resolve against project root.
+    let (base, module) = if imp.starts_with('.') {
+        let dots = imp.chars().take_while(|c| *c == '.').count();
+        let module = &imp[dots..];
+        let mut base = source_file.parent()?.to_path_buf();
+        for _ in 1..dots {
+            base = base.parent()?.to_path_buf();
         }
-        "js" => source_dir.join(imp),
-        _ => return None,
+        (base, module.to_string())
+    } else {
+        (root.to_path_buf(), imp.to_string())
     };
 
-    let rel = relative_path.strip_prefix(root).ok()?;
-    let rel_str = rel.to_string_lossy().to_string();
-
-    if all_files.contains(&rel_str) {
-        return Some(rel_str);
+    if module.is_empty() {
+        return None;
     }
 
-    let extensions: &[&str] = match lang {
-        "python" => &["py"],
-        "js" => &["js", "ts", "jsx", "tsx", "mjs", "mts"],
-        _ => &[],
-    };
-
-    for ext in extensions {
-        let with_ext = format!("{}.{}", rel_str, ext);
-        if all_files.contains(&with_ext) {
-            return Some(with_ext);
+    // Walk up the module path, trying the longest prefix first.
+    // For `core.context7_mcp.build_context7_directive`, try:
+    //   1. core/context7_mcp/build_context7_directive.py
+    //   2. core/context7_mcp/build_context7_directive/__init__.py
+    //   3. core/context7_mcp.py
+    //   4. core/context7_mcp/__init__.py
+    // The first hit wins. This handles both `from pkg.mod import fn`
+    // (where fn is an attribute — step 3 wins) and
+    // `from pkg import submod` (where submod is a file — step 1 wins
+    // after names are appended).
+    let parts: Vec<&str> = module.split('.').collect();
+    for take in (1..=parts.len()).rev() {
+        let prefix = parts[..take].join("/");
+        let file_path = base.join(format!("{}.py", prefix));
+        if let Some(rel) = try_rel(&file_path, root) {
+            if all_files.contains(&rel) {
+                return Some(rel);
+            }
         }
-        let index = format!("{}/index.{}", rel_str, ext);
-        if all_files.contains(&index) {
-            return Some(index);
-        }
-    }
-
-    if lang == "python" {
-        let init = format!("{}/__init__.py", rel_str);
-        if all_files.contains(&init) {
-            return Some(init);
+        let init_path = base.join(format!("{}/__init__.py", prefix));
+        if let Some(rel) = try_rel(&init_path, root) {
+            if all_files.contains(&rel) {
+                return Some(rel);
+            }
         }
     }
 
     None
+}
+
+fn resolve_js_import(
+    imp: &str,
+    source_file: &Path,
+    root: &Path,
+    all_files: &HashSet<String>,
+) -> Option<String> {
+    let source_dir = source_file.parent()?;
+    let target = source_dir.join(imp);
+    let rel = try_rel(&target, root)?;
+    if all_files.contains(&rel) {
+        return Some(rel);
+    }
+    for ext in &["js", "ts", "jsx", "tsx", "mjs", "mts"] {
+        let with_ext = format!("{}.{}", rel, ext);
+        if all_files.contains(&with_ext) {
+            return Some(with_ext);
+        }
+        let index = format!("{}/index.{}", rel, ext);
+        if all_files.contains(&index) {
+            return Some(index);
+        }
+    }
+    None
+}
+
+fn try_rel(p: &Path, root: &Path) -> Option<String> {
+    p.strip_prefix(root)
+        .ok()
+        .map(|r| r.to_string_lossy().replace('\\', "/"))
 }
 
 #[pyfunction]
@@ -270,11 +387,20 @@ pub fn scan_module_map(path: &str, entry_point_paths: Vec<String>) -> PyResult<M
             continue;
         }
         if let Ok(rel) = entry_path.strip_prefix(root) {
-            let rel_str = rel.to_string_lossy().to_string();
+            let rel_str = rel.to_string_lossy().replace('\\', "/");
             all_files.insert(rel_str.clone());
             source_files.push((entry_path.to_path_buf(), rel_str));
         }
     }
+
+    // Top-level directory names that contain at least one source file —
+    // used to classify absolute Python imports as local.
+    let package_roots: HashSet<String> = all_files
+        .iter()
+        .filter_map(|f| f.split('/').next())
+        .filter(|s| !s.is_empty() && !s.ends_with(".py") && !s.contains('.'))
+        .map(|s| s.to_string())
+        .collect();
 
     let mut file_imports: HashMap<String, Vec<String>> = HashMap::new();
     let mut imported_by: HashMap<String, u32> = HashMap::new();
@@ -301,12 +427,15 @@ pub fn scan_module_map(path: &str, entry_point_paths: Vec<String>) -> PyResult<M
 
         let mut resolved = Vec::new();
         for imp in &raw_imports {
-            if is_local_import(imp, lang) {
+            if is_local_import(imp, lang, &package_roots) {
                 if let Some(resolved_path) =
                     resolve_local_import(imp, abs_path, root, &all_files, lang)
                 {
-                    resolved.push(resolved_path.clone());
-                    *imported_by.entry(resolved_path).or_insert(0) += 1;
+                    // Don't count a file as importing itself.
+                    if &resolved_path != rel_path {
+                        resolved.push(resolved_path.clone());
+                        *imported_by.entry(resolved_path).or_insert(0) += 1;
+                    }
                 }
             }
         }
