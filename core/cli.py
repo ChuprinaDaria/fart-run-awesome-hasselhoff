@@ -150,7 +150,7 @@ def cmd_status(args) -> int:
 
 def cmd_mcp(args) -> int:
     """Don't print the logo — stdio is used for JSON-RPC."""
-    from core.mcp_server import main as mcp_main
+    from core.mcp import main as mcp_main
     mcp_main()
     return 0
 

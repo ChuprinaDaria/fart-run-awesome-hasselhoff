@@ -13,8 +13,8 @@ from pathlib import Path
 
 import pytest
 
-from core import mcp_server
-from core.mcp_server import (
+from core import mcp as mcp_server
+from core.mcp import (
     _get_status, _list_save_points, _list_frozen,
     _freeze_file, _unfreeze_file, _detect_stack,
     _search_code, _rollback, _create_save_point,
@@ -40,7 +40,7 @@ def fresh_cwd(tmp_path, monkeypatch):
 
     # Drop any cached singleton from a previous test so this one
     # opens a fresh DB at the patched path.
-    from core import mcp_server
+    from core import mcp as mcp_server
     mcp_server._reset_db_for_tests()
     yield tmp_path
     mcp_server._reset_db_for_tests()
