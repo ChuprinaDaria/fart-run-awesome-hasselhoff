@@ -1,114 +1,47 @@
-"""Claude Monitor — Dev Monitor GUI.
+"""Main window — Win95 Explorer-style sidebar + content stack.
 
-Win95 Explorer-style sidebar layout with unified refresh loop.
+Smaller siblings (styles, threads, tray) live in their own modules
+in this package so adding a new background task or styling tweak
+doesn't grow this file further.
 """
+from __future__ import annotations
 
-import sys
 import logging
+import sys
 from pathlib import Path
 
+from PyQt5.QtCore import QTimer, Qt
 from PyQt5.QtWidgets import (
-    QApplication, QMainWindow, QWidget, QHBoxLayout, QVBoxLayout,
-    QStackedWidget, QLabel, QSystemTrayIcon, QMenu,
-    QMessageBox,
+    QHBoxLayout, QMainWindow, QMessageBox, QStackedWidget, QVBoxLayout, QWidget,
 )
-from PyQt5.QtCore import QTimer, Qt, QThread, pyqtSignal
-from PyQt5.QtGui import QIcon, QPixmap, QColor, QPainter, QFont
 
-# Ensure project root is in sys.path for direct script execution
-_project_root = str(Path(__file__).resolve().parent.parent)
-if _project_root not in sys.path:
-    sys.path.insert(0, _project_root)
-
-from core.config import load_config
-from i18n import get_string as _t, set_language
-from core.autodiscovery import discover_system, SystemState
 from core.alerts import AlertManager
-from core.plugin import Alert
-from gui.sidebar import Sidebar, SidebarItem
-from gui.pages.overview import OverviewPage
-from gui.pages.security import SecurityPage, SecurityScanThread
-from gui.pages.usage import UsagePage
-from gui.pages.tips import TipsPage
-from gui.pages.settings import SettingsPage
-from gui.pages.hasselhoff_wizard import HasselhoffWizardPage
-from gui.pages.discover import DiscoverTab
-from gui.pages.activity import ActivityPage
-from gui.pages.health_page import HealthPage
-from gui.pages.save_points_page import SavePointsPage
-from gui.pages.prompt_helper import PromptHelperPage
-from core.changelog_watcher import check_for_update, dismiss_version, _ensure_version_table
+from core.autodiscovery import SystemState
+from core.changelog_watcher import (
+    _ensure_version_table, check_for_update, dismiss_version,
+)
 from core.history import HistoryDB
+from core.plugin import Alert
 from core.status_checker import StatusChecker
+from gui.app.styles import WIN95_STYLE
+from gui.app.threads import DataCollectorThread, StatusCheckThread
+from gui.pages.activity import ActivityPage
+from gui.pages.discover import DiscoverTab
+from gui.pages.hasselhoff_wizard import HasselhoffWizardPage
+from gui.pages.health_page import HealthPage
+from gui.pages.overview import OverviewPage
+from gui.pages.prompt_helper import PromptHelperPage
+from gui.pages.save_points_page import SavePointsPage
+from gui.pages.security import SecurityPage, SecurityScanThread
+from gui.pages.settings import SettingsPage
+from gui.pages.tips import TipsPage
+from gui.pages.usage import UsagePage
+from gui.sidebar import Sidebar, SidebarItem
 from gui.statusbar import ClaudeStatusBar
 from gui.widgets.project_selector import ProjectSelector
+from i18n import get_string as _t, set_language
 
 log = logging.getLogger(__name__)
-
-
-class DataCollectorThread(QThread):
-    """Collect Docker + Ports data in background to avoid blocking GUI."""
-    data_ready = pyqtSignal(dict)
-
-    def __init__(self, docker_client, parent=None):
-        super().__init__(parent)
-        self._docker_client = docker_client
-
-    def run(self):
-        result = {"docker": [], "ports": []}
-
-        if self._docker_client:
-            try:
-                from plugins.docker_monitor.collector import collect_containers
-                containers = self._docker_client.containers.list(all=True)
-                result["docker"] = collect_containers(containers)
-            except Exception as e:
-                log.error("Docker collect error: %s", e)
-
-        try:
-            from plugins.port_map.collector import collect_ports
-            result["ports"] = collect_ports()
-        except Exception as e:
-            log.error("Ports collect error: %s", e)
-
-        self.data_ready.emit(result)
-
-WIN95_STYLE = """
-QMainWindow, QWidget { background-color: #c0c0c0; font-family: "MS Sans Serif", "Liberation Sans", Arial, sans-serif; font-size: 12px; }
-QPushButton { background: #c0c0c0; border: 2px outset #dfdfdf; padding: 4px 12px; font-weight: bold; }
-QPushButton:pressed { border: 2px inset #808080; }
-QProgressBar { border: 2px inset #808080; background: white; text-align: center; height: 20px; }
-QProgressBar::chunk { background: #000080; }
-QGroupBox { border: 2px groove #808080; margin-top: 12px; padding-top: 16px; font-weight: bold; }
-QGroupBox::title { subcontrol-origin: margin; left: 10px; padding: 0 4px; }
-QTableWidget { background: white; border: 2px inset #808080; gridline-color: #808080; }
-QHeaderView::section { background: #c0c0c0; border: 1px outset #dfdfdf; padding: 2px; font-weight: bold; }
-QComboBox { background: white; border: 2px inset #808080; padding: 2px; }
-QLabel { color: #000000; }
-QMenuBar { background: #c0c0c0; border-bottom: 1px solid #808080; }
-QMenuBar::item:selected { background: #000080; color: white; }
-QMenu { background: #c0c0c0; border: 2px outset #dfdfdf; }
-QMenu::item:selected { background: #000080; color: white; }
-QStatusBar { background: #c0c0c0; border-top: 2px groove #808080; }
-QCheckBox { spacing: 6px; }
-QSpinBox { background: white; border: 2px inset #808080; padding: 2px; }
-"""
-
-
-def _make_tray_icon(color: str = "green") -> QIcon:
-    pixmap = QPixmap(32, 32)
-    pixmap.fill(Qt.transparent)
-    painter = QPainter(pixmap)
-    painter.setRenderHint(QPainter.Antialiasing)
-    colors = {"green": QColor(0, 200, 0), "yellow": QColor(255, 200, 0), "red": QColor(255, 50, 50)}
-    painter.setBrush(colors.get(color, colors["green"]))
-    painter.setPen(Qt.NoPen)
-    painter.drawEllipse(2, 2, 28, 28)
-    painter.setPen(QColor(255, 255, 255))
-    painter.setFont(QFont("Arial", 14, QFont.Bold))
-    painter.drawText(pixmap.rect(), Qt.AlignCenter, "M")
-    painter.end()
-    return QIcon(pixmap)
 
 
 class MonitorApp(QMainWindow):
@@ -238,7 +171,7 @@ class MonitorApp(QMainWindow):
         # Propagate Haiku API error callback — triggers status re-check on failure
         self._on_haiku_api_error = lambda e: self._check_api_status()
         for page in (self.page_activity, self.page_health,
-                      self.page_save_points, self.page_prompt_helper):
+                     self.page_save_points, self.page_prompt_helper):
             if hasattr(page, "set_haiku_error_callback"):
                 page.set_haiku_error_callback(self._on_haiku_api_error)
 
@@ -383,7 +316,6 @@ class MonitorApp(QMainWindow):
 
                 # Save to history DB (once per refresh, upserts today's row)
                 try:
-                    from core.history import HistoryDB
                     from datetime import date
                     if self._history_db is None:
                         self._history_db = HistoryDB()
@@ -631,15 +563,7 @@ class MonitorApp(QMainWindow):
         if self._status_checker is None:
             self._status_checker = StatusChecker(self._history_db)
 
-        class _StatusThread(QThread):
-            done = pyqtSignal(object)
-            def __init__(self, checker, parent=None):
-                super().__init__(parent)
-                self._checker = checker
-            def run(self):
-                self.done.emit(self._checker.check_now())
-
-        thread = _StatusThread(self._status_checker, self)
+        thread = StatusCheckThread(self._status_checker, self)
         thread.done.connect(self._on_status_checked)
         thread.finished.connect(thread.deleteLater)
         thread.start()
@@ -671,7 +595,6 @@ class MonitorApp(QMainWindow):
     def _check_claude_update(self):
         """Check if Claude Code version changed since last run."""
         try:
-            from core.history import HistoryDB
             if self._history_db is None:
                 self._history_db = HistoryDB()
                 self._history_db.init()
@@ -706,47 +629,12 @@ class MonitorApp(QMainWindow):
         )
 
 
-class MonitorTrayApp:
-    """System tray application wrapping MonitorApp."""
+def main() -> None:
+    """Console-script entrypoint (dev-monitor-gui)."""
+    from core.autodiscovery import discover_system
+    from core.config import load_config
+    from gui.app.tray import MonitorTrayApp
 
-    def __init__(self, config: dict, system_state: SystemState):
-        self.app = QApplication(sys.argv)
-        self.app.setQuitOnLastWindowClosed(False)
-
-        self.dashboard = MonitorApp(config, system_state)
-
-        self.tray = QSystemTrayIcon(_make_tray_icon("green"), self.app)
-        self.tray.setToolTip("Claude Monitor")
-        self.tray.activated.connect(self._on_tray_click)
-
-        self.menu = QMenu()
-        self.menu.addAction("Show Dashboard", self._show)
-        self.menu.addAction(_t("menu_nag_me"), self.dashboard._do_nag)
-        self.menu.addAction(_t("menu_hasselhoff"), self.dashboard._do_hoff)
-        self.menu.addSeparator()
-        self.menu.addAction("Quit", self._quit)
-        self.tray.setContextMenu(self.menu)
-
-        self.tray.show()
-        self.dashboard.show()
-
-    def _on_tray_click(self, reason):
-        if reason == QSystemTrayIcon.Trigger:
-            self._show()
-
-    def _show(self):
-        self.dashboard.show()
-        self.dashboard.raise_()
-
-    def _quit(self):
-        self.tray.hide()
-        self.app.quit()
-
-    def run(self):
-        return self.app.exec_()
-
-
-def main():
     logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
 
     config = load_config()
@@ -754,7 +642,3 @@ def main():
 
     app = MonitorTrayApp(config, system_state)
     sys.exit(app.run())
-
-
-if __name__ == "__main__":
-    main()
