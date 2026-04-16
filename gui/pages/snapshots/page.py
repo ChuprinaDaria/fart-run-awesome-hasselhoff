@@ -1,65 +1,29 @@
-"""Snapshots page — save and compare environment state."""
+"""SnapshotsPage — environment snapshot UI.
 
+Background Haiku thread for diff explanation lives in ``threads.py``.
+"""
 from __future__ import annotations
 
 import logging
 from pathlib import Path
 
-from PyQt5.QtWidgets import (
-    QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
-    QGroupBox, QScrollArea, QFileDialog, QCheckBox,
-    QInputDialog, QFrame, QMessageBox,
-)
-from PyQt5.QtCore import pyqtSignal, Qt, QThread
+from PyQt5.QtCore import Qt, pyqtSignal
 from PyQt5.QtGui import QFont
+from PyQt5.QtWidgets import (
+    QCheckBox, QFileDialog, QFrame, QGroupBox, QHBoxLayout, QInputDialog,
+    QLabel, QMessageBox, QPushButton, QScrollArea, QVBoxLayout, QWidget,
+)
 
-from i18n import get_string as _t, get_language
-from core.models import EnvironmentSnapshot, SnapshotDiff
 from core.history import HistoryDB
+from core.models import EnvironmentSnapshot, SnapshotDiff
 from core.snapshot_manager import (
-    create_snapshot, load_snapshots, delete_snapshot, compare_snapshots,
+    compare_snapshots, create_snapshot, delete_snapshot, load_snapshots,
 )
 from gui.copyable_widgets import make_copy_all_button
+from gui.pages.snapshots.threads import HaikuSnapshotThread
+from i18n import get_language, get_string as _t
 
 log = logging.getLogger(__name__)
-
-
-class HaikuSnapshotThread(QThread):
-    """Ask Haiku to explain what changed between two snapshots."""
-    result_ready = pyqtSignal(str)
-
-    def __init__(self, diff_text: str, config: dict, on_api_error=None, parent=None):
-        super().__init__(parent)
-        self._diff_text = diff_text
-        self._config = dict(config or {})
-        self._on_api_error = on_api_error
-
-    def run(self):
-        try:
-            api_key = self._config.get("haiku", {}).get("api_key", "")
-            if not api_key:
-                self.result_ready.emit("")
-                return
-            from core.haiku_client import HaikuClient
-            client = HaikuClient(api_key, on_api_error=self._on_api_error)
-            lang = get_language()
-            if lang == "ua":
-                prompt = (
-                    "Ти — помічник для vibe-кодерів. Поясни що змінилось у середовищі "
-                    "між двома знімками. Говори простою мовою, одним-двома реченнями, "
-                    "без технічного жаргону. Ось різниця:\n\n" + self._diff_text
-                )
-            else:
-                prompt = (
-                    "You're an assistant for vibe coders. Explain in plain English what "
-                    "changed in the environment between two snapshots. Keep it to 1-2 sentences, "
-                    "no tech jargon. Here's the diff:\n\n" + self._diff_text
-                )
-            explanation = client.ask(prompt, max_tokens=300)
-            self.result_ready.emit(explanation or "")
-        except Exception as e:
-            log.debug("HaikuSnapshotThread error: %s", e)
-            self.result_ready.emit("")
 
 
 class SnapshotsPage(QWidget):

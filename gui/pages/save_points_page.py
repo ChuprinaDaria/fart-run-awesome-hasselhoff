@@ -16,7 +16,7 @@ from PyQt5.QtWidgets import (
 from PyQt5.QtGui import QFont
 
 from i18n import get_string as _t
-from gui.pages.safety_net_page import SafetyNetPage
+from gui.pages.safety_net import SafetyNetPage
 from gui.pages.snapshots import SnapshotsPage
 from gui.pages.frozen_tab import FrozenTab
 

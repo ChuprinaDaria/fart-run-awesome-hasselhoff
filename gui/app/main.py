@@ -28,7 +28,7 @@ from gui.app.threads import DataCollectorThread, StatusCheckThread
 from gui.pages.activity import ActivityPage
 from gui.pages.discover import DiscoverTab
 from gui.pages.hasselhoff_wizard import HasselhoffWizardPage
-from gui.pages.health_page import HealthPage
+from gui.pages.health import HealthPage
 from gui.pages.overview import OverviewPage
 from gui.pages.prompt_helper import PromptHelperPage
 from gui.pages.save_points_page import SavePointsPage
