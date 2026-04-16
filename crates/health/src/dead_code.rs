@@ -2,7 +2,7 @@
 //!
 //! Single pass per file: tree-sitter parse → collect imports, definitions, identifiers.
 //! Cross-file: check if definitions are used anywhere.
-//! Regex: commented-out code blocks.
+//! Commented-out code detection re-parses stripped comment blocks.
 
 use std::collections::{HashMap, HashSet};
 use std::fs;
@@ -10,7 +10,6 @@ use std::path::Path;
 
 use ignore::WalkBuilder;
 use pyo3::prelude::*;
-use regex::Regex;
 
 use crate::common::{should_skip, SOURCE_EXTENSIONS};
 
@@ -87,6 +86,142 @@ enum Lang {
     TypeScript,
 }
 
+/// Names that pytest (and unittest-via-pytest) call automatically in any
+/// class or module under a test scope. They look like dead code because
+/// nothing in the source calls them directly — the test runner does.
+const PYTEST_LIFECYCLE_NAMES: &[&str] = &[
+    // pytest xunit-style functions and methods
+    "setup_function",
+    "teardown_function",
+    "setup_method",
+    "teardown_method",
+    "setup_class",
+    "teardown_class",
+    "setup_module",
+    "teardown_module",
+    // unittest-style names that pytest also honors
+    "setUp",
+    "tearDown",
+    "setUpClass",
+    "tearDownClass",
+    "setUpModule",
+    "tearDownModule",
+    "asyncSetUp",
+    "asyncTearDown",
+];
+
+/// Return true if this file lives in a scope where pytest will pick up
+/// lifecycle hooks automatically: anything under `tests/`, any
+/// `test_*.py` / `*_test.py`, or a `conftest.py`.
+fn is_pytest_scope(rel_path: &str) -> bool {
+    let path = rel_path.replace('\\', "/");
+    if path.starts_with("tests/") || path.contains("/tests/") {
+        return true;
+    }
+    let file_name = path.rsplit('/').next().unwrap_or(&path);
+    if file_name == "conftest.py" {
+        return true;
+    }
+    if file_name.starts_with("test_") && file_name.ends_with(".py") {
+        return true;
+    }
+    if file_name.ends_with("_test.py") {
+        return true;
+    }
+    false
+}
+
+/// Check whether the given source line carries a `# noqa` marker that
+/// silences unused-import warnings for this line.
+///
+/// Rules (mirroring pyflakes/flake8/ruff conventions):
+/// - `# noqa` (no code) — silences everything, including F401.
+/// - `# noqa: F401` — silences F401 (unused import).
+/// - `# noqa: F401, F811` — comma-separated list; matches if F401 is in it.
+/// - `# noqa: E501` — does NOT silence F401 (wrong code).
+/// - Case-insensitive. JS equivalent handled via explicit check below.
+fn has_noqa_unused_import(line_text: &str, lang: Lang) -> bool {
+    let lower = line_text.to_ascii_lowercase();
+    match lang {
+        Lang::Python => {
+            let Some(idx) = lower.find("# noqa") else {
+                return false;
+            };
+            let rest = &lower[idx + "# noqa".len()..];
+            let trimmed = rest.trim_start();
+            if !trimmed.starts_with(':') {
+                // Bare `# noqa` — silences everything.
+                return true;
+            }
+            // `# noqa: <codes>` — look for f401 in the comma list.
+            let codes_part = &trimmed[1..]; // skip ':'
+            codes_part
+                .split(|c: char| c == ',' || c.is_whitespace())
+                .any(|tok| tok.trim() == "f401")
+        }
+        Lang::JavaScript | Lang::TypeScript => {
+            // `// eslint-disable-line no-unused-vars` (or next-line, or bare disable-line)
+            lower.contains("eslint-disable-line")
+                || lower.contains("eslint-disable-next-line")
+        }
+    }
+}
+
+/// Return true if this identifier is the name being declared (function,
+/// class, method) or lives inside an import statement's name list.
+/// False for every usage site, including type hints and decorator targets.
+fn is_decl_or_import_name(node: tree_sitter::Node) -> bool {
+    // Case 1: direct parent is a declaration node and this identifier
+    // is its `name` field.
+    if let Some(parent) = node.parent() {
+        match parent.kind() {
+            "function_definition"
+            | "class_definition"
+            | "function_declaration"
+            | "class_declaration"
+            | "method_definition" => {
+                if parent.child_by_field_name("name").map(|n| n.id()) == Some(node.id()) {
+                    return true;
+                }
+            }
+            _ => {}
+        }
+    }
+
+    // Case 2: identifier lives anywhere inside an import statement's
+    // name list. Walk up until we hit an import statement (true) or a
+    // non-import statement/block boundary (false).
+    let mut cur = node.parent();
+    while let Some(p) = cur {
+        match p.kind() {
+            "import_statement" | "import_from_statement" => return true,
+            // Statement/block boundaries — once we cross one of these,
+            // we're out of the import's scope.
+            "function_definition"
+            | "class_definition"
+            | "function_declaration"
+            | "class_declaration"
+            | "method_definition"
+            | "if_statement"
+            | "for_statement"
+            | "while_statement"
+            | "try_statement"
+            | "with_statement"
+            | "expression_statement"
+            | "assignment"
+            | "augmented_assignment"
+            | "return_statement"
+            | "decorator"
+            | "call"
+            | "block"
+            | "module"
+            | "program" => return false,
+            _ => cur = p.parent(),
+        }
+    }
+    false
+}
+
 fn parse_file(content: &str, rel_path: &str, lang: Lang) -> FileData {
     let is_init = rel_path.ends_with("__init__.py");
 
@@ -117,6 +252,11 @@ fn parse_file(content: &str, rel_path: &str, lang: Lang) -> FileData {
     let mut imports: Vec<(String, u32, String)> = Vec::new();
     let mut definitions: Vec<(String, u32, String)> = Vec::new();
     let mut used_identifiers: HashSet<String> = HashSet::new();
+    // NB: import_lines/def_lines are maintained for now but no longer
+    // consulted by the usage-tracking logic (Task 12 — it used to exclude
+    // identifiers on import/def lines, which killed type-hint references
+    // like `aiosqlite.Connection` in `def f(db: aiosqlite.Connection)`).
+    // Left in place in case future checks need per-line import/def maps.
     let mut import_lines: HashSet<u32> = HashSet::new();
     let mut def_lines: HashSet<u32> = HashSet::new();
     let mut has_star_import = false;
@@ -140,37 +280,70 @@ fn parse_file(content: &str, rel_path: &str, lang: Lang) -> FileData {
                         return;
                     }
 
+                    // Imported names are siblings of `module_name` (and sit
+                    // inside `import_list` only when parentheses are used).
+                    // Walk every direct child and collect dotted_name /
+                    // aliased_import nodes, skipping the one that is the
+                    // `module_name` field.
+                    let module_name_id = node.child_by_field_name("module_name").map(|n| n.id());
                     for i in 0..node.child_count() {
                         if let Some(child) = node.child(i as u32) {
-                            if child.kind() == "import_list" {
-                                for j in 0..child.child_count() {
-                                    if let Some(name_node) = child.child(j as u32) {
-                                        if name_node.kind() == "dotted_name"
-                                            || name_node.kind() == "aliased_import"
-                                        {
-                                            let name = if name_node.kind() == "aliased_import" {
-                                                name_node
-                                                    .child_by_field_name("alias")
-                                                    .and_then(|n| {
-                                                        n.utf8_text(content.as_bytes()).ok()
-                                                    })
-                                                    .unwrap_or("")
-                                            } else {
-                                                name_node
-                                                    .utf8_text(content.as_bytes())
-                                                    .unwrap_or("")
-                                            };
-                                            if !name.is_empty() {
-                                                imports.push((
-                                                    name.to_string(),
-                                                    line,
-                                                    stmt_text.clone(),
-                                                ));
-                                                import_lines.insert(line);
+                            match child.kind() {
+                                "dotted_name" | "aliased_import" => {
+                                    if module_name_id == Some(child.id()) {
+                                        continue;
+                                    }
+                                    let name = if child.kind() == "aliased_import" {
+                                        child
+                                            .child_by_field_name("alias")
+                                            .and_then(|n| n.utf8_text(content.as_bytes()).ok())
+                                            .unwrap_or("")
+                                    } else {
+                                        child.utf8_text(content.as_bytes()).unwrap_or("")
+                                    };
+                                    if !name.is_empty() {
+                                        imports.push((
+                                            name.to_string(),
+                                            line,
+                                            stmt_text.clone(),
+                                        ));
+                                        import_lines.insert(line);
+                                    }
+                                }
+                                // Parenthesized form: `from X import (Y, Z)`
+                                // — names live inside an import_list child.
+                                "import_list" => {
+                                    for j in 0..child.child_count() {
+                                        if let Some(name_node) = child.child(j as u32) {
+                                            if name_node.kind() == "dotted_name"
+                                                || name_node.kind() == "aliased_import"
+                                            {
+                                                let name = if name_node.kind() == "aliased_import"
+                                                {
+                                                    name_node
+                                                        .child_by_field_name("alias")
+                                                        .and_then(|n| {
+                                                            n.utf8_text(content.as_bytes()).ok()
+                                                        })
+                                                        .unwrap_or("")
+                                                } else {
+                                                    name_node
+                                                        .utf8_text(content.as_bytes())
+                                                        .unwrap_or("")
+                                                };
+                                                if !name.is_empty() {
+                                                    imports.push((
+                                                        name.to_string(),
+                                                        line,
+                                                        stmt_text.clone(),
+                                                    ));
+                                                    import_lines.insert(line);
+                                                }
                                             }
                                         }
                                     }
                                 }
+                                _ => {}
                             }
                         }
                     }
@@ -299,10 +472,12 @@ fn parse_file(content: &str, rel_path: &str, lang: Lang) -> FileData {
             }
         }
 
-        // Collect all identifiers for usage tracking
+        // Collect all identifiers for usage tracking — but skip the
+        // identifier that is itself the declared name (function/class)
+        // or an imported name. Type hints on the same line as `def`
+        // must still count as usages (Task 12).
         if node.kind() == "identifier" || node.kind() == "property_identifier" {
-            let node_line = node.start_position().row as u32 + 1;
-            if !import_lines.contains(&node_line) && !def_lines.contains(&node_line) {
+            if !is_decl_or_import_name(node) {
                 if let Ok(text) = node.utf8_text(content.as_bytes()) {
                     used_identifiers.insert(text.to_string());
                 }
@@ -313,11 +488,21 @@ fn parse_file(content: &str, rel_path: &str, lang: Lang) -> FileData {
     // Filter out decorated definitions
     definitions.retain(|(_, line, _)| !decorated_lines.contains(line));
 
-    // Filter out Python dunders and test functions
+    // Filter out Python dunders and test functions. If the file is a
+    // test-scope file (tests/**, test_*.py, *_test.py, conftest.py),
+    // also drop pytest / unittest lifecycle hooks that pytest invokes
+    // automatically — they look dead but are not.
     if lang == Lang::Python {
+        let is_test_file = is_pytest_scope(rel_path);
         definitions.retain(|(name, _, kind)| {
             if kind == "function" {
-                !name.starts_with("__") && !name.starts_with("test_")
+                if name.starts_with("__") || name.starts_with("test_") {
+                    return false;
+                }
+                if is_test_file && PYTEST_LIFECYCLE_NAMES.contains(&name.as_str()) {
+                    return false;
+                }
+                true
             } else {
                 !name.starts_with("Test")
             }
@@ -392,15 +577,16 @@ fn collect_js_import_names(
     }
 }
 
-/// Detect commented-out code blocks via regex.
+/// Detect commented-out code blocks.
+///
+/// Strategy (Task 13): identify contiguous comment blocks of ≥5 lines,
+/// strip the comment prefix, and feed the result to tree-sitter.
+/// A block is real commented-out code iff:
+///   - the parse succeeds with zero `ERROR` nodes, AND
+///   - it contains at least one non-trivial statement (not just bare
+///     identifiers like a TODO list).
+/// English prose fails both checks.
 fn find_commented_blocks(content: &str, rel_path: &str, lang: Lang) -> Vec<CommentedBlock> {
-    use std::sync::LazyLock;
-    static CODE_PATTERN: LazyLock<Regex> = LazyLock::new(|| {
-        Regex::new(r"[=\(\)\{\}]|def |class |import |return |function |const |let |var |if |for ")
-            .unwrap()
-    });
-    let code_pattern = &*CODE_PATTERN;
-
     let comment_prefix = match lang {
         Lang::Python => "#",
         Lang::JavaScript | Lang::TypeScript => "//",
@@ -415,9 +601,10 @@ fn find_commented_blocks(content: &str, rel_path: &str, lang: Lang) -> Vec<Comme
 
         let is_comment = trimmed.starts_with(comment_prefix) && !trimmed.starts_with("#!");
 
+        // Shebangs and encoding declarations are boundaries, not content.
         if lang == Lang::Python && (trimmed.starts_with("#!") || trimmed.starts_with("# -*-")) {
             if !current_block.is_empty() {
-                maybe_emit_block(&mut blocks, &current_block, rel_path, &code_pattern);
+                maybe_emit_block(&mut blocks, &current_block, rel_path, lang);
                 current_block.clear();
             }
             continue;
@@ -425,37 +612,133 @@ fn find_commented_blocks(content: &str, rel_path: &str, lang: Lang) -> Vec<Comme
 
         if is_comment {
             current_block.push((line_num, trimmed.to_string()));
-        } else {
-            if !current_block.is_empty() {
-                maybe_emit_block(&mut blocks, &current_block, rel_path, &code_pattern);
-                current_block.clear();
-            }
+        } else if !current_block.is_empty() {
+            maybe_emit_block(&mut blocks, &current_block, rel_path, lang);
+            current_block.clear();
         }
     }
 
     if !current_block.is_empty() {
-        maybe_emit_block(&mut blocks, &current_block, rel_path, &code_pattern);
+        maybe_emit_block(&mut blocks, &current_block, rel_path, lang);
     }
 
     blocks
+}
+
+/// Strip the leading `# ` or `// ` (and any amount of whitespace) from one
+/// comment line, returning the payload. Preserves indentation beyond the
+/// marker so the result reparses cleanly.
+fn strip_comment_prefix(line: &str, lang: Lang) -> String {
+    let marker = match lang {
+        Lang::Python => "#",
+        Lang::JavaScript | Lang::TypeScript => "//",
+    };
+    let trimmed = line.trim_start();
+    if let Some(rest) = trimmed.strip_prefix(marker) {
+        // Drop ONE leading space if present — preserve any structural
+        // indentation after that (important for nested code).
+        rest.strip_prefix(' ').unwrap_or(rest).to_string()
+    } else {
+        trimmed.to_string()
+    }
+}
+
+/// Return true if the parsed tree has at least one ERROR node anywhere.
+fn tree_has_errors(node: tree_sitter::Node) -> bool {
+    if node.is_error() || node.kind() == "ERROR" {
+        return true;
+    }
+    for i in 0..node.child_count() {
+        if let Some(c) = node.child(i as u32) {
+            if tree_has_errors(c) {
+                return true;
+            }
+        }
+    }
+    false
+}
+
+/// Return true if the module body contains only trivial expression
+/// statements whose sole content is a single identifier — the typical
+/// shape of an english TODO list or bullet-point comment.
+fn only_trivial_identifiers(root: tree_sitter::Node, source: &str) -> bool {
+    let mut statement_count = 0usize;
+    let mut trivial_count = 0usize;
+
+    for i in 0..root.named_child_count() {
+        let stmt = match root.named_child(i as u32) {
+            Some(n) => n,
+            None => continue,
+        };
+        if stmt.kind() == "comment" {
+            continue;
+        }
+        statement_count += 1;
+
+        // Classify each statement. Trivial: expression_statement whose
+        // only named child is an identifier or a string (a line like
+        // "os" or "investigate the memory leak" (which parses as
+        // identifier sequence → ERROR, caught earlier)).
+        let is_trivial = stmt.kind() == "expression_statement"
+            && stmt.named_child_count() == 1
+            && stmt
+                .named_child(0)
+                .map(|c| matches!(c.kind(), "identifier" | "string"))
+                .unwrap_or(false);
+        if is_trivial {
+            trivial_count += 1;
+        }
+    }
+
+    let _ = source; // reserved for richer heuristics later
+    statement_count > 0 && trivial_count == statement_count
 }
 
 fn maybe_emit_block(
     blocks: &mut Vec<CommentedBlock>,
     current_block: &[(u32, String)],
     rel_path: &str,
-    code_pattern: &Regex,
+    lang: Lang,
 ) {
     if current_block.len() < 5 {
         return;
     }
 
-    let code_lines = current_block
+    // Strip comment markers and feed the raw body to tree-sitter.
+    let stripped: String = current_block
         .iter()
-        .filter(|(_, text)| code_pattern.is_match(text))
-        .count();
+        .map(|(_, text)| strip_comment_prefix(text, lang))
+        .collect::<Vec<_>>()
+        .join("\n");
 
-    if code_lines * 100 / current_block.len() < 40 {
+    let ts_lang = match lang {
+        Lang::Python => tree_sitter_python::LANGUAGE.into(),
+        Lang::JavaScript => tree_sitter_javascript::LANGUAGE.into(),
+        Lang::TypeScript => tree_sitter_typescript::LANGUAGE_TYPESCRIPT.into(),
+    };
+    let mut parser = tree_sitter::Parser::new();
+    if parser.set_language(&ts_lang).is_err() {
+        return;
+    }
+    let tree = match parser.parse(&stripped, None) {
+        Some(t) => t,
+        None => return,
+    };
+    let root = tree.root_node();
+
+    // Any syntax error → treat as prose.
+    if tree_has_errors(root) {
+        return;
+    }
+
+    // An empty parse is not code.
+    if root.named_child_count() == 0 {
+        return;
+    }
+
+    // TODO-list / single-identifier-per-line shapes are prose even
+    // though they parse cleanly (`os\nsys\njson\n` is valid Python).
+    if only_trivial_identifiers(root, &stripped) {
         return;
     }
 
@@ -537,15 +820,27 @@ pub fn scan_dead_code(path: &str, entry_point_paths: Vec<String>) -> PyResult<De
         if fd.has_star_import || fd.is_init {
             continue;
         }
+        // Pre-split file content into lines once per file so we can cheaply
+        // look up the source line of each import to check for `# noqa`.
+        let lines: Vec<&str> = fd.content.lines().collect();
         for (name, line, stmt) in &fd.imports {
-            if !fd.used_identifiers.contains(name.as_str()) {
-                unused_imports.push(UnusedImport {
-                    path: fd.rel_path.clone(),
-                    line: *line,
-                    name: name.clone(),
-                    import_statement: stmt.clone(),
-                });
+            if fd.used_identifiers.contains(name.as_str()) {
+                continue;
             }
+            // Respect `# noqa` / `# noqa: F401` on the import line.
+            let line_text = lines
+                .get((*line as usize).saturating_sub(1))
+                .copied()
+                .unwrap_or("");
+            if has_noqa_unused_import(line_text, fd.lang) {
+                continue;
+            }
+            unused_imports.push(UnusedImport {
+                path: fd.rel_path.clone(),
+                line: *line,
+                name: name.clone(),
+                import_statement: stmt.clone(),
+            });
         }
     }
 
