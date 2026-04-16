@@ -131,6 +131,27 @@ class HistoryDB:
             self.execute("ALTER TABLE snapshots ADD COLUMN haiku_label TEXT DEFAULT ''")
             self.commit()
 
+        self.execute("""
+            CREATE TABLE IF NOT EXISTS test_runs (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                project_dir TEXT NOT NULL,
+                framework TEXT NOT NULL,
+                command TEXT NOT NULL,
+                started_at REAL NOT NULL,
+                finished_at REAL,
+                duration_s REAL,
+                exit_code INTEGER,
+                timed_out INTEGER NOT NULL DEFAULT 0,
+                passed INTEGER, failed INTEGER, errors INTEGER, skipped INTEGER,
+                output_tail TEXT
+            )
+        """)
+        self.execute("""
+            CREATE INDEX IF NOT EXISTS idx_test_runs_project_started
+                ON test_runs (project_dir, started_at DESC)
+        """)
+        self.commit()
+
     # --- Frozen files ---
 
     def add_frozen_file(self, project_dir: str, path: str, note: str = "") -> None:
@@ -192,6 +213,62 @@ class HistoryDB:
             (key, value),
         )
         self.commit()
+
+    # --- Test runs ---
+
+    def save_test_run(self, run: dict, history_limit: int = 100) -> int:
+        """Insert a TestRun-shaped dict, prune to history_limit per project."""
+        import json
+        self._ensure_conn()
+        cursor = self.execute("""
+            INSERT INTO test_runs
+            (project_dir, framework, command, started_at, finished_at,
+             duration_s, exit_code, timed_out, passed, failed, errors,
+             skipped, output_tail)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """, (
+            run["project_dir"], run["framework"], json.dumps(run["command"]),
+            run["started_at"], run.get("finished_at"), run.get("duration_s"),
+            run.get("exit_code"), 1 if run.get("timed_out") else 0,
+            run.get("passed"), run.get("failed"), run.get("errors"),
+            run.get("skipped"), run.get("output_tail", ""),
+        ))
+        new_id = cursor.lastrowid
+        # Prune older rows beyond history_limit for this project
+        self.execute("""
+            DELETE FROM test_runs WHERE project_dir = ?
+              AND id NOT IN (
+                SELECT id FROM test_runs WHERE project_dir = ?
+                ORDER BY started_at DESC LIMIT ?
+              )
+        """, (run["project_dir"], run["project_dir"], history_limit))
+        self.commit()
+        return new_id
+
+    def _row_to_test_run(self, row) -> dict:
+        import json
+        return {
+            "id": row[0], "project_dir": row[1], "framework": row[2],
+            "command": json.loads(row[3]), "started_at": row[4],
+            "finished_at": row[5], "duration_s": row[6], "exit_code": row[7],
+            "timed_out": bool(row[8]), "passed": row[9], "failed": row[10],
+            "errors": row[11], "skipped": row[12], "output_tail": row[13],
+        }
+
+    def get_test_runs(self, project_dir: str, limit: int = 50) -> list[dict]:
+        self._ensure_conn()
+        rows = self.execute("""
+            SELECT id, project_dir, framework, command, started_at, finished_at,
+                   duration_s, exit_code, timed_out, passed, failed, errors,
+                   skipped, output_tail
+            FROM test_runs WHERE project_dir = ?
+            ORDER BY started_at DESC LIMIT ?
+        """, (project_dir, limit)).fetchall()
+        return [self._row_to_test_run(r) for r in rows]
+
+    def get_last_test_run(self, project_dir: str) -> dict | None:
+        runs = self.get_test_runs(project_dir, limit=1)
+        return runs[0] if runs else None
 
     def save_daily_stats(self, date: str, tokens: int, cost: float,
                          cache_efficiency: float, sessions: int,
