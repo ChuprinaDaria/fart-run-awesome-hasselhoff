@@ -49,8 +49,7 @@ def get_claude_version() -> str | None:
 
 def _ensure_version_table(db: HistoryDB) -> None:
     """Create claude_versions table if not exists."""
-    db._ensure_conn()
-    db._conn.execute("""
+    db.execute("""
         CREATE TABLE IF NOT EXISTS claude_versions (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             version TEXT NOT NULL,
@@ -58,13 +57,13 @@ def _ensure_version_table(db: HistoryDB) -> None:
             dismissed INTEGER DEFAULT 0
         )
     """)
-    db._conn.commit()
+    db.commit()
 
 
 def get_last_known_version(db: HistoryDB) -> str | None:
     """Get the last known Claude Code version from DB."""
     _ensure_version_table(db)
-    cursor = db._conn.execute(
+    cursor = db.execute(
         "SELECT version FROM claude_versions ORDER BY id DESC LIMIT 1"
     )
     row = cursor.fetchone()
@@ -74,27 +73,27 @@ def get_last_known_version(db: HistoryDB) -> str | None:
 def save_version(db: HistoryDB, version: str) -> None:
     """Save a new detected version."""
     _ensure_version_table(db)
-    db._conn.execute(
+    db.execute(
         "INSERT INTO claude_versions (version, detected_at) VALUES (?, ?)",
         (version, datetime.now().isoformat(timespec="seconds")),
     )
-    db._conn.commit()
+    db.commit()
 
 
 def dismiss_version(db: HistoryDB, version: str) -> None:
     """Mark version notification as dismissed."""
     _ensure_version_table(db)
-    db._conn.execute(
+    db.execute(
         "UPDATE claude_versions SET dismissed = 1 WHERE version = ?",
         (version,),
     )
-    db._conn.commit()
+    db.commit()
 
 
 def is_dismissed(db: HistoryDB, version: str) -> bool:
     """Check if version notification was already dismissed."""
     _ensure_version_table(db)
-    cursor = db._conn.execute(
+    cursor = db.execute(
         "SELECT dismissed FROM claude_versions WHERE version = ? ORDER BY id DESC LIMIT 1",
         (version,),
     )

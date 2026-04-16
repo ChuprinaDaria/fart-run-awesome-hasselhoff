@@ -161,19 +161,19 @@ class TestSQLitePersistence:
 
         # Insert an old record (8 days ago)
         old_ts = (datetime.now() - timedelta(days=8)).isoformat(timespec="seconds")
-        db._conn.execute(
+        db.execute(
             "INSERT INTO api_status_log (timestamp, api_indicator, api_description, claude_version, response_time_ms) "
             "VALUES (?, ?, ?, ?, ?)",
             (old_ts, "none", "Old", "1.0.18", 100),
         )
         # Insert a recent record (1 hour ago)
         recent_ts = (datetime.now() - timedelta(hours=1)).isoformat(timespec="seconds")
-        db._conn.execute(
+        db.execute(
             "INSERT INTO api_status_log (timestamp, api_indicator, api_description, claude_version, response_time_ms) "
             "VALUES (?, ?, ?, ?, ?)",
             (recent_ts, "minor", "Recent", "1.0.19", 200),
         )
-        db._conn.commit()
+        db.commit()
 
         # check_now should prune old records
         body = _make_status_json("none", "All Good")
@@ -181,7 +181,7 @@ class TestSQLitePersistence:
             with patch("core.status_checker.get_claude_version", return_value="1.0.20"):
                 checker.check_now()
 
-        cursor = db._conn.execute("SELECT COUNT(*) FROM api_status_log")
+        cursor = db.execute("SELECT COUNT(*) FROM api_status_log")
         count = cursor.fetchone()[0]
         # Old record pruned, recent + new check = 2
         assert count == 2
@@ -248,12 +248,12 @@ class TestStatusTransitions:
 
         for minutes_ago, indicator, desc in records:
             ts = (now - timedelta(minutes=minutes_ago)).isoformat(timespec="seconds")
-            db._conn.execute(
+            db.execute(
                 "INSERT INTO api_status_log (timestamp, api_indicator, api_description, claude_version, response_time_ms) "
                 "VALUES (?, ?, ?, ?, ?)",
                 (ts, indicator, desc, "1.0.20", 100),
             )
-        db._conn.commit()
+        db.commit()
 
         transitions = checker.get_status_history(hours=2)
         indicators = [t.api_indicator for t in transitions]

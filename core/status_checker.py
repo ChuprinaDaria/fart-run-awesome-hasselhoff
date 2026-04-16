@@ -31,8 +31,7 @@ class StatusResult:
 
 def _ensure_status_table(db: HistoryDB) -> None:
     """Create api_status_log table if not exists."""
-    db._ensure_conn()
-    db._conn.execute("""
+    db.execute("""
         CREATE TABLE IF NOT EXISTS api_status_log (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             timestamp TEXT NOT NULL,
@@ -42,7 +41,7 @@ def _ensure_status_table(db: HistoryDB) -> None:
             response_time_ms INTEGER NOT NULL
         )
     """)
-    db._conn.commit()
+    db.commit()
 
 
 class StatusChecker:
@@ -107,22 +106,21 @@ class StatusChecker:
 
         # Save to DB (non-fatal — statusbar updates even if DB fails)
         try:
-            self._db._ensure_conn()
-            self._db._conn.execute(
+            self._db.execute(
                 "INSERT INTO api_status_log "
                 "(timestamp, api_indicator, api_description, claude_version, response_time_ms) "
                 "VALUES (?, ?, ?, ?, ?)",
                 (result.timestamp, result.api_indicator, result.api_description,
                  result.claude_version, result.response_time_ms),
             )
-            self._db._conn.commit()
+            self._db.commit()
 
             # Prune records older than 7 days
             cutoff = (datetime.now() - timedelta(days=7)).isoformat(timespec="seconds")
-            self._db._conn.execute(
+            self._db.execute(
                 "DELETE FROM api_status_log WHERE timestamp < ?", (cutoff,)
             )
-            self._db._conn.commit()
+            self._db.commit()
         except Exception as e:
             log.warning("Status DB write failed: %s", e)
 
@@ -130,8 +128,7 @@ class StatusChecker:
 
     def get_last_status(self) -> StatusResult | None:
         """Get the most recent status from SQLite."""
-        self._db._ensure_conn()
-        cursor = self._db._conn.execute(
+        cursor = self._db.execute(
             "SELECT timestamp, api_indicator, api_description, claude_version, response_time_ms "
             "FROM api_status_log ORDER BY id DESC LIMIT 1"
         )
@@ -148,9 +145,8 @@ class StatusChecker:
 
     def get_status_history(self, hours: int = 24) -> list[StatusResult]:
         """Return only state TRANSITIONS within the given time window."""
-        self._db._ensure_conn()
         cutoff = (datetime.now() - timedelta(hours=hours)).isoformat(timespec="seconds")
-        cursor = self._db._conn.execute(
+        cursor = self._db.execute(
             "SELECT timestamp, api_indicator, api_description, claude_version, response_time_ms "
             "FROM api_status_log WHERE timestamp >= ? ORDER BY id ASC",
             (cutoff,),

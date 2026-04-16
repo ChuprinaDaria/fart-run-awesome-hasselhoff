@@ -110,8 +110,7 @@ def create_snapshot(
         haiku_label=haiku_label,
     )
 
-    db._ensure_conn()
-    cursor = db._conn.execute(
+    cursor = db.execute(
         """
         INSERT INTO snapshots
         (timestamp, label, project_dir, git_branch, git_last_commit,
@@ -133,7 +132,7 @@ def create_snapshot(
             snapshot.haiku_label,
         ),
     )
-    db._conn.commit()
+    db.commit()
     snapshot.id = cursor.lastrowid
 
     prune_old(db, project_dir)
@@ -141,8 +140,7 @@ def create_snapshot(
 
 
 def load_snapshots(db: HistoryDB, project_dir: str, limit: int = 50) -> list[EnvironmentSnapshot]:
-    db._ensure_conn()
-    cursor = db._conn.execute(
+    cursor = db.execute(
         """
         SELECT id, timestamp, label, project_dir, git_branch, git_last_commit,
                git_tracked_count, git_dirty_files, containers, listening_ports, config_checksums,
@@ -167,14 +165,12 @@ def load_snapshots(db: HistoryDB, project_dir: str, limit: int = 50) -> list[Env
 
 
 def delete_snapshot(db: HistoryDB, snapshot_id: int) -> None:
-    db._ensure_conn()
-    db._conn.execute("DELETE FROM snapshots WHERE id = ?", (snapshot_id,))
-    db._conn.commit()
+    db.execute("DELETE FROM snapshots WHERE id = ?", (snapshot_id,))
+    db.commit()
 
 
 def prune_old(db: HistoryDB, project_dir: str, max_count: int = 50) -> None:
-    db._ensure_conn()
-    db._conn.execute(
+    db.execute(
         """
         DELETE FROM snapshots
         WHERE project_dir = ? AND id NOT IN (
@@ -186,7 +182,7 @@ def prune_old(db: HistoryDB, project_dir: str, max_count: int = 50) -> None:
         """,
         (project_dir, project_dir, max_count),
     )
-    db._conn.commit()
+    db.commit()
 
 
 def compare_snapshots(old: EnvironmentSnapshot, new: EnvironmentSnapshot) -> SnapshotDiff:

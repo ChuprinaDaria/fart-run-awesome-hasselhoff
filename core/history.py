@@ -387,3 +387,34 @@ class HistoryDB:
     def close(self) -> None:
         if self._conn:
             self._conn.close()
+            self._conn = None
+
+    # --- Generic SQL proxies ---
+    # External callers should never reach for `_conn` directly; use these
+    # so HistoryDB can change its connection model (pool, async, etc.)
+    # without breaking everyone.
+
+    @property
+    def path(self) -> str:
+        """Filesystem path of the underlying SQLite database."""
+        return self._path
+
+    def execute(self, sql: str, params: tuple = ()) -> sqlite3.Cursor:
+        """Run a parameterised statement and return the cursor.
+
+        Does NOT commit — caller decides whether the operation belongs
+        to a larger transaction.
+        """
+        self._ensure_conn()
+        return self._conn.execute(sql, params)
+
+    def executemany(self, sql: str, seq) -> None:
+        """Run a parameterised statement over an iterable, then commit."""
+        self._ensure_conn()
+        self._conn.executemany(sql, seq)
+        self._conn.commit()
+
+    def commit(self) -> None:
+        """Commit any pending writes on the shared connection."""
+        self._ensure_conn()
+        self._conn.commit()

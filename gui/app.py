@@ -518,8 +518,8 @@ class MonitorApp(QMainWindow):
                     containers = self._state.docker_client.containers.list(all=True)
                     infos = collect_containers(containers)
                     findings.extend(scan_docker_security(infos))
-                except Exception:
-                    pass
+                except Exception as e:
+                    log.warning("docker security scan in GUI skipped: %s", e)
 
             scan_paths = [Path(p).expanduser() for p in
                           self._config["plugins"]["security_scan"].get("scan_paths", ["~"])]
@@ -537,8 +537,8 @@ class MonitorApp(QMainWindow):
                             f"Port {p['port']} conflict — multiple processes listening",
                             f"port:{p['port']}",
                         ))
-            except Exception:
-                pass
+            except Exception as e:
+                log.warning("port-map scan in GUI skipped: %s", e)
 
             findings.extend(scan_sentinel_processes())
             findings.extend(scan_sentinel_network())
@@ -654,10 +654,11 @@ class MonitorApp(QMainWindow):
             history = self._status_checker.get_status_history(hours=24)
             try:
                 _ensure_version_table(self._history_db)
-                rows = self._history_db._conn.execute(
+                rows = self._history_db.execute(
                     "SELECT version, detected_at FROM claude_versions ORDER BY id DESC LIMIT 5"
                 ).fetchall()
-            except Exception:
+            except Exception as e:
+                log.warning("claude_versions readback failed: %s", e)
                 rows = []
             self.page_overview.update_claude_status(result, history, rows)
 

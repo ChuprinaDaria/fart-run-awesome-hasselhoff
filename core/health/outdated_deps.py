@@ -26,8 +26,7 @@ _REQUEST_TIMEOUT = 5  # seconds per request
 # --- Version cache in SQLite ---
 
 def _ensure_cache_table(db: HistoryDB) -> None:
-    db._ensure_conn()
-    db._conn.execute("""
+    db.execute("""
         CREATE TABLE IF NOT EXISTS dep_version_cache (
             package TEXT NOT NULL,
             registry TEXT NOT NULL,
@@ -36,12 +35,12 @@ def _ensure_cache_table(db: HistoryDB) -> None:
             PRIMARY KEY (package, registry)
         )
     """)
-    db._conn.commit()
+    db.commit()
 
 
 def _get_cached(db: HistoryDB, package: str, registry: str) -> str | None:
     _ensure_cache_table(db)
-    cursor = db._conn.execute(
+    cursor = db.execute(
         "SELECT latest_version, checked_at FROM dep_version_cache WHERE package = ? AND registry = ?",
         (package, registry),
     )
@@ -56,14 +55,14 @@ def _get_cached(db: HistoryDB, package: str, registry: str) -> str | None:
 
 def _set_cached(db: HistoryDB, package: str, registry: str, latest: str) -> None:
     _ensure_cache_table(db)
-    db._conn.execute(
+    db.execute(
         """
         INSERT OR REPLACE INTO dep_version_cache (package, registry, latest_version, checked_at)
         VALUES (?, ?, ?, ?)
         """,
         (package, registry, latest, datetime.now().isoformat(timespec="seconds")),
     )
-    db._conn.commit()
+    db.commit()
 
 
 # --- PyPI ---
