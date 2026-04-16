@@ -654,6 +654,19 @@ class SafetyNetPage(QWidget):
             if dlg.exec_() != dlg.Accepted:
                 return
             keep_paths = dlg.get_kept_paths()
+
+            # Always keep frozen files — user explicitly marked them as
+            # "don't touch", shouldn't be reverted by rollback either
+            try:
+                frozen = self._get_db().get_frozen_files(self._project_dir)
+                frozen_paths = {f["path"] for f in frozen}
+                changed_paths = {c.path for c in changes}
+                auto_keep = list(frozen_paths & changed_paths)
+                if auto_keep:
+                    merged = list({*keep_paths, *auto_keep})
+                    keep_paths = merged
+            except Exception:
+                pass
         else:
             reply = QMessageBox.question(
                 self,

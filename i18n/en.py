@@ -297,6 +297,26 @@ STRINGS = {
     "sr_rollback_keep": "Rollback + keep ticked",
     "sr_cancel": "Cancel",
     "sr_done_keep": "Rolled back to #{}. Kept {} file(s) that worked.",
+    # Frozen files
+    "frozen_title": "🔒 Don't touch list",
+    "frozen_hint": "Files that already work. AI will be told NOT to edit them.\n"
+                   "If you're using Claude Code — we can also block edits at "
+                   "the tool level.",
+    "frozen_empty": "Nothing is frozen yet. Got a file that works? Lock it so "
+                    "AI doesn't rewrite it.",
+    "frozen_add_btn": "Lock file...",
+    "frozen_unlock": "Unlock",
+    "frozen_add_title": "Lock a file",
+    "frozen_add_prompt": "File path (relative to project):",
+    "frozen_note_prompt": "Why is it locked? (optional note)",
+    "frozen_hook_on": "Tool-level block: ON (Claude Code hook active)",
+    "frozen_hook_off": "Tool-level block: OFF (documentation only)",
+    "frozen_hook_toggle_on": "Turn tool-level block ON",
+    "frozen_hook_toggle_off": "Turn tool-level block OFF",
+    "frozen_hook_installed": "Claude Code hook installed. Edits to locked "
+                              "files are now blocked at the tool level.",
+    "frozen_hook_removed": "Claude Code hook removed. AI is still told about "
+                            "locked files via CLAUDE.md.",
     "sp_header": "Save Points",
     "sp_save_btn": "Save before feature",
     "sp_placeholder": "what are you about to do?",

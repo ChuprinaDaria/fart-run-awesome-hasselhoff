@@ -18,6 +18,7 @@ from PyQt5.QtGui import QFont
 from i18n import get_string as _t
 from gui.pages.safety_net_page import SafetyNetPage
 from gui.pages.snapshots import SnapshotsPage
+from gui.pages.frozen_tab import FrozenTab
 
 
 class SavePointsPage(QWidget):
@@ -27,6 +28,7 @@ class SavePointsPage(QWidget):
         super().__init__()
         self._safety = SafetyNetPage()
         self._snaps = SnapshotsPage()
+        self._frozen = FrozenTab()
 
         # Hide each embedded page's own save buttons — we replace with unified one
         self._safety.hide_save_section()
@@ -75,6 +77,7 @@ class SavePointsPage(QWidget):
         tabs = QTabWidget()
         tabs.addTab(self._safety, _t("sp_tab_code"))
         tabs.addTab(self._snaps, _t("sp_tab_env"))
+        tabs.addTab(self._frozen, _t("frozen_title"))
         layout.addWidget(tabs, 1)
 
     # --- Delegated setters ---
@@ -82,6 +85,7 @@ class SavePointsPage(QWidget):
     def set_project_dir(self, path: str) -> None:
         self._safety.set_project_dir(path)
         self._snaps.set_project_dir(path)
+        self._frozen.set_project_dir(path)
 
     def set_config(self, config: dict) -> None:
         self._safety.set_config(config)

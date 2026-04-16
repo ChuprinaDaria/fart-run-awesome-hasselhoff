@@ -105,6 +105,16 @@ class HistoryDB:
                 git_initialized INTEGER DEFAULT 0
             )
         """)
+        self._conn.execute("""
+            CREATE TABLE IF NOT EXISTS frozen_files (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                project_dir TEXT NOT NULL,
+                path TEXT NOT NULL,
+                note TEXT DEFAULT '',
+                locked_at TEXT NOT NULL,
+                UNIQUE(project_dir, path)
+            )
+        """)
         self._conn.commit()
 
         try:
@@ -112,6 +122,52 @@ class HistoryDB:
         except sqlite3.OperationalError:
             self._conn.execute("ALTER TABLE snapshots ADD COLUMN haiku_label TEXT DEFAULT ''")
             self._conn.commit()
+
+    # --- Frozen files ---
+
+    def add_frozen_file(self, project_dir: str, path: str, note: str = "") -> None:
+        from datetime import datetime
+        self._ensure_conn()
+        self._conn.execute(
+            "INSERT OR IGNORE INTO frozen_files "
+            "(project_dir, path, note, locked_at) VALUES (?, ?, ?, ?)",
+            (project_dir, path, note, datetime.now().isoformat(timespec="seconds")),
+        )
+        if note:
+            self._conn.execute(
+                "UPDATE frozen_files SET note = ? "
+                "WHERE project_dir = ? AND path = ?",
+                (note, project_dir, path),
+            )
+        self._conn.commit()
+
+    def remove_frozen_file(self, project_dir: str, path: str) -> None:
+        self._ensure_conn()
+        self._conn.execute(
+            "DELETE FROM frozen_files WHERE project_dir = ? AND path = ?",
+            (project_dir, path),
+        )
+        self._conn.commit()
+
+    def get_frozen_files(self, project_dir: str) -> list[dict]:
+        self._ensure_conn()
+        rows = self._conn.execute(
+            "SELECT id, path, note, locked_at FROM frozen_files "
+            "WHERE project_dir = ? ORDER BY locked_at DESC",
+            (project_dir,),
+        ).fetchall()
+        return [
+            {"id": r[0], "path": r[1], "note": r[2], "locked_at": r[3]}
+            for r in rows
+        ]
+
+    def is_file_frozen(self, project_dir: str, path: str) -> bool:
+        self._ensure_conn()
+        row = self._conn.execute(
+            "SELECT 1 FROM frozen_files WHERE project_dir = ? AND path = ? LIMIT 1",
+            (project_dir, path),
+        ).fetchone()
+        return row is not None
 
     def get_state(self, key: str) -> str | None:
         self._ensure_conn()
