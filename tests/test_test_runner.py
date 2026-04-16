@@ -1,5 +1,10 @@
 """Tests for core.health.test_runner."""
-from core.health.test_runner import TestRun, ParseResult, Parser
+from pathlib import Path
+
+from core.health.test_runner import TestRun, ParseResult, Parser, TestRunner
+from core.health.test_parsers import for_framework
+
+FIXTURE_PYTEST = Path(__file__).parent / "fixtures" / "test_runner_pytest"
 
 
 def test_test_run_dataclass_fields():
@@ -17,3 +22,20 @@ def test_test_run_dataclass_fields():
 def test_parse_result_optional_counters():
     r = ParseResult(passed=None, failed=None, errors=None, skipped=None)
     assert r.passed is None
+
+
+def test_runner_executes_pytest_fixture():
+    runner = TestRunner(parser=for_framework("pytest"), timeout_s=30)
+    # NOTE: deviation from spec — spec had `-q`, but pytest's -q output drops
+    # the '=== N passed, M failed ===' wrapping that the Task 3 parser relies
+    # on, so we use the default (non-quiet) mode instead. Parser behaviour
+    # stays untouched.
+    run = runner.run(FIXTURE_PYTEST, ["pytest", "--tb=no"])
+    assert run.framework == "pytest"
+    # The fixture has 1 pass and 1 fail.
+    assert run.passed == 1
+    assert run.failed == 1
+    assert run.exit_code == 1
+    assert run.timed_out is False
+    assert run.duration_s > 0
+    assert "1 failed" in run.output_tail or "1 passed" in run.output_tail
