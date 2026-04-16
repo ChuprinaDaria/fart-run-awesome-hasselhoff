@@ -29,7 +29,6 @@ from gui.sidebar import Sidebar, SidebarItem
 from gui.pages.overview import OverviewPage
 from gui.pages.security import SecurityPage, SecurityScanThread
 from gui.pages.usage import UsagePage
-from gui.pages.analytics import AnalyticsPage
 from gui.pages.tips import TipsPage
 from gui.pages.settings import SettingsPage
 from gui.pages.hasselhoff_wizard import HasselhoffWizardPage
@@ -144,7 +143,6 @@ class MonitorApp(QMainWindow):
             SidebarItem(_t("side_health"), "health"),
             SidebarItem(_t("side_security"), "security"),
             SidebarItem(_t("side_usage"), "usage"),
-            SidebarItem(_t("side_analytics"), "analytics"),
             SidebarItem("", "", is_separator=True),
             SidebarItem(_t("side_tips"), "tips"),
             SidebarItem(_t("side_discover"), "discover"),
@@ -164,7 +162,6 @@ class MonitorApp(QMainWindow):
         self.page_overview = OverviewPage()
         self.page_security = SecurityPage()
         self.page_usage = UsagePage()
-        self.page_analytics = AnalyticsPage()
         self.page_hoff_wizard = HasselhoffWizardPage()
         self.page_tips = TipsPage()
         self.page_discover = DiscoverTab()
@@ -186,7 +183,6 @@ class MonitorApp(QMainWindow):
             ("health", self.page_health),
             ("security", self.page_security),
             ("usage", self.page_usage),
-            ("analytics", self.page_analytics),
             ("hoff_wizard", self.page_hoff_wizard),
             ("tips", self.page_tips),
             ("discover", self.page_discover),
@@ -256,7 +252,7 @@ class MonitorApp(QMainWindow):
                 system_state.docker_error or "Docker not available")
         if not system_state.claude_dir:
             self.page_overview.set_no_claude()
-            self.page_analytics.set_no_claude()
+            self.page_usage.set_no_claude()
 
         # Unified refresh timer
         refresh_interval = config["general"]["refresh_interval"] * 1000
@@ -377,8 +373,7 @@ class MonitorApp(QMainWindow):
                 sub = parser.get_subscription()
                 self.page_overview.set_subscription(sub)
                 self.page_overview.update_data(stats, cost, cache_eff, savings, nag_msg)
-                self.page_analytics.update_data(stats, cache_eff, savings, comparison, projects)
-                self.page_usage.update_data(stats, cost, sub)
+                self.page_usage.update_data(stats, cost, sub, cache_eff, savings, comparison, projects)
                 self.page_tips.update_tips(stats, cost, sub)
 
                 if self._is_alert_enabled("usage"):
@@ -400,7 +395,7 @@ class MonitorApp(QMainWindow):
                         security_score=self._last_security_score,
                     )
                     history = self._history_db.get_daily_stats(7)
-                    self.page_analytics.update_trends(history)
+                    self.page_usage.update_trends(history)
                 except Exception as e:
                     log.error("History save error: %s", e)
 

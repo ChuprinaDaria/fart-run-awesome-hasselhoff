@@ -52,6 +52,7 @@ STRINGS = {
     "this_week": "Цей тиждень (7 днів)",
     "daily_breakdown": "По днях",
     "no_weekly_data": "Даних за тиждень ще немає",
+    "weekly_trends": "Тренди за тиждень",
     "discover_title": "Нові фічі Claude",
     "discover_desc": "Корисні ресурси, скіли та інструменти",
 
@@ -76,7 +77,6 @@ STRINGS = {
     "side_ports": "Порти",
     "side_security": "Безпека",
     "side_usage": "Витрати",
-    "side_analytics": "Аналітика",
     "side_tips": "Поради",
     "side_discover": "Знахідки",
     "side_settings": "Налаштування",

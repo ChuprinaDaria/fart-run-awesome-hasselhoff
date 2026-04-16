@@ -52,6 +52,7 @@ STRINGS = {
     "this_week": "This Week (7 days)",
     "daily_breakdown": "Daily Breakdown",
     "no_weekly_data": "No data for this week yet",
+    "weekly_trends": "Weekly Trends",
     "discover_title": "Discover New Claude Features",
     "discover_desc": "Useful resources, skills, and tools",
 
@@ -76,7 +77,6 @@ STRINGS = {
     "side_ports": "Ports",
     "side_security": "Security",
     "side_usage": "Usage",
-    "side_analytics": "Analytics",
     "side_tips": "Tips",
     "side_discover": "Discover",
     "side_settings": "Settings",
