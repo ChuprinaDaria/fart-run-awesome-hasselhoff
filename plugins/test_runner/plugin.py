@@ -23,7 +23,8 @@ class TestRunnerPlugin(Plugin):
     icon = "🧪"
 
     def __init__(self, config: dict):
-        self._config = config.get("plugins", {}).get("test_runner", {}) or {}
+        raw = config.get("plugins", {}).get("test_runner", {})
+        self._config = raw if isinstance(raw, dict) else {}
         self._project_dir: str | None = self._config.get("project_dir")
 
     async def migrate(self, db) -> None:  # noqa: ARG002
