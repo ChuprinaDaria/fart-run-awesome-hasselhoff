@@ -163,3 +163,31 @@ class TestCommentedCode:
         assert len(commented) > 0, (
             "Real commented-out code should be flagged"
         )
+
+
+class TestTestFileCounting:
+    """Bug 7: test file counting should exclude fixture directories."""
+
+    def test_fixture_test_files_excluded(self, tmp_path):
+        """Test files inside fixtures/ should not be counted as project tests."""
+        # Real test file
+        tests_dir = tmp_path / "tests"
+        tests_dir.mkdir()
+        (tests_dir / "test_app.py").write_text("def test_one(): pass\n")
+        (tests_dir / "test_utils.py").write_text("def test_two(): pass\n")
+
+        # Fixture test file (should be excluded)
+        fixtures_dir = tests_dir / "fixtures" / "sample_project" / "tests"
+        fixtures_dir.mkdir(parents=True)
+        (fixtures_dir / "test_dummy.py").write_text("def test_dummy(): pass\n")
+
+        # Need pyproject.toml for framework detection
+        (tmp_path / "pyproject.toml").write_text("[tool.pytest]\n")
+
+        report = run_all_checks(str(tmp_path))
+        test_findings = [f for f in report.findings if f.check_id == "brake.tests"]
+        assert len(test_findings) == 1
+        # Should count 2 test files, NOT 3
+        assert "2 test files" in test_findings[0].message, (
+            f"Should count 2 test files (excluding fixture). Got: {test_findings[0].message}"
+        )

@@ -60,7 +60,9 @@ def check_test_health(report: HealthReport, project_dir: str) -> None:
         for match_path in root.rglob(pattern):
             rel = str(match_path.relative_to(root))
             # Skip node_modules, venv, etc
-            if any(skip in rel for skip in ["node_modules", ".venv", "venv", "__pycache__"]):
+            if any(skip in rel for skip in [
+                "node_modules", ".venv", "venv", "__pycache__", "fixtures",
+            ]):
                 continue
             test_files.append(rel)
 
