@@ -451,6 +451,10 @@ STRINGS = {
 
     # SDK Context
     "health_section_sdk_context": "Контекст SDK",
+    "health_section_ai_slop": "Детекція AI Slop",
+    "health_section_css_quality": "Якість CSS",
+    "health_section_lighthouse": "Lighthouse (Перформанс & A11y)",
+    "health_section_pa11y": "Accessibility (pa11y)",
     "health_btn_sdk_fetch": "Завантажити доки / контекст",
     "sdk_unknown_header": "Виявлено невідомі пакети:",
     "sdk_no_unknown": "Всі пакети відомі. AI повинен їх знати.",

@@ -164,12 +164,14 @@ def run_all_checks(project_dir: str) -> HealthReport:
                     severity="info",
                     message=tips.tip_hub_module(path, count),
                 ))
-            for a, b in mm_result.circular_deps:
+            for cd in mm_result.circular_deps:
+                severity = "low" if cd.is_lazy else "medium"
+                lazy_note = " (lazy import — safe)" if cd.is_lazy else ""
                 report.findings.append(HealthFinding(
                     check_id="map.modules",
-                    title=f"Circular: {a} \u2194 {b}",
-                    severity="medium",
-                    message=tips.tip_circular(a, b),
+                    title=f"Circular: {cd.file_a} \u2194 {cd.file_b}{lazy_note}",
+                    severity=severity,
+                    message=tips.tip_circular(cd.file_a, cd.file_b),
                 ))
             for orphan in mm_result.orphan_candidates[:5]:
                 report.findings.append(HealthFinding(
@@ -296,6 +298,13 @@ def run_all_checks(project_dir: str) -> HealthReport:
         run_docs_context_checks(report, project_dir)
     except Exception as e:
         log.error("docs_context scan error: %s", e)
+
+    # Phase 7: UI/UX Design Quality (always Python, no Rust needed)
+    try:
+        from core.health.ui_ux_design import run_ui_ux_checks
+        run_ui_ux_checks(report, project_dir)
+    except Exception as e:
+        log.error("ui_ux_design scan error: %s", e)
 
     # Check 1.5 — Config Inventory (always Python)
     try:

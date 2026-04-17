@@ -234,11 +234,21 @@ class HealthPage(QWidget):
             return
         if run.passed is None:
             self._test_status_label.setText(_t("tests_status_failed_unknown"))
+            self._test_status_label.setToolTip(run.output_tail or "")
             return
         total = (run.passed or 0) + (run.failed or 0) + (run.errors or 0)
-        self._test_status_label.setText(
-            _t("tests_status_failed_counts").format(failed=run.failed or 0, total=total)
+        # Extract failed test names from output for human-readable detail
+        failed_names = _extract_failed_names(run.output_tail or "")
+        detail = ""
+        if failed_names:
+            detail = "\n" + "\n".join(f"  · {n}" for n in failed_names[:5])
+        status_text = _t("tests_status_failed_counts").format(
+            failed=run.failed or 0, total=total,
         )
+        if detail:
+            status_text += detail
+        self._test_status_label.setText(status_text)
+        self._test_status_label.setToolTip(run.output_tail or "")
 
     def _on_select_dir(self) -> None:
         dir_path = QFileDialog.getExistingDirectory(
@@ -359,6 +369,10 @@ class HealthPage(QWidget):
             "docs.llm_context": (_t("health_section_llm_context"), []),
             "docs.ui_dictionary": (_t("health_section_ui_dict"), []),
             "docs.sdk_context": (_t("health_section_sdk_context"), []),
+            "uiux.impeccable": (_t("health_section_ai_slop"), []),
+            "uiux.stylelint": (_t("health_section_css_quality"), []),
+            "uiux.lighthouse": (_t("health_section_lighthouse"), []),
+            "uiux.pa11y": (_t("health_section_pa11y"), []),
             "system": ("System", []),
         }
 
@@ -469,6 +483,7 @@ class HealthPage(QWidget):
             "git.status", "git.commits", "git.branches", "git.gitignore", "git.cheatsheet",
             "docs.readme", "docs.deps", "docs.devtools", "docs.llm_context",
             "docs.ui_dictionary", "docs.sdk_context",
+            "uiux.impeccable", "uiux.stylelint", "uiux.lighthouse", "uiux.pa11y",
         ]:
             dead_findings = sections.get(dead_key, ("", []))[1]
             if dead_findings:
@@ -676,6 +691,24 @@ class HealthPage(QWidget):
         if project_dir != self._project_dir:
             return
         self._on_run_tests()
+
+
+def _extract_failed_names(output: str) -> list[str]:
+    """Pull failed test names from pytest/cargo/jest output."""
+    import re
+    names: list[str] = []
+    for line in output.splitlines():
+        # pytest: "FAILED tests/test_foo.py::test_bar - ..."
+        m = re.match(r"^FAILED\s+(.+?)(?:\s+-\s+|$)", line)
+        if m:
+            names.append(m.group(1).strip())
+            continue
+        # pytest short summary: "tests/test_foo.py::test_bar"
+        if "::" in line and ("FAILED" in line or "ERROR" in line):
+            part = line.split()[-1] if line.split() else line
+            if "::" in part and part not in names:
+                names.append(part)
+    return names
 
 
 def _format_duration(seconds: float | None) -> str:

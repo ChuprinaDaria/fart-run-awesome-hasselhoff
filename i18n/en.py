@@ -451,6 +451,10 @@ STRINGS = {
 
     # SDK Context
     "health_section_sdk_context": "SDK Context",
+    "health_section_ai_slop": "AI Slop Detection",
+    "health_section_css_quality": "CSS Quality",
+    "health_section_lighthouse": "Lighthouse (Performance & A11y)",
+    "health_section_pa11y": "Accessibility (pa11y)",
     "health_btn_sdk_fetch": "Fetch Docs / Context",
     "sdk_unknown_header": "Unknown packages detected:",
     "sdk_no_unknown": "All packages look well-known. AI should know them.",

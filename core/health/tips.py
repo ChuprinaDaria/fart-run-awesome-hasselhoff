@@ -94,3 +94,60 @@ def tip_commented_code(path: str, start: int, count: int) -> str:
         f"{count} lines of commented-out code in {path}:{start}. "
         f"That's not backup — git is your backup. Delete it."
     )
+
+
+# ---------------------------------------------------------------------------
+# Phase 7 — UI/UX Design Quality tips
+# ---------------------------------------------------------------------------
+
+def tip_install_node() -> str:
+    return (
+        "Node.js not found — it's needed for design quality checks. "
+        "AI slop detection, CSS linting, accessibility — all run through npx. "
+        "Install: https://nodejs.org/ (npx comes bundled). "
+        "If your project has frontend files, you probably need Node anyway."
+    )
+
+
+def tip_impeccable(rule: str, description: str, is_slop: bool) -> str:
+    if is_slop:
+        return (
+            f"{description} "
+            f"Every LLM generates the same templates — Inter font, purple gradients, "
+            f"cards inside cards. Your users can tell."
+        )
+    return (
+        f"{description} "
+        f"Design detail that affects how professional your UI looks."
+    )
+
+
+def tip_stylelint(errors: int, warnings: int) -> str:
+    total = errors + warnings
+    if errors > 10:
+        return (
+            f"Your CSS has {errors} errors and {warnings} warnings. "
+            f"That's a mess — duplicates, deprecated properties, invalid values. "
+            f"Run: npx stylelint --fix '**/*.css' to auto-fix what's fixable."
+        )
+    if total > 0:
+        return (
+            f"{errors} errors, {warnings} warnings in your CSS. "
+            f"Not critical, but messy CSS becomes unmaintainable fast."
+        )
+    return "CSS is clean. No issues found."
+
+
+def tip_lighthouse_available() -> str:
+    return (
+        "Lighthouse can check performance, accessibility, SEO — "
+        "start your dev server and run: "
+        "npx lighthouse http://localhost:3000 --output=json --chrome-flags='--headless'"
+    )
+
+
+def tip_pa11y_available() -> str:
+    return (
+        "pa11y checks WCAG accessibility — blind users, screen readers, keyboard nav. "
+        "Start your dev server and run: npx pa11y http://localhost:3000 --reporter json"
+    )
