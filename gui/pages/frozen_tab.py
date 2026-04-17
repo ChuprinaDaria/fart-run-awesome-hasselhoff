@@ -1,6 +1,10 @@
 """Frozen Files tab — lock files AI must not touch.
 
 Shown inside SavePointsPage alongside Code and Environment tabs.
+
+Locking is one-click: picking a file writes it into ``CLAUDE.md`` AND
+installs the PreToolUse hook automatically if it isn't already. There is
+no separate "enable hard block" toggle — hard block is the default.
 """
 
 from __future__ import annotations
@@ -17,12 +21,16 @@ from PyQt5.QtCore import Qt
 from i18n import get_string as _t
 from core.history import HistoryDB
 from core import frozen_manager as fm
+from gui.win95 import (
+    BUTTON_STYLE, FONT_MONO, HINT_STRIP_STYLE, PRIMARY_BUTTON_STYLE,
+    SHADOW, SUNKEN_FRAME_STYLE, TITLE_DARK,
+)
 
 log = logging.getLogger(__name__)
 
 
 class FrozenTab(QWidget):
-    """List of frozen files + lock/unlock + hook toggle."""
+    """List of frozen files + add/unlock. Hook installs automatically."""
 
     def __init__(self):
         super().__init__()
@@ -44,39 +52,24 @@ class FrozenTab(QWidget):
         # Hint
         hint = QLabel(_t("frozen_hint"))
         hint.setWordWrap(True)
-        hint.setStyleSheet(
-            "color: #333; font-size: 12px; "
-            "padding: 10px 12px; background: #fffff0; "
-            "border: 2px solid #cccc00; border-radius: 4px;"
-        )
+        hint.setStyleSheet(HINT_STRIP_STYLE)
         layout.addWidget(hint)
 
-        # Actions
+        # Action — single Add button. Hook is auto-installed on first add.
         actions = QHBoxLayout()
         self._btn_add = QPushButton(_t("frozen_add_btn"))
-        self._btn_add.setStyleSheet(
-            "QPushButton { background: #000080; color: white; padding: 6px 16px; "
-            "border: 2px outset #4040c0; font-weight: bold; }"
-            "QPushButton:pressed { border: 2px inset #000080; }"
-        )
+        self._btn_add.setStyleSheet(PRIMARY_BUTTON_STYLE)
         self._btn_add.clicked.connect(self._on_add)
         actions.addWidget(self._btn_add)
         actions.addStretch()
         layout.addLayout(actions)
 
-        # Hook status + toggle
-        self._hook_status_lbl = QLabel("")
-        self._hook_status_lbl.setStyleSheet("font-size: 11px; padding: 4px;")
-        layout.addWidget(self._hook_status_lbl)
-
-        self._btn_hook_toggle = QPushButton("")
-        self._btn_hook_toggle.clicked.connect(self._on_toggle_hook)
-        layout.addWidget(self._btn_hook_toggle)
-
         # Scroll of frozen files
         scroll = QScrollArea()
         scroll.setWidgetResizable(True)
-        scroll.setStyleSheet("QScrollArea { border: 2px inset #808080; background: white; }")
+        scroll.setStyleSheet(
+            f"QScrollArea {{ border: 2px inset {SHADOW}; background: white; }}"
+        )
         self._content = QWidget()
         self._content_layout = QVBoxLayout(self._content)
         self._content_layout.setAlignment(Qt.AlignTop)
@@ -112,6 +105,7 @@ class FrozenTab(QWidget):
         )
         self._get_db().add_frozen_file(self._project_dir, rel, note or "")
         self._sync_claude_md()
+        self._ensure_hook_installed()
         self._refresh()
 
     def _on_unlock(self, path: str) -> None:
@@ -121,14 +115,15 @@ class FrozenTab(QWidget):
         self._sync_claude_md()
         self._refresh()
 
-    def _on_toggle_hook(self) -> None:
+    def _ensure_hook_installed(self) -> None:
+        """Install the PreToolUse hook on first lock; silent if already there."""
         if fm.is_hook_installed():
-            fm.uninstall_hook()
-            QMessageBox.information(self, "Claude Code", _t("frozen_hook_removed"))
-        else:
-            if fm.install_hook():
-                QMessageBox.information(self, "Claude Code", _t("frozen_hook_installed"))
-        self._refresh()
+            return
+        if not fm.install_hook():
+            QMessageBox.warning(
+                self, "Claude Code",
+                _t("frozen_hook_install_failed"),
+            )
 
     # --- Rendering ---
 
@@ -139,23 +134,7 @@ class FrozenTab(QWidget):
         fm.sync_claude_md(self._project_dir, [f["path"] for f in frozen])
 
     def _refresh(self) -> None:
-        self._render_hook_status()
         self._render_list()
-
-    def _render_hook_status(self) -> None:
-        installed = fm.is_hook_installed()
-        if installed:
-            self._hook_status_lbl.setText(_t("frozen_hook_on"))
-            self._hook_status_lbl.setStyleSheet(
-                "color: #006600; font-size: 11px; padding: 4px; font-weight: bold;"
-            )
-            self._btn_hook_toggle.setText(_t("frozen_hook_toggle_off"))
-        else:
-            self._hook_status_lbl.setText(_t("frozen_hook_off"))
-            self._hook_status_lbl.setStyleSheet(
-                "color: #808080; font-size: 11px; padding: 4px;"
-            )
-            self._btn_hook_toggle.setText(_t("frozen_hook_toggle_on"))
 
     def _render_list(self) -> None:
         # Clear
@@ -186,33 +165,50 @@ class FrozenTab(QWidget):
         self._content_layout.addWidget(lbl)
 
     def _make_row(self, f: dict) -> QFrame:
+        """Render one frozen file row.
+
+        Lock icon is fixed-width, baseline-aligned; path + note sit in a
+        stacked layout that's top-aligned so the icon lines up with the
+        path, not the middle of the row.
+        """
         frame = QFrame()
         frame.setStyleSheet(
             "QFrame { border-bottom: 1px solid #e0e0e0; padding: 6px; }"
         )
-        layout = QHBoxLayout(frame)
-        layout.setContentsMargins(6, 4, 6, 4)
+        row = QHBoxLayout(frame)
+        row.setContentsMargins(6, 4, 6, 4)
+        row.setAlignment(Qt.AlignTop)
 
-        lock_icon = QLabel("🔒")
-        lock_icon.setStyleSheet("font-size: 16px;")
-        layout.addWidget(lock_icon)
+        lock_icon = QLabel("\U0001F512")  # 🔒
+        lock_icon.setFixedWidth(22)
+        lock_icon.setStyleSheet("font-size: 14px; padding-top: 1px;")
+        lock_icon.setAlignment(Qt.AlignTop)
+        row.addWidget(lock_icon)
 
-        info = QVBoxLayout()
+        info_widget = QWidget()
+        info = QVBoxLayout(info_widget)
+        info.setContentsMargins(0, 0, 0, 0)
         info.setSpacing(2)
+        info.setAlignment(Qt.AlignTop)
+
         path_lbl = QLabel(f["path"])
-        path_lbl.setStyleSheet("font-family: monospace; font-weight: bold; color: #000080;")
+        path_lbl.setStyleSheet(
+            f"font-family: {FONT_MONO}; font-weight: bold; color: {TITLE_DARK};"
+        )
+        path_lbl.setWordWrap(True)
         info.addWidget(path_lbl)
+
         if f.get("note"):
             note_lbl = QLabel(f["note"])
             note_lbl.setStyleSheet("color: #555; font-size: 11px;")
+            note_lbl.setWordWrap(True)
             info.addWidget(note_lbl)
-        info_widget = QWidget()
-        info_widget.setLayout(info)
-        layout.addWidget(info_widget, 1)
+
+        row.addWidget(info_widget, 1)
 
         btn_unlock = QPushButton(_t("frozen_unlock"))
-        btn_unlock.setStyleSheet("QPushButton { font-size: 11px; padding: 2px 10px; }")
+        btn_unlock.setStyleSheet(BUTTON_STYLE)
         btn_unlock.clicked.connect(lambda _, p=f["path"]: self._on_unlock(p))
-        layout.addWidget(btn_unlock)
+        row.addWidget(btn_unlock, 0, Qt.AlignTop)
 
         return frame

@@ -21,6 +21,10 @@ from i18n import get_string as _t
 from core.prompt_builder import build_prompt, PromptBuildResult
 from core.history import HistoryDB
 from core import context7_mcp as c7
+from gui.win95 import (
+    BUTTON_STYLE, ERROR, FIELD_STYLE, FONT_MONO, FONT_UI, HINT_STRIP_STYLE,
+    PAGE_TITLE_STYLE, PRIMARY_BUTTON_STYLE, SHADOW, SUCCESS, TITLE_DARK,
+)
 
 log = logging.getLogger(__name__)
 
@@ -100,26 +104,19 @@ class PromptHelperPage(QWidget):
         layout.setContentsMargins(8, 8, 8, 8)
 
         title = QLabel(_t("ph_header"))
-        title.setFont(QFont("MS Sans Serif", 14, QFont.Bold))
-        title.setStyleSheet("color: #000080;")
+        title.setFont(QFont("Tahoma", 14, QFont.Bold))
+        title.setStyleSheet(PAGE_TITLE_STYLE)
         layout.addWidget(title)
 
         hint = QLabel(_t("ph_hint"))
         hint.setWordWrap(True)
-        hint.setStyleSheet(
-            "color: #333; font-size: 12px; "
-            "padding: 10px 12px; background: #fffff0; "
-            "border: 2px solid #cccc00; border-radius: 4px;"
-        )
+        hint.setStyleSheet(HINT_STRIP_STYLE)
         layout.addWidget(hint)
 
         # Input
         self._input = QTextEdit()
         self._input.setPlaceholderText(_t("ph_input_placeholder"))
-        self._input.setStyleSheet(
-            "QTextEdit { border: 2px inset #808080; padding: 6px; "
-            "background: white; font-size: 12px; }"
-        )
+        self._input.setStyleSheet(FIELD_STYLE)
         self._input.setFixedHeight(80)
         layout.addWidget(self._input)
 
@@ -130,10 +127,11 @@ class PromptHelperPage(QWidget):
 
         self._c7_status = QLabel("")
         self._c7_status.setWordWrap(True)
-        self._c7_status.setStyleSheet("font-size: 11px;")
+        self._c7_status.setStyleSheet(f"font-size: 11px; font-family: {FONT_UI};")
         c7_layout.addWidget(self._c7_status, 1)
 
         self._c7_btn = QPushButton(_t("ph_context7_install_btn"))
+        self._c7_btn.setStyleSheet(BUTTON_STYLE)
         self._c7_btn.clicked.connect(self._on_install_context7)
         c7_layout.addWidget(self._c7_btn)
         layout.addWidget(self._c7_frame)
@@ -142,10 +140,7 @@ class PromptHelperPage(QWidget):
         action_row = QHBoxLayout()
         self._btn_build = QPushButton(_t("ph_build_btn"))
         self._btn_build.setStyleSheet(
-            "QPushButton { background: #000080; color: white; padding: 8px 20px; "
-            "border: 2px outset #4040c0; font-weight: bold; }"
-            "QPushButton:pressed { border: 2px inset #000080; }"
-            "QPushButton:disabled { background: #c0c0c0; color: #808080; }"
+            PRIMARY_BUTTON_STYLE.replace("padding: 6px 14px", "padding: 8px 20px")
         )
         self._btn_build.setEnabled(False)
         self._btn_build.clicked.connect(self._on_build)
@@ -156,19 +151,24 @@ class PromptHelperPage(QWidget):
         # Status label
         self._status = QLabel("")
         self._status.setWordWrap(True)
-        self._status.setStyleSheet("color: #808080; font-size: 11px; padding: 4px;")
+        self._status.setStyleSheet(
+            f"color: {SHADOW}; font-size: 11px; padding: 4px; font-family: {FONT_UI};"
+        )
         layout.addWidget(self._status)
 
         # Output
         out_title = QLabel(_t("ph_output_title"))
-        out_title.setStyleSheet("font-weight: bold; color: #000080; padding-top: 8px;")
+        out_title.setStyleSheet(
+            f"font-weight: bold; color: {TITLE_DARK}; padding-top: 8px; "
+            f"font-family: {FONT_UI};"
+        )
         layout.addWidget(out_title)
 
         self._output = QTextEdit()
         self._output.setReadOnly(True)
         self._output.setStyleSheet(
-            "QTextEdit { border: 2px inset #808080; padding: 6px; "
-            "background: white; font-family: monospace; font-size: 12px; }"
+            f"QTextEdit {{ border: 2px inset {SHADOW}; padding: 6px; "
+            f"background: white; font-family: {FONT_MONO}; font-size: 12px; }}"
         )
         layout.addWidget(self._output, 1)
 
@@ -187,13 +187,14 @@ class PromptHelperPage(QWidget):
         if c7.is_context7_installed():
             self._c7_status.setText(_t("ph_context7_installed"))
             self._c7_status.setStyleSheet(
-                "color: #006600; font-size: 11px; font-weight: bold;"
+                f"color: {SUCCESS}; font-size: 11px; font-weight: bold; "
+                f"font-family: {FONT_UI};"
             )
             self._c7_btn.hide()
         else:
             self._c7_status.setText(_t("ph_context7_missing"))
             self._c7_status.setStyleSheet(
-                "color: #808000; font-size: 11px;"
+                f"color: #808000; font-size: 11px; font-family: {FONT_UI};"
             )
             self._c7_btn.show()
 

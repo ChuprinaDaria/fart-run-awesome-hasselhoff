@@ -4,6 +4,7 @@ from PyQt5.QtWidgets import (
     QGroupBox, QVBoxLayout, QPushButton, QApplication, QLabel, QWidget,
 )
 from PyQt5.QtCore import Qt
+from gui.win95 import BUTTON_STYLE, GROUP_STYLE
 from i18n import get_string as _t
 
 
@@ -27,11 +28,7 @@ class CopyableSection(QGroupBox):
 
     def __init__(self, title: str, parent=None):
         super().__init__(title, parent)
-        self.setStyleSheet(
-            "QGroupBox { border: 2px groove #808080; margin-top: 12px; "
-            "padding-top: 16px; font-weight: bold; background: white; }"
-            "QGroupBox::title { subcontrol-origin: margin; left: 10px; padding: 0 4px; }"
-        )
+        self.setStyleSheet(GROUP_STYLE)
         self._inner_layout = QVBoxLayout(self)
         self._inner_layout.setSpacing(2)
 
@@ -53,10 +50,7 @@ class CopyableSection(QGroupBox):
 def make_copy_all_button(get_text_fn) -> QPushButton:
     """Create a 'Copy all' button that calls get_text_fn() on click."""
     btn = QPushButton(_t("copy_all"))
-    btn.setStyleSheet(
-        "QPushButton { padding: 3px 12px; border: 2px outset #dfdfdf; font-size: 11px; }"
-        "QPushButton:pressed { border: 2px inset #808080; }"
-    )
+    btn.setStyleSheet(BUTTON_STYLE)
     btn.setFixedHeight(24)
 
     def _on_click():

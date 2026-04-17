@@ -9,13 +9,14 @@ from PyQt5.QtWidgets import QStatusBar, QLabel
 from PyQt5.QtCore import pyqtSignal, Qt
 from PyQt5.QtGui import QMouseEvent
 
+from gui.win95 import ERROR, FONT_UI, GRAY, SHADOW
 from i18n import get_string as _t
 
 _STATUS_STYLES = {
     "none":     ("status_ok",       ""),
     "minor":    ("status_degraded", "background: #ffff00;"),
-    "major":    ("status_down",     "background: #ff4444; color: white;"),
-    "critical": ("status_down",     "background: #ff4444; color: white;"),
+    "major":    ("status_down",     f"background: {ERROR}; color: white;"),
+    "critical": ("status_down",     f"background: {ERROR}; color: white;"),
     "unknown":  ("status_unknown",  ""),
 }
 
@@ -37,6 +38,13 @@ class ClaudeStatusBar(QStatusBar):
 
     def __init__(self, parent=None):
         super().__init__(parent)
+        # Win95 statusbar chrome — gray with inset top border so it looks
+        # like a sunken panel at the bottom of the window.
+        self.setStyleSheet(
+            f"QStatusBar {{ background: {GRAY}; "
+            f"border-top: 2px groove {SHADOW}; font-family: {FONT_UI}; }}"
+            f"QStatusBar QLabel {{ font-family: {FONT_UI}; font-size: 11px; }}"
+        )
         self._prev_version: str | None = None
         self._version_label = QLabel("Claude: --")
         self._status_label = QLabel(_t("status_unknown"))

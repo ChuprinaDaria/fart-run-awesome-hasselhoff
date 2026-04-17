@@ -39,7 +39,8 @@ class HaikuPromptsThread(QThread):
                     "Ти — помічник для vibe-кодерів. Нижче — список промптів, "
                     "що юзер писав у Claude Code (від старих до нових). "
                     "Напиши 2-4 речення простою мовою: з чого почали, "
-                    "що робили далі, де застрягли. Без технічного жаргону.\n\n"
+                    "що робили далі, де застрягли. Без технічного жаргону. "
+                    "Не використовуй markdown (ні # заголовків, ні **жирного**).\n\n"
                     + self._text
                 )
             else:
@@ -48,17 +49,24 @@ class HaikuPromptsThread(QThread):
                     "prompts the developer sent to Claude Code (oldest to "
                     "newest). Write 2-4 plain-English sentences: what they "
                     "started with, what they did next, where they got stuck. "
-                    "No tech jargon.\n\n" + self._text
+                    "No tech jargon. No markdown (no # headers, no **bold**).\n\n"
+                    + self._text
                 )
             summary = client.ask(prompt, max_tokens=300)
             self.result_ready.emit(summary or "")
         except Exception as e:
-            log.debug("HaikuPromptsThread error: %s", e)
+            log.error("HaikuPromptsThread error: %s", e, exc_info=True)
             self.result_ready.emit("")
 
 
 class HaikuContextThread(QThread):
-    """Background thread — asks Haiku for 'where you stopped' and activity summary."""
+    """Background thread — asks Haiku for 'where you stopped' summary.
+
+    Single ``ask()`` call only — previous version issued two in a row and
+    the second was blocked by the 5s rate gate in ``HaikuClient``, causing
+    ``haiku_summary`` to always be empty. The short summary for the DB is
+    derived from the first sentence of the context.
+    """
 
     result_ready = pyqtSignal(str, str)  # (haiku_context, haiku_summary)
 
@@ -102,23 +110,24 @@ class HaikuContextThread(QThread):
 
             activity_text = "\n".join(parts)
 
-            # "Where you stopped" context
-            context_prompt = (
-                f"You are a developer assistant. Based on the recent activity in a project, "
-                f"write a short 2-3 sentence summary in {lang} of 'where the developer left off'. "
-                f"Be practical and specific. No fluff.\n\nActivity:\n{activity_text}"
+            # Single ask() — rate gate would block a second call.
+            # Ask in the user's language; demand plain text (no markdown).
+            prompt = (
+                f"You are a developer assistant. Based on recent project activity, "
+                f"write in {lang} a short 2-3 sentence summary of 'where the "
+                f"developer left off'. Be practical and specific. No markdown "
+                f"(no '#' headers, no '**bold**'), plain text only.\n\n"
+                f"Activity:\n{activity_text}"
             )
-            haiku_context = client.ask(context_prompt, max_tokens=200) or ""
+            haiku_context = client.ask(prompt, max_tokens=250) or ""
 
-            # Short activity summary
-            summary_prompt = (
-                f"Summarize this developer activity in one sentence ({lang}). "
-                f"Just the facts, what changed.\n\nActivity:\n{activity_text}"
-            )
-            haiku_summary = client.ask(summary_prompt, max_tokens=100) or ""
+            # Derive DB summary: first sentence of the context.
+            haiku_summary = haiku_context.split(".")[0].strip() if haiku_context else ""
+            if haiku_summary and not haiku_summary.endswith("."):
+                haiku_summary += "."
 
             self.result_ready.emit(haiku_context, haiku_summary)
 
         except Exception as e:
-            log.error("HaikuContextThread error: %s", e)
+            log.error("HaikuContextThread error: %s", e, exc_info=True)
             self.result_ready.emit("", "")

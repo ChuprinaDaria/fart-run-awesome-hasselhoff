@@ -23,6 +23,11 @@ from core.safety_net import (
 from gui.copyable_widgets import make_copy_all_button
 from gui.pages.safety_net.dialogs import GitConfigDialog, PickDialog
 from gui.pages.safety_net.threads import HaikuHintThread
+from gui.win95 import (
+    BUTTON_STYLE, ERROR, FIELD_STYLE, FONT_MONO, FONT_UI, GROUP_STYLE,
+    HINT_STRIP_STYLE, NOTIFICATION_BG, NOTIFICATION_BORDER, PAGE_TITLE_STYLE,
+    PRIMARY_BUTTON_STYLE, SHADOW, SUCCESS, TITLE_DARK, WARNING,
+)
 from i18n import get_language, get_string as _t
 
 log = logging.getLogger(__name__)
@@ -88,13 +93,13 @@ class SafetyNetPage(QWidget):
         # Header
         header = QHBoxLayout()
         title = QLabel(_t("safety_title"))
-        title.setFont(QFont("MS Sans Serif", 14, QFont.Bold))
-        title.setStyleSheet("color: #000080;")
+        title.setFont(QFont("Tahoma", 14, QFont.Bold))
+        title.setStyleSheet(PAGE_TITLE_STYLE)
         header.addWidget(title)
         header.addStretch()
 
         self._dir_label = QLabel("")
-        self._dir_label.setStyleSheet("color: #808080;")
+        self._dir_label.setStyleSheet(f"color: {SHADOW};")
         header.addWidget(self._dir_label)
 
         copy_btn = make_copy_all_button(self._get_all_text)
@@ -104,35 +109,24 @@ class SafetyNetPage(QWidget):
 
         # Save section
         save_group = QGroupBox(_t("safety_save_label"))
-        save_group.setStyleSheet(
-            "QGroupBox { border: 2px groove #808080; margin-top: 12px; "
-            "padding-top: 16px; font-weight: bold; }"
-            "QGroupBox::title { subcontrol-origin: margin; left: 10px; padding: 0 4px; }"
-        )
+        save_group.setStyleSheet(GROUP_STYLE)
         sg_layout = QVBoxLayout(save_group)
 
         label_row = QHBoxLayout()
         self._label_input = QLineEdit()
         self._label_input.setPlaceholderText(_t("safety_save_placeholder"))
-        self._label_input.setStyleSheet(
-            "QLineEdit { border: 2px inset #808080; padding: 4px; background: white; }"
-        )
+        self._label_input.setStyleSheet(FIELD_STYLE)
         label_row.addWidget(self._label_input)
 
         self._btn_save = QPushButton(_t("safety_save_btn"))
         self._btn_save.setEnabled(False)
-        self._btn_save.setStyleSheet(
-            "QPushButton { background: #000080; color: white; padding: 6px 16px; "
-            "border: 2px outset #4040c0; font-weight: bold; }"
-            "QPushButton:pressed { border: 2px inset #000080; }"
-            "QPushButton:disabled { background: #c0c0c0; color: #808080; }"
-        )
+        self._btn_save.setStyleSheet(PRIMARY_BUTTON_STYLE)
         self._btn_save.clicked.connect(self._on_save)
         label_row.addWidget(self._btn_save)
         sg_layout.addLayout(label_row)
 
         self._status_label = QLabel("")
-        self._status_label.setStyleSheet("color: #808080; font-size: 11px;")
+        self._status_label.setStyleSheet(f"color: {SHADOW}; font-size: 11px;")
         sg_layout.addWidget(self._status_label)
 
         layout.addWidget(save_group)
@@ -141,7 +135,9 @@ class SafetyNetPage(QWidget):
         # Scroll area for save points + backups + what happened
         scroll = QScrollArea()
         scroll.setWidgetResizable(True)
-        scroll.setStyleSheet("QScrollArea { border: 2px inset #808080; background: white; }")
+        scroll.setStyleSheet(
+            f"QScrollArea {{ border: 2px inset {SHADOW}; background: white; }}"
+        )
 
         self._content_widget = QWidget()
         self._content_layout = QVBoxLayout(self._content_widget)
@@ -186,11 +182,11 @@ class SafetyNetPage(QWidget):
         # Update status line
         if not sn._has_git():
             self._status_label.setText(_t("safety_status_no_git"))
-            self._status_label.setStyleSheet("color: #cc0000; font-size: 11px;")
+            self._status_label.setStyleSheet(f"color: {ERROR}; font-size: 11px;")
             self._btn_save.setEnabled(False)
         elif not sn._is_repo():
             self._status_label.setText(_t("safety_status_no_git"))
-            self._status_label.setStyleSheet("color: #cc6600; font-size: 11px;")
+            self._status_label.setStyleSheet(f"color: {WARNING}; font-size: 11px;")
             self._btn_save.setEnabled(True)  # will offer git init
         elif not sn._has_changes():
             file_count = sn._count_tracked_files()
@@ -198,7 +194,7 @@ class SafetyNetPage(QWidget):
             self._status_label.setText(
                 f"{file_count} files tracked | branch: {branch} | {_t('safety_status_clean')}"
             )
-            self._status_label.setStyleSheet("color: #006600; font-size: 11px;")
+            self._status_label.setStyleSheet(f"color: {SUCCESS}; font-size: 11px;")
             self._btn_save.setEnabled(False)
             self._btn_save.setToolTip(_t("safety_status_no_changes"))
         else:
@@ -210,7 +206,7 @@ class SafetyNetPage(QWidget):
                 f"{file_count} files tracked | branch: {branch} | "
                 f"{_t('safety_status_dirty').format(dirty)}"
             )
-            self._status_label.setStyleSheet("color: #cc6600; font-size: 11px;")
+            self._status_label.setStyleSheet(f"color: {WARNING}; font-size: 11px;")
             self._btn_save.setEnabled(True)
             self._btn_save.setToolTip("")
 
@@ -227,11 +223,7 @@ class SafetyNetPage(QWidget):
         save_points = sn.get_save_points()
         if save_points:
             sp_group = QGroupBox(_t("safety_save_points_header"))
-            sp_group.setStyleSheet(
-                "QGroupBox { border: 2px groove #808080; margin-top: 8px; "
-                "padding-top: 16px; font-weight: bold; background: white; }"
-                "QGroupBox::title { subcontrol-origin: margin; left: 10px; padding: 0 4px; }"
-            )
+            sp_group.setStyleSheet(GROUP_STYLE)
             sp_layout = QVBoxLayout(sp_group)
 
             for sp in save_points:
@@ -244,11 +236,7 @@ class SafetyNetPage(QWidget):
         backups = self._get_db().get_rollback_backups(self._project_dir)
         if backups:
             bk_group = QGroupBox(_t("safety_backups_header"))
-            bk_group.setStyleSheet(
-                "QGroupBox { border: 2px groove #808080; margin-top: 8px; "
-                "padding-top: 16px; font-weight: bold; background: white; }"
-                "QGroupBox::title { subcontrol-origin: margin; left: 10px; padding: 0 4px; }"
-            )
+            bk_group.setStyleSheet(GROUP_STYLE)
             bk_layout = QVBoxLayout(bk_group)
 
             for bk in backups:
@@ -268,29 +256,31 @@ class SafetyNetPage(QWidget):
         layout.setContentsMargins(4, 4, 4, 4)
 
         id_lbl = QLabel(f"#{sp['id']}")
-        id_lbl.setStyleSheet("color: #000080; font-weight: bold; font-family: monospace;")
+        id_lbl.setStyleSheet(
+            f"color: {TITLE_DARK}; font-weight: bold; font-family: {FONT_MONO};"
+        )
         id_lbl.setFixedWidth(40)
         layout.addWidget(id_lbl)
 
         time_str = sp["timestamp"][:16].replace("T", " ")
         time_lbl = QLabel(time_str)
-        time_lbl.setStyleSheet("color: #333; font-family: monospace;")
+        time_lbl.setStyleSheet(f"color: #333; font-family: {FONT_MONO};")
         time_lbl.setFixedWidth(130)
         layout.addWidget(time_lbl)
 
         label_lbl = QLabel(f'"{sp["label"]}"')
-        label_lbl.setStyleSheet("color: #333; font-style: italic;")
+        label_lbl.setStyleSheet(f"color: #333; font-style: italic; font-family: {FONT_UI};")
         layout.addWidget(label_lbl)
 
         layout.addStretch()
 
         info_lbl = QLabel(f"{sp['branch']} | {sp['file_count']} files | {sp['commit_hash']}")
-        info_lbl.setStyleSheet("color: #808080; font-size: 11px;")
+        info_lbl.setStyleSheet(f"color: {SHADOW}; font-size: 11px;")
         layout.addWidget(info_lbl)
 
         btn_rollback = QPushButton(_t("safety_rollback_btn"))
         btn_rollback.setFixedWidth(80)
-        btn_rollback.setStyleSheet("QPushButton { font-size: 11px; padding: 2px 8px; }")
+        btn_rollback.setStyleSheet(BUTTON_STYLE)
         btn_rollback.clicked.connect(lambda _, sid=sp["id"]: self._on_rollback(sid))
         layout.addWidget(btn_rollback)
 
@@ -305,7 +295,9 @@ class SafetyNetPage(QWidget):
         layout.setContentsMargins(4, 4, 4, 4)
 
         branch_lbl = QLabel(bk["backup_branch"])
-        branch_lbl.setStyleSheet("color: #000080; font-family: monospace; font-weight: bold;")
+        branch_lbl.setStyleSheet(
+            f"color: {TITLE_DARK}; font-family: {FONT_MONO}; font-weight: bold;"
+        )
         layout.addWidget(branch_lbl)
 
         layout.addStretch()
@@ -314,12 +306,12 @@ class SafetyNetPage(QWidget):
             bk["files_changed"], bk["save_point_id"]
         )
         info_lbl = QLabel(info)
-        info_lbl.setStyleSheet("color: #808080; font-size: 11px;")
+        info_lbl.setStyleSheet(f"color: {SHADOW}; font-size: 11px;")
         layout.addWidget(info_lbl)
 
         btn_pick = QPushButton(_t("safety_pick_btn"))
         btn_pick.setFixedWidth(110)
-        btn_pick.setStyleSheet("QPushButton { font-size: 11px; padding: 2px 8px; }")
+        btn_pick.setStyleSheet(BUTTON_STYLE)
         btn_pick.clicked.connect(lambda _, bid=bk["id"]: self._on_pick(bid))
         layout.addWidget(btn_pick)
 
@@ -338,41 +330,52 @@ class SafetyNetPage(QWidget):
         frame = QFrame()
         frame._is_what_happened = True
         frame.setStyleSheet(
-            "QFrame { border: 2px solid #cccc00; background: #ffffcc; "
-            "border-radius: 4px; padding: 6px; margin-top: 8px; }"
+            f"QFrame {{ border: 2px solid {NOTIFICATION_BORDER}; "
+            f"background: {NOTIFICATION_BG}; padding: 6px; margin-top: 8px; }}"
         )
         gl = QVBoxLayout(frame)
         gl.setContentsMargins(8, 6, 8, 6)
         gl.setSpacing(4)
 
         title_lbl = QLabel(f"-- {_t('safety_what_happened')} --")
-        title_lbl.setStyleSheet("font-weight: bold; color: #806600; font-size: 12px;")
+        title_lbl.setStyleSheet(
+            f"font-weight: bold; color: #806600; font-size: 12px; "
+            f"font-family: {FONT_UI};"
+        )
         gl.addWidget(title_lbl)
 
         # Result text
         result_lbl = QLabel(result_text)
         result_lbl.setWordWrap(True)
-        result_lbl.setStyleSheet("color: #333; font-size: 12px; padding: 4px;")
+        result_lbl.setStyleSheet(
+            f"color: #333; font-size: 12px; padding: 4px; font-family: {FONT_UI};"
+        )
         gl.addWidget(result_lbl)
 
         # Teaching hint
         if hint:
             hint_lbl = QLabel(hint.text)
             hint_lbl.setWordWrap(True)
-            hint_lbl.setStyleSheet("color: #333; font-size: 11px; padding: 2px 8px;")
+            hint_lbl.setStyleSheet(
+                f"color: #333; font-size: 11px; padding: 2px 8px; "
+                f"font-family: {FONT_UI};"
+            )
             gl.addWidget(hint_lbl)
 
             cmd_lbl = QLabel(f"({hint.git_command})")
-            cmd_lbl.setStyleSheet("color: #808080; font-size: 10px; padding-left: 8px;")
+            cmd_lbl.setStyleSheet(
+                f"color: {SHADOW}; font-size: 10px; padding-left: 8px; "
+                f"font-family: {FONT_MONO};"
+            )
             gl.addWidget(cmd_lbl)
 
             if hint.detail:
                 detail_lbl = QLabel(hint.detail)
                 detail_lbl.setWordWrap(True)
                 detail_lbl.setStyleSheet(
-                    "color: #5500aa; font-style: italic; font-size: 11px; "
-                    "padding: 4px 8px; background: #f8f0ff; "
-                    "border: 1px solid #d0c0e0; border-radius: 2px;"
+                    f"color: #5500aa; font-style: italic; font-size: 11px; "
+                    f"padding: 4px 8px; background: #f8f0ff; "
+                    f"border: 1px solid #d0c0e0; font-family: {FONT_UI};"
                 )
                 gl.addWidget(detail_lbl)
 
@@ -380,7 +383,8 @@ class SafetyNetPage(QWidget):
         if hoff_line:
             hoff_lbl = QLabel(hoff_line)
             hoff_lbl.setStyleSheet(
-                "color: #808080; font-style: italic; padding: 4px 8px; font-size: 11px;"
+                f"color: {SHADOW}; font-style: italic; padding: 4px 8px; "
+                f"font-size: 11px; font-family: {FONT_UI};"
             )
             gl.addWidget(hoff_lbl)
 

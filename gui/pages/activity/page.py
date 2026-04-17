@@ -23,6 +23,12 @@ from core.prompt_parser import (
 )
 from gui.copyable_widgets import make_copy_all_button
 from gui.pages.activity.threads import HaikuContextThread, HaikuPromptsThread
+from gui.win95 import (
+    BUTTON_STYLE, ERROR, FONT_MONO, FONT_UI, GRAY, GROUP_STYLE, HIGHLIGHT,
+    HINT_BG, NOTIFICATION_BG, NOTIFICATION_BORDER, PAGE_TITLE_STYLE,
+    SECTION_HEADER_STYLE, SHADOW, SUCCESS, SUCCESS_BUTTON_STYLE, TITLE_DARK,
+    WARNING, WINDOW_BG,
+)
 from i18n import get_string as _t
 
 log = logging.getLogger(__name__)
@@ -78,8 +84,8 @@ class ActivityPage(QWidget):
         # Header row: title + refresh + copy all
         header = QHBoxLayout()
         title = QLabel(_t("activity_header"))
-        title.setFont(QFont("MS Sans Serif", 14, QFont.Bold))
-        title.setStyleSheet("color: #000080;")
+        title.setFont(QFont("Tahoma", 14, QFont.Bold))
+        title.setStyleSheet(PAGE_TITLE_STYLE)
         header.addWidget(title)
         header.addStretch()
 
@@ -87,28 +93,24 @@ class ActivityPage(QWidget):
         header.addWidget(copy_btn)
 
         self._btn_save_point = QPushButton(_t("safety_save_btn"))
-        self._btn_save_point.setStyleSheet(
-            "QPushButton { background: #006600; color: white; padding: 4px 12px; "
-            "border: 2px outset #008800; font-weight: bold; }"
-            "QPushButton:pressed { border: 2px inset #006600; }"
-        )
+        self._btn_save_point.setStyleSheet(SUCCESS_BUTTON_STYLE)
         self._btn_save_point.clicked.connect(self._on_save_point)
         header.addWidget(self._btn_save_point)
 
         self._btn_refresh = QPushButton(_t("activity_btn_refresh"))
-        self._btn_refresh.setStyleSheet(
-            "QPushButton { padding: 4px 12px; }"
-            "QPushButton:pressed { border: 2px inset #808080; }"
-        )
+        self._btn_refresh.setStyleSheet(BUTTON_STYLE)
         self._btn_refresh.clicked.connect(self._on_refresh)
         header.addWidget(self._btn_refresh)
 
         layout.addLayout(header)
 
-        # Scrollable content area
+        # Scrollable content area — sunken window like a classic list view.
         scroll = QScrollArea()
         scroll.setWidgetResizable(True)
-        scroll.setStyleSheet("QScrollArea { border: 2px inset #808080; background: white; }")
+        scroll.setStyleSheet(
+            f"QScrollArea {{ border: 2px inset {SHADOW}; "
+            f"background: {WINDOW_BG}; }}"
+        )
 
         self._content_widget = QWidget()
         self._content_layout = QVBoxLayout(self._content_widget)
@@ -124,7 +126,10 @@ class ActivityPage(QWidget):
         self._clear_content()
         lbl = QLabel(text)
         lbl.setAlignment(Qt.AlignCenter)
-        lbl.setStyleSheet("color: #808080; font-size: 14px; padding: 40px;")
+        lbl.setStyleSheet(
+            f"color: {SHADOW}; font-size: 14px; padding: 40px; "
+            f"font-family: {FONT_UI};"
+        )
         self._content_layout.addWidget(lbl)
 
     def _clear_content(self) -> None:
@@ -174,7 +179,8 @@ class ActivityPage(QWidget):
         if self._last_haiku_context and self._where_stopped_label:
             self._where_stopped_label.setText(self._last_haiku_context)
             self._where_stopped_label.setStyleSheet(
-                "color: #333; font-size: 12px; padding: 4px;"
+                f"color: black; font-size: 12px; padding: 8px; "
+                f"font-family: {FONT_UI};"
             )
 
         # Save to SQLite
@@ -204,12 +210,25 @@ class ActivityPage(QWidget):
         return "|".join(parts)
 
     def _start_haiku_thread(self, entry: ActivityEntry) -> None:
-        if self._haiku_thread and self._haiku_thread.isRunning():
+        # The previous QThread may have already been deleteLater()'d —
+        # isRunning() would then raise RuntimeError on the dead
+        # wrapper. Wrap in try/except and treat a dead reference as
+        # "not running".
+        try:
+            busy = self._haiku_thread is not None and self._haiku_thread.isRunning()
+        except RuntimeError:
+            busy = False
+        if busy:
             return
 
         self._haiku_thread = HaikuContextThread(entry, self._config, on_api_error=self._haiku_error_callback, parent=self)
         self._haiku_thread.result_ready.connect(self._on_haiku_ready)
         self._haiku_thread.finished.connect(self._haiku_thread.deleteLater)
+        # Drop our Python reference once the C++ object is gone so the
+        # next call doesn't poke at a deleted QThread.
+        self._haiku_thread.finished.connect(
+            lambda: setattr(self, "_haiku_thread", None)
+        )
         self._haiku_thread.start()
 
     def _on_haiku_ready(self, haiku_context: str, haiku_summary: str) -> None:
@@ -220,8 +239,12 @@ class ActivityPage(QWidget):
         if haiku_context:
             self._last_haiku_context = haiku_context
             self._where_stopped_label.setText(haiku_context)
+            # Clear "loading" gray and use readable dark text on the yellow
+            # notepad body so the transition from placeholder is obvious.
             self._where_stopped_label.setStyleSheet(
-                "color: #333; font-size: 12px; padding: 4px;"
+                f"color: black; font-size: 12px; padding: 8px; "
+                f"background: transparent; font-weight: normal; "
+                f"font-family: {FONT_UI};"
             )
             # Update texts for copy-all
             if haiku_context not in self._all_texts:
@@ -250,23 +273,29 @@ class ActivityPage(QWidget):
             or entry.port_changes or entry.commits
         )
 
-        # --- "Where you stopped" block ---
+        # --- "Where you stopped" — Win95 "Tip of the Day" framed panel ---
+        # Title bar (gradient) + yellow notepad body, outset bevel like a
+        # small dialog window.
         where_box = QFrame()
         where_box.setStyleSheet(
-            "QFrame { border: 2px solid #cccc00; background: #ffffcc; "
-            "border-radius: 4px; padding: 6px; margin-bottom: 4px; }"
+            f"QFrame {{ border: 2px outset {GRAY}; "
+            f"background: {NOTIFICATION_BG}; margin-bottom: 4px; }}"
         )
         where_layout = QVBoxLayout(where_box)
-        where_layout.setContentsMargins(8, 6, 8, 6)
-        where_layout.setSpacing(4)
+        where_layout.setContentsMargins(0, 0, 0, 0)
+        where_layout.setSpacing(0)
 
-        where_title = QLabel(f"-- {_t('activity_where_stopped')} --")
-        where_title.setStyleSheet("font-weight: bold; color: #806600; font-size: 12px;")
+        where_title = QLabel(_t("activity_where_stopped"))
+        where_title.setStyleSheet(SECTION_HEADER_STYLE)
         where_layout.addWidget(where_title)
 
         self._where_stopped_label = QLabel(_t("activity_haiku_loading"))
-        self._where_stopped_label.setStyleSheet("color: #808080; font-size: 11px; padding: 2px;")
+        self._where_stopped_label.setStyleSheet(
+            f"color: {SHADOW}; font-size: 11px; padding: 8px; "
+            f"font-style: italic; font-family: {FONT_UI};"
+        )
         self._where_stopped_label.setWordWrap(True)
+        self._where_stopped_label.setTextFormat(Qt.PlainText)
         where_layout.addWidget(self._where_stopped_label)
 
         self._content_layout.addWidget(where_box)
@@ -289,7 +318,10 @@ class ActivityPage(QWidget):
                 group_layout = group.layout()
                 for commit in commits:
                     lbl = QLabel(f"  {commit}")
-                    lbl.setStyleSheet("font-family: monospace; color: #333;")
+                    lbl.setStyleSheet(
+                        f"font-family: {FONT_MONO}; color: black; "
+                        f"font-size: 11px;"
+                    )
                     group_layout.addWidget(lbl)
                     self._all_texts.append(f"  {commit}")
                 self._content_layout.addWidget(group)
@@ -306,11 +338,10 @@ class ActivityPage(QWidget):
             time_str = ts
             date_str = ""
 
+        # Title bar strip separates each timeline section like a dialog
+        # title — full Win95 gradient, bold white Tahoma.
         ts_label = QLabel(f"{date_str}, {time_str}" if date_str else time_str)
-        ts_label.setStyleSheet(
-            "color: #000080; font-weight: bold; font-size: 12px; "
-            "padding: 6px 0 2px 0; border-bottom: 1px solid #000080;"
-        )
+        ts_label.setStyleSheet(SECTION_HEADER_STYLE)
         self._content_layout.addWidget(ts_label)
         self._all_texts.append(ts_label.text())
 
@@ -356,7 +387,9 @@ class ActivityPage(QWidget):
             group_layout = group.layout()
             for commit in entry.commits:
                 lbl = QLabel(f"  {commit}")
-                lbl.setStyleSheet("font-family: monospace; color: #333;")
+                lbl.setStyleSheet(
+                    f"font-family: {FONT_MONO}; color: black; font-size: 11px;"
+                )
                 group_layout.addWidget(lbl)
                 self._all_texts.append(commit)
             self._content_layout.addWidget(group)
@@ -370,52 +403,73 @@ class ActivityPage(QWidget):
 
         prompts = get_recent_prompts(self._project_dir, limit=10)
 
+        # Win95 property-sheet style: outset bevel frame with a blue
+        # gradient title strip + white list body.
         box = QFrame()
         box.setStyleSheet(
-            "QFrame { border: 2px solid #a0a0d0; background: #f0f0ff; "
-            "border-radius: 4px; padding: 6px; margin-top: 4px; margin-bottom: 4px; }"
+            f"QFrame {{ border: 2px outset {GRAY}; "
+            f"background: {GRAY}; margin-top: 4px; margin-bottom: 4px; }}"
         )
         bl = QVBoxLayout(box)
-        bl.setContentsMargins(8, 6, 8, 6)
-        bl.setSpacing(4)
+        bl.setContentsMargins(0, 0, 0, 0)
+        bl.setSpacing(0)
 
-        title = QLabel(f"-- {_t('prompts_header').format(len(prompts))} --")
-        title.setStyleSheet("font-weight: bold; color: #000080; font-size: 12px;")
+        title = QLabel(_t("prompts_header").format(len(prompts)))
+        title.setStyleSheet(SECTION_HEADER_STYLE)
         bl.addWidget(title)
         self._all_texts.append(title.text())
 
+        # Inner white list pane — sunken like a classic details view.
+        body = QFrame()
+        body.setStyleSheet(
+            f"QFrame {{ background: {WINDOW_BG}; "
+            f"border: 2px inset {SHADOW}; margin: 4px; }}"
+        )
+        body_layout = QVBoxLayout(body)
+        body_layout.setContentsMargins(6, 6, 6, 6)
+        body_layout.setSpacing(2)
+        bl.addWidget(body)
+
         if not prompts:
             empty = QLabel(_t("prompts_empty"))
-            empty.setStyleSheet("color: #808080; font-size: 11px; padding: 4px;")
-            bl.addWidget(empty)
+            empty.setStyleSheet(
+                f"color: {SHADOW}; font-size: 11px; padding: 4px; "
+                f"font-family: {FONT_UI};"
+            )
+            body_layout.addWidget(empty)
         else:
             for p in prompts:
                 ts = p.timestamp[5:16].replace("T", " ") if p.timestamp else "?"
                 line = QLabel(f"[{ts}] {p.short}")
                 line.setWordWrap(True)
                 line.setStyleSheet(
-                    "font-family: monospace; font-size: 11px; "
-                    "padding: 2px 4px; color: #222;"
+                    f"font-family: {FONT_MONO}; font-size: 11px; "
+                    f"padding: 2px 4px; color: black; "
+                    f"border-bottom: 1px dotted {GRAY};"
                 )
-                bl.addWidget(line)
+                body_layout.addWidget(line)
                 self._all_texts.append(line.text())
 
-            # Analyze button + placeholder for haiku summary
+            # Analyze button + placeholder for haiku summary — live in
+            # a footer row inside the framed panel, aligned right like a
+            # Win95 dialog button strip.
+            footer = QHBoxLayout()
+            footer.setContentsMargins(6, 2, 6, 6)
+            footer.addStretch()
             self._analyze_btn = QPushButton(_t("prompts_analyze_btn"))
-            self._analyze_btn.setStyleSheet(
-                "QPushButton { padding: 4px 12px; margin-top: 4px; }"
-                "QPushButton:pressed { border: 2px inset #808080; }"
-            )
+            self._analyze_btn.setStyleSheet(BUTTON_STYLE)
             self._analyze_btn.clicked.connect(
                 lambda: self._on_analyze_prompts(prompts)
             )
-            bl.addWidget(self._analyze_btn)
+            footer.addWidget(self._analyze_btn)
+            bl.addLayout(footer)
 
             self._analyze_label = QLabel("")
             self._analyze_label.setWordWrap(True)
             self._analyze_label.setStyleSheet(
-                "color: #000080; font-size: 12px; padding: 6px; "
-                "background: white; border: 1px inset #808080;"
+                f"color: black; font-size: 12px; padding: 6px; "
+                f"background: {WINDOW_BG}; border: 2px inset {SHADOW}; "
+                f"font-family: {FONT_UI}; margin: 0 4px 4px 4px;"
             )
             self._analyze_label.hide()
             bl.addWidget(self._analyze_label)
@@ -427,8 +481,16 @@ class ActivityPage(QWidget):
             return
 
         # Defence in depth — button is disabled while running but a
-        # programmatic call could still race in.
-        if self._prompts_thread is not None and self._prompts_thread.isRunning():
+        # programmatic call could still race in. The QThread may also
+        # already be deleteLater()'d; treat a dead wrapper as "idle".
+        try:
+            busy = (
+                self._prompts_thread is not None
+                and self._prompts_thread.isRunning()
+            )
+        except RuntimeError:
+            busy = False
+        if busy:
             return
 
         # Quick pre-check: if no API key, tell the user why nothing happens
@@ -437,16 +499,19 @@ class ActivityPage(QWidget):
         if not client.is_available():
             self._analyze_label.setText(_t("prompts_analyze_unavailable"))
             self._analyze_label.setStyleSheet(
-                "color: #808000; font-size: 12px; padding: 6px; "
-                "background: #fffff0; border: 1px solid #cccc00;"
+                f"color: #806600; font-size: 12px; padding: 6px; "
+                f"background: {HINT_BG}; border: 2px solid {NOTIFICATION_BORDER}; "
+                f"font-family: {FONT_UI}; margin: 0 4px 4px 4px;"
             )
             self._analyze_label.show()
             return
 
         self._analyze_label.setText(_t("prompts_analyze_loading"))
         self._analyze_label.setStyleSheet(
-            "color: #808080; font-size: 12px; padding: 6px; "
-            "background: white; border: 1px inset #808080; font-style: italic;"
+            f"color: {SHADOW}; font-size: 12px; padding: 6px; "
+            f"background: {WINDOW_BG}; border: 2px inset {SHADOW}; "
+            f"font-style: italic; font-family: {FONT_UI}; "
+            f"margin: 0 4px 4px 4px;"
         )
         self._analyze_label.show()
         self._analyze_btn.setEnabled(False)
@@ -461,6 +526,9 @@ class ActivityPage(QWidget):
             lambda: self._analyze_btn.setEnabled(True)
         )
         self._prompts_thread.finished.connect(self._prompts_thread.deleteLater)
+        self._prompts_thread.finished.connect(
+            lambda: setattr(self, "_prompts_thread", None)
+        )
         self._prompts_thread.start()
 
     def _on_prompts_analyzed(self, summary: str) -> None:
@@ -469,27 +537,27 @@ class ActivityPage(QWidget):
             return
         self._analyze_label.setText(summary)
         self._analyze_label.setStyleSheet(
-            "color: #000080; font-size: 12px; padding: 6px; "
-            "background: white; border: 1px inset #808080;"
+            f"color: black; font-size: 12px; padding: 6px; "
+            f"background: {WINDOW_BG}; border: 2px inset {SHADOW}; "
+            f"font-family: {FONT_UI}; margin: 0 4px 4px 4px;"
         )
         if summary not in self._all_texts:
             self._all_texts.append(summary)
 
     def _make_group(self, title: str) -> QGroupBox:
         group = QGroupBox(title)
-        group.setStyleSheet(
-            "QGroupBox { border: 2px groove #808080; margin-top: 12px; "
-            "padding-top: 16px; font-weight: bold; background: white; }"
-            "QGroupBox::title { subcontrol-origin: margin; left: 10px; "
-            "padding: 0 4px; }"
-        )
+        group.setStyleSheet(GROUP_STYLE)
         layout = QVBoxLayout(group)
         layout.setSpacing(2)
         return group
 
     def _make_file_row(self, fc: FileChange) -> QFrame:
         frame = QFrame()
-        frame.setStyleSheet("QFrame { border-bottom: 1px solid #e0e0e0; padding: 4px; }")
+        frame.setStyleSheet(
+            f"QFrame {{ border-bottom: 1px solid {GRAY}; "
+            f"border-top: 1px solid {HIGHLIGHT}; padding: 4px; "
+            f"background: {WINDOW_BG}; }}"
+        )
         layout = QVBoxLayout(frame)
         layout.setContentsMargins(4, 2, 4, 2)
         layout.setSpacing(1)
@@ -497,16 +565,18 @@ class ActivityPage(QWidget):
         top = QHBoxLayout()
 
         status_map = {
-            "added": ("+", "#006600", _t("activity_file_added")),
-            "modified": ("~", "#000080", _t("activity_file_modified")),
-            "deleted": ("-", "#cc0000", _t("activity_file_deleted")),
-            "renamed": ("R", "#806600", _t("activity_file_renamed")),
+            "added": ("+", SUCCESS, _t("activity_file_added")),
+            "modified": ("~", TITLE_DARK, _t("activity_file_modified")),
+            "deleted": ("-", ERROR, _t("activity_file_deleted")),
+            "renamed": ("R", WARNING, _t("activity_file_renamed")),
         }
-        icon, color, label = status_map.get(fc.status, ("?", "#808080", fc.status))
+        icon, color, label = status_map.get(fc.status, ("?", SHADOW, fc.status))
 
         status_lbl = QLabel(icon)
         status_lbl.setFixedWidth(16)
-        status_lbl.setStyleSheet(f"color: {color}; font-weight: bold; font-family: monospace;")
+        status_lbl.setStyleSheet(
+            f"color: {color}; font-weight: bold; font-family: {FONT_MONO};"
+        )
         top.addWidget(status_lbl)
 
         path_lbl = QLabel(fc.path)
@@ -527,36 +597,44 @@ class ActivityPage(QWidget):
             if fc.deletions:
                 stats_parts.append(f"-{fc.deletions}")
             stats_lbl = QLabel(" ".join(stats_parts))
-            stats_lbl.setStyleSheet("color: #808080; font-family: monospace;")
+            stats_lbl.setStyleSheet(
+                f"color: {SHADOW}; font-family: {FONT_MONO}; font-size: 11px;"
+            )
             top.addWidget(stats_lbl)
 
         layout.addLayout(top)
 
         if fc.explanation:
             is_env = ".env" in fc.path.lower()
-            expl_color = "#cc6600" if is_env else "#666666"
+            expl_color = WARNING if is_env else SHADOW
             prefix = "\u26a0\ufe0f " if is_env else "  "
             expl_text = _t("activity_env_warning") if is_env else fc.explanation
 
             expl_lbl = QLabel(f"{prefix}{expl_text}")
-            expl_lbl.setStyleSheet(f"color: {expl_color}; font-size: 11px;")
+            expl_lbl.setStyleSheet(
+                f"color: {expl_color}; font-size: 11px; font-family: {FONT_UI};"
+            )
             layout.addWidget(expl_lbl)
 
         return frame
 
     def _make_docker_row(self, dc: DockerChange) -> QFrame:
         frame = QFrame()
-        frame.setStyleSheet("QFrame { border-bottom: 1px solid #e0e0e0; padding: 4px; }")
+        frame.setStyleSheet(
+            f"QFrame {{ border-bottom: 1px solid {GRAY}; "
+            f"border-top: 1px solid {HIGHLIGHT}; padding: 4px; "
+            f"background: {WINDOW_BG}; }}"
+        )
         layout = QHBoxLayout(frame)
         layout.setContentsMargins(4, 2, 4, 2)
 
         status_styles = {
-            "new": ("+", "#006600"),
-            "removed": ("-", "#cc0000"),
-            "crashed": ("\u25cf", "#cc0000"),
-            "restarted": ("\u25cf", "#cc6600"),
+            "new": ("+", SUCCESS),
+            "removed": ("-", ERROR),
+            "crashed": ("\u25cf", ERROR),
+            "restarted": ("\u25cf", WARNING),
         }
-        icon, color = status_styles.get(dc.status, ("?", "#808080"))
+        icon, color = status_styles.get(dc.status, ("?", SHADOW))
 
         icon_lbl = QLabel(icon)
         icon_lbl.setFixedWidth(20)
@@ -569,7 +647,7 @@ class ActivityPage(QWidget):
 
         if dc.image:
             img_lbl = QLabel(f"({dc.image})")
-            img_lbl.setStyleSheet("color: #808080;")
+            img_lbl.setStyleSheet(f"color: {SHADOW};")
             layout.addWidget(img_lbl)
 
         layout.addStretch()
@@ -584,39 +662,48 @@ class ActivityPage(QWidget):
         status_tag = QLabel(status_text)
         status_tag.setStyleSheet(
             f"color: {color}; font-weight: bold; "
-            "border: 1px solid #808080; padding: 1px 4px;"
+            f"border: 2px outset {GRAY}; padding: 1px 6px; "
+            f"background: {GRAY}; font-family: {FONT_UI};"
         )
         layout.addWidget(status_tag)
 
         if dc.explanation:
             expl = QLabel(dc.explanation)
-            expl.setStyleSheet("color: #666; font-size: 11px;")
+            expl.setStyleSheet(f"color: {SHADOW}; font-size: 11px;")
             layout.addWidget(expl)
 
         return frame
 
     def _make_port_row(self, pc: PortChange) -> QFrame:
         frame = QFrame()
-        frame.setStyleSheet("QFrame { border-bottom: 1px solid #e0e0e0; padding: 4px; }")
+        frame.setStyleSheet(
+            f"QFrame {{ border-bottom: 1px solid {GRAY}; "
+            f"border-top: 1px solid {HIGHLIGHT}; padding: 4px; "
+            f"background: {WINDOW_BG}; }}"
+        )
         layout = QHBoxLayout(frame)
         layout.setContentsMargins(4, 2, 4, 2)
 
         is_new = pc.status == "new"
-        color = "#006600" if is_new else "#cc0000"
+        color = SUCCESS if is_new else ERROR
         icon = "+" if is_new else "-"
 
         icon_lbl = QLabel(icon)
         icon_lbl.setFixedWidth(16)
-        icon_lbl.setStyleSheet(f"color: {color}; font-weight: bold; font-family: monospace;")
+        icon_lbl.setStyleSheet(
+            f"color: {color}; font-weight: bold; font-family: {FONT_MONO};"
+        )
         layout.addWidget(icon_lbl)
 
         port_lbl = QLabel(f":{pc.port}")
-        port_lbl.setStyleSheet(f"color: {color}; font-weight: bold; font-family: monospace;")
+        port_lbl.setStyleSheet(
+            f"color: {color}; font-weight: bold; font-family: {FONT_MONO};"
+        )
         layout.addWidget(port_lbl)
 
         if pc.process:
             proc_lbl = QLabel(f"({pc.process})")
-            proc_lbl.setStyleSheet("color: #808080;")
+            proc_lbl.setStyleSheet(f"color: {SHADOW};")
             layout.addWidget(proc_lbl)
 
         layout.addStretch()
@@ -628,7 +715,7 @@ class ActivityPage(QWidget):
 
         if pc.explanation:
             expl = QLabel(pc.explanation)
-            expl.setStyleSheet("color: #666; font-size: 11px;")
+            expl.setStyleSheet(f"color: {SHADOW}; font-size: 11px;")
             layout.addWidget(expl)
 
         return frame
@@ -639,16 +726,12 @@ class ActivityPage(QWidget):
         if hasattr(parent, 'page_save_points'):
             parent.page_save_points.create_save_point_quick()
             self._btn_save_point.setText("Saved!")
+            # Briefly show a brighter green, then revert to standard success.
             self._btn_save_point.setStyleSheet(
-                "QPushButton { background: #008800; color: white; padding: 4px 12px; "
-                "border: 2px outset #00aa00; font-weight: bold; }"
+                SUCCESS_BUTTON_STYLE.replace(SUCCESS, "#008800")
             )
             from PyQt5.QtCore import QTimer
             QTimer.singleShot(2000, lambda: (
                 self._btn_save_point.setText(_t("safety_save_btn")),
-                self._btn_save_point.setStyleSheet(
-                    "QPushButton { background: #006600; color: white; padding: 4px 12px; "
-                    "border: 2px outset #008800; font-weight: bold; }"
-                    "QPushButton:pressed { border: 2px inset #006600; }"
-                ),
+                self._btn_save_point.setStyleSheet(SUCCESS_BUTTON_STYLE),
             ))

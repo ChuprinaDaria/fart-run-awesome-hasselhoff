@@ -7,6 +7,8 @@ from PyQt5.QtWidgets import QListWidget, QListWidgetItem
 from PyQt5.QtCore import pyqtSignal, Qt
 from PyQt5.QtGui import QColor, QFont
 
+from gui.win95 import ERROR, GRAY, SHADOW, TITLE_DARK
+
 
 @dataclass
 class SidebarItem:
@@ -15,29 +17,29 @@ class SidebarItem:
     is_separator: bool = False
 
 
-SIDEBAR_STYLE = """
-QListWidget {
-    background: #c0c0c0;
+SIDEBAR_STYLE = f"""
+QListWidget {{
+    background: {GRAY};
     border: none;
-    border-right: 2px groove #808080;
-    font-family: "MS Sans Serif", "Liberation Sans", Arial, sans-serif;
+    border-right: 2px groove {SHADOW};
+    font-family: "Tahoma", "MS Sans Serif", "Liberation Sans", Arial, sans-serif;
     font-size: 12px;
     outline: none;
-}
-QListWidget::item {
+}}
+QListWidget::item {{
     padding: 6px 10px;
     border: none;
-}
-QListWidget::item:selected {
-    background: #000080;
+}}
+QListWidget::item:selected {{
+    background: {TITLE_DARK};
     color: white;
-}
-QListWidget::item:hover:!selected {
+}}
+QListWidget::item:hover:!selected {{
     background: #d4d4d4;
-}
-QListWidget::item:disabled {
-    color: #808080;
-}
+}}
+QListWidget::item:disabled {{
+    color: {SHADOW};
+}}
 """
 
 
@@ -61,7 +63,7 @@ class Sidebar(QListWidget):
                 list_item = QListWidgetItem("")
                 list_item.setFlags(Qt.NoItemFlags)
                 list_item.setSizeHint(list_item.sizeHint().__class__(0, 8))
-                list_item.setBackground(QColor("#c0c0c0"))
+                list_item.setBackground(QColor(GRAY))
                 self.addItem(list_item)
             else:
                 list_item = QListWidgetItem(item.label)
@@ -113,7 +115,7 @@ class Sidebar(QListWidget):
         self._counters[key] = f"({count}!)" if count > 0 else ""
         self._update_label(key)
         if key in self._items and count > 0:
-            self._items[key].setForeground(QColor("#cc0000"))
+            self._items[key].setForeground(QColor(ERROR))
         elif key in self._items:
             self._items[key].setForeground(QColor("#000000"))
 

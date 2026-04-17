@@ -21,6 +21,11 @@ from core.snapshot_manager import (
 )
 from gui.copyable_widgets import make_copy_all_button
 from gui.pages.snapshots.threads import HaikuSnapshotThread
+from gui.win95 import (
+    BUTTON_STYLE, ERROR, FONT_MONO, FONT_UI, GROUP_STYLE, HINT_STRIP_STYLE,
+    PAGE_TITLE_STYLE, PRIMARY_BUTTON_STYLE, SHADOW, SUCCESS,
+    SUCCESS_BUTTON_STYLE, TITLE_DARK, WARNING,
+)
 from i18n import get_language, get_string as _t
 
 log = logging.getLogger(__name__)
@@ -78,16 +83,17 @@ class SnapshotsPage(QWidget):
         # Header
         header = QHBoxLayout()
         title = QLabel(_t("snap_header"))
-        title.setFont(QFont("MS Sans Serif", 14, QFont.Bold))
-        title.setStyleSheet("color: #000080;")
+        title.setFont(QFont("Tahoma", 14, QFont.Bold))
+        title.setStyleSheet(PAGE_TITLE_STYLE)
         header.addWidget(title)
         header.addStretch()
 
         self._dir_label = QLabel(_t("snap_no_dir"))
-        self._dir_label.setStyleSheet("color: #808080;")
+        self._dir_label.setStyleSheet(f"color: {SHADOW};")
         header.addWidget(self._dir_label)
 
         self._btn_select = QPushButton(_t("snap_btn_select"))
+        self._btn_select.setStyleSheet(BUTTON_STYLE)
         self._btn_select.clicked.connect(self._on_select_dir)
         header.addWidget(self._btn_select)
 
@@ -98,30 +104,18 @@ class SnapshotsPage(QWidget):
         self._btn_take = QPushButton(_t("snap_btn_take"))
         self._btn_take.clicked.connect(self._on_take_snapshot)
         self._btn_take.setEnabled(False)
-        self._btn_take.setStyleSheet(
-            "QPushButton { background: #000080; color: white; padding: 6px 16px; "
-            "border: 2px outset #4040c0; font-weight: bold; }"
-            "QPushButton:pressed { border: 2px inset #000080; }"
-            "QPushButton:disabled { background: #c0c0c0; color: #808080; }"
-        )
+        self._btn_take.setStyleSheet(PRIMARY_BUTTON_STYLE)
         actions.addWidget(self._btn_take)
 
         self._btn_save_code = QPushButton(_t("safety_save_code_btn"))
-        self._btn_save_code.setStyleSheet(
-            "QPushButton { background: #006600; color: white; padding: 6px 16px; "
-            "border: 2px outset #008800; font-weight: bold; }"
-            "QPushButton:pressed { border: 2px inset #006600; }"
-        )
+        self._btn_save_code.setStyleSheet(SUCCESS_BUTTON_STYLE)
         self._btn_save_code.clicked.connect(self._on_save_code)
         actions.addWidget(self._btn_save_code)
 
         self._btn_compare = QPushButton(_t("snap_btn_compare"))
         self._btn_compare.clicked.connect(self._on_compare)
         self._btn_compare.setEnabled(False)
-        self._btn_compare.setStyleSheet(
-            "QPushButton { padding: 6px 16px; }"
-            "QPushButton:disabled { color: #808080; }"
-        )
+        self._btn_compare.setStyleSheet(BUTTON_STYLE)
         actions.addWidget(self._btn_compare)
         actions.addStretch()
 
@@ -134,17 +128,15 @@ class SnapshotsPage(QWidget):
         # Hint label — "game saves" explanation for vibe coders
         hint = QLabel(_t("snap_hint"))
         hint.setWordWrap(True)
-        hint.setStyleSheet(
-            "color: #333; font-size: 12px; "
-            "padding: 10px 12px; background: #fffff0; "
-            "border: 2px solid #cccc00; border-radius: 4px;"
-        )
+        hint.setStyleSheet(HINT_STRIP_STYLE)
         layout.addWidget(hint)
 
         # Scroll area
         scroll = QScrollArea()
         scroll.setWidgetResizable(True)
-        scroll.setStyleSheet("QScrollArea { border: 2px inset #808080; background: white; }")
+        scroll.setStyleSheet(
+            f"QScrollArea {{ border: 2px inset {SHADOW}; background: white; }}"
+        )
 
         self._content_widget = QWidget()
         self._content_layout = QVBoxLayout(self._content_widget)
@@ -266,22 +258,24 @@ class SnapshotsPage(QWidget):
         self._checkboxes.append((cb, snap.id))
 
         id_lbl = QLabel(f"#{snap.id}")
-        id_lbl.setStyleSheet("color: #000080; font-weight: bold; font-family: monospace;")
+        id_lbl.setStyleSheet(
+            f"color: {TITLE_DARK}; font-weight: bold; font-family: {FONT_MONO};"
+        )
         id_lbl.setFixedWidth(40)
         layout.addWidget(id_lbl)
 
         time_lbl = QLabel(snap.timestamp[:16].replace("T", " "))
-        time_lbl.setStyleSheet("color: #333; font-family: monospace;")
+        time_lbl.setStyleSheet(f"color: #333; font-family: {FONT_MONO};")
         time_lbl.setFixedWidth(130)
         layout.addWidget(time_lbl)
 
         # Show haiku_label if available, fallback to user label
         if snap.haiku_label:
             label_text = snap.haiku_label
-            label_style = "color: #5500aa; font-style: italic;"
+            label_style = f"color: #5500aa; font-style: italic; font-family: {FONT_UI};"
         else:
             label_text = f'"{snap.label}"'
-            label_style = "color: #333; font-style: italic;"
+            label_style = f"color: #333; font-style: italic; font-family: {FONT_UI};"
 
         label_lbl = QLabel(label_text)
         label_lbl.setTextFormat(Qt.PlainText)
@@ -299,12 +293,12 @@ class SnapshotsPage(QWidget):
             info_parts.append(f"{len(snap.listening_ports)} ports")
         if info_parts:
             info_lbl = QLabel(" | ".join(info_parts))
-            info_lbl.setStyleSheet("color: #808080; font-size: 11px;")
+            info_lbl.setStyleSheet(f"color: {SHADOW}; font-size: 11px;")
             layout.addWidget(info_lbl)
 
         del_btn = QPushButton(_t("snap_btn_delete"))
         del_btn.setFixedWidth(60)
-        del_btn.setStyleSheet("QPushButton { font-size: 10px; padding: 2px; }")
+        del_btn.setStyleSheet(BUTTON_STYLE)
         del_btn.clicked.connect(lambda _, sid=snap.id: self._on_delete(sid))
         layout.addWidget(del_btn)
 
@@ -346,11 +340,7 @@ class SnapshotsPage(QWidget):
 
         group = QGroupBox(_t("snap_compare_title").format(old_id, new_id))
         group._is_compare_result = True
-        group.setStyleSheet(
-            "QGroupBox { border: 2px groove #808080; margin-top: 12px; "
-            "padding-top: 16px; font-weight: bold; background: white; }"
-            "QGroupBox::title { subcontrol-origin: margin; left: 10px; padding: 0 4px; }"
-        )
+        group.setStyleSheet(GROUP_STYLE)
         gl = QVBoxLayout(group)
         self._compare_group = group
 
@@ -362,8 +352,9 @@ class SnapshotsPage(QWidget):
         # Haiku loading placeholder — will be replaced by thread result
         self._haiku_compare_label = QLabel(_t("snap_haiku_loading"))
         self._haiku_compare_label.setStyleSheet(
-            "color: #5500aa; font-style: italic; font-size: 11px; "
-            "padding: 4px 8px; background: #f8f8ff; border: 1px solid #d0d0d0;"
+            f"color: #5500aa; font-style: italic; font-size: 11px; "
+            f"padding: 4px 8px; background: #f8f8ff; "
+            f"border: 2px inset {SHADOW}; font-family: {FONT_UI};"
         )
         self._haiku_compare_label.setWordWrap(True)
         gl.addWidget(self._haiku_compare_label)
@@ -490,11 +481,16 @@ class SnapshotsPage(QWidget):
     @staticmethod
     def _section_label(text: str) -> QLabel:
         lbl = QLabel(text)
-        lbl.setStyleSheet("font-weight: bold; color: #000080; padding-top: 4px;")
+        lbl.setStyleSheet(
+            f"font-weight: bold; color: {TITLE_DARK}; padding-top: 4px; "
+            f"font-family: {FONT_UI};"
+        )
         return lbl
 
     @staticmethod
     def _detail_label(text: str, color: str = "#333") -> QLabel:
         lbl = QLabel(text)
-        lbl.setStyleSheet(f"color: {color}; font-family: monospace; padding-left: 8px;")
+        lbl.setStyleSheet(
+            f"color: {color}; font-family: {FONT_MONO}; padding-left: 8px;"
+        )
         return lbl

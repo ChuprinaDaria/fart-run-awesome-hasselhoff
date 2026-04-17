@@ -9,13 +9,18 @@ import subprocess
 from pathlib import Path
 
 from PyQt5.QtWidgets import (
-    QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
-    QGroupBox, QFormLayout, QProgressBar, QScrollArea,
-    QLineEdit, QMessageBox, QInputDialog,
+    QFrame, QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
+    QProgressBar, QScrollArea, QMessageBox, QInputDialog,
 )
 from PyQt5.QtCore import Qt, QThread, pyqtSignal, QTimer, QUrl
 from PyQt5.QtGui import QFont, QDesktopServices
 
+from gui.win95 import (
+    BUTTON_STYLE, DANGER_BUTTON_STYLE, ERROR, FONT_UI, GRAY, NOTIFICATION_BG,
+    NOTIFICATION_BORDER, PRIMARY_BUTTON_STYLE, PROGRESS_BAR_STYLE,
+    SECTION_HEADER_STYLE, SHADOW, SUCCESS_BUTTON_STYLE, TITLE_BAR_GRADIENT,
+    TITLE_DARK, WINDOW_BG,
+)
 from i18n import get_string, get_language
 
 # ─── HASSELHOFF ASCII ART ────────────────────────────────────────────────
@@ -299,7 +304,13 @@ class InstallThread(QThread):
 
 
 class ToolCard(QWidget):
-    """Single tool card with status, install button, and Hoff phrase."""
+    """Single tool card with status, install button, and Hoff phrase.
+
+    Rendered as a Win95 property-sheet tile: outset bevel frame, a
+    gradient title strip with the tool name, white body with an italic
+    description, optional yellow "Tip of the Day" Hoff phrase, and a
+    button strip along the bottom.
+    """
     install_requested = pyqtSignal(str)  # tool_key
 
     def __init__(self, tool_key: str, tool_data: dict, parent=None):
@@ -307,62 +318,96 @@ class ToolCard(QWidget):
         self.tool_key = tool_key
         self.tool_data = tool_data
 
-        layout = QVBoxLayout(self)
-        layout.setContentsMargins(8, 8, 8, 8)
+        outer = QVBoxLayout(self)
+        outer.setContentsMargins(4, 4, 4, 4)
+        outer.setSpacing(0)
 
-        # Header row: icon + name + status
-        header = QHBoxLayout()
+        # --- Card frame (Win95 raised window) ---
+        card = QFrame()
+        card.setStyleSheet(
+            f"QFrame {{ border: 2px outset {GRAY}; background: {GRAY}; }}"
+        )
+        card_layout = QVBoxLayout(card)
+        card_layout.setContentsMargins(0, 0, 0, 0)
+        card_layout.setSpacing(0)
+
+        # --- Title strip: icon + name (gradient bar, bold white) ---
         icon = tool_data.get("icon", "[?]")
         name = tool_data.get("name", tool_key)
+        title_row = QFrame()
+        title_row.setStyleSheet(
+            f"QFrame {{ background: {TITLE_BAR_GRADIENT}; }}"
+            f" QLabel {{ background: transparent; color: white; "
+            f"font-weight: bold; font-family: {FONT_UI}; }}"
+        )
+        tr_layout = QHBoxLayout(title_row)
+        tr_layout.setContentsMargins(6, 3, 6, 3)
+        tr_layout.setSpacing(6)
         self.name_label = QLabel(f"{icon} {name}")
-        self.name_label.setFont(QFont("MS Sans Serif", 14, QFont.Bold))
-        header.addWidget(self.name_label)
-
-        header.addStretch()
-
+        self.name_label.setStyleSheet(
+            f"background: transparent; color: white; font-weight: bold; "
+            f"font-family: {FONT_UI}; font-size: 12px;"
+        )
+        tr_layout.addWidget(self.name_label)
+        tr_layout.addStretch()
         self.status_label = QLabel("")
-        self.status_label.setFont(QFont("MS Sans Serif", 10))
-        header.addWidget(self.status_label)
-        layout.addLayout(header)
+        self.status_label.setStyleSheet(
+            f"background: transparent; color: white; font-weight: bold; "
+            f"font-family: {FONT_UI}; font-size: 11px;"
+        )
+        tr_layout.addWidget(self.status_label)
+        card_layout.addWidget(title_row)
 
-        # Description
+        # --- Body (white sunken area with description + Hoff tip) ---
+        body = QFrame()
+        body.setStyleSheet(
+            f"QFrame {{ background: {WINDOW_BG}; "
+            f"border: 2px inset {SHADOW}; margin: 4px; }}"
+        )
+        body_layout = QVBoxLayout(body)
+        body_layout.setContentsMargins(8, 8, 8, 8)
+        body_layout.setSpacing(6)
+
         lang = get_language()
         desc = tool_data.get(f"description_{lang}", tool_data.get("description_en", ""))
         desc_label = QLabel(desc)
         desc_label.setWordWrap(True)
-        desc_label.setStyleSheet("color: #404040; font-style: italic; padding-left: 4px;")
-        layout.addWidget(desc_label)
+        desc_label.setStyleSheet(
+            f"color: black; font-style: italic; padding: 0; "
+            f"font-family: {FONT_UI}; font-size: 11px; border: none;"
+        )
+        body_layout.addWidget(desc_label)
 
-        # Hoff phrase
         phrases_key = f"hoff_phrases_{lang}"
         phrases = tool_data.get(phrases_key, tool_data.get("hoff_phrases_en", []))
         if phrases:
             phrase = random.choice(phrases)
-            hoff_label = QLabel(f'>>> "{phrase}"')
+            hoff_label = QLabel(f'"{phrase}"')
             hoff_label.setWordWrap(True)
+            # Win95 "Tip of the Day" — pale yellow body, gold border,
+            # navy text (same palette as the main app hint strip).
             hoff_label.setStyleSheet(
-                "color: #800080; font-weight: bold; padding: 4px 8px; "
-                "background: #ffe0ff; border: 1px solid #c080c0; margin-top: 4px;"
+                f"color: {TITLE_DARK}; padding: 6px 8px; "
+                f"background: {NOTIFICATION_BG}; "
+                f"border: 1px solid {NOTIFICATION_BORDER}; "
+                f"font-family: {FONT_UI}; font-size: 11px;"
             )
-            layout.addWidget(hoff_label)
+            body_layout.addWidget(hoff_label)
 
-        # Button row
+        card_layout.addWidget(body)
+
+        # --- Button strip (right-aligned, dialog-style) ---
         btn_row = QHBoxLayout()
-
-        self.install_btn = QPushButton("")
-        self.install_btn.setStyleSheet(
-            "font-size: 13px; padding: 6px 16px; font-weight: bold;"
-        )
-        self.install_btn.clicked.connect(lambda: self.install_requested.emit(self.tool_key))
-        btn_row.addWidget(self.install_btn)
-
+        btn_row.setContentsMargins(6, 0, 6, 6)
         btn_row.addStretch()
-        layout.addLayout(btn_row)
-
-        # Card style
-        self.setStyleSheet(
-            "ToolCard { background: white; border: 2px groove #808080; margin: 4px; }"
+        self.install_btn = QPushButton("")
+        self.install_btn.clicked.connect(
+            lambda: self.install_requested.emit(self.tool_key)
         )
+        btn_row.addWidget(self.install_btn)
+        card_layout.addLayout(btn_row)
+
+        outer.addWidget(card)
 
         self.refresh_status()
 
@@ -372,44 +417,34 @@ class ToolCard(QWidget):
 
         if installed:
             self.status_label.setText(STATUS_INSTALLED.get(lang, STATUS_INSTALLED["en"]))
-            self.status_label.setStyleSheet("color: #008000; font-weight: bold;")
-            self.install_btn.setText("[OK]Installed — Hoff approves!" if lang == "en"
-                                    else "[OK]Встановлено — Хофф схвалює!")
-            self.install_btn.setEnabled(False)
-            self.install_btn.setStyleSheet(
-                "font-size: 13px; padding: 6px 16px; font-weight: bold; "
-                "background: #90EE90; color: #006400; border: 2px outset #60c060;"
+            self.install_btn.setText(
+                "Installed — Hoff approves!" if lang == "en"
+                else "Встановлено — Хофф схвалює!"
             )
+            self.install_btn.setEnabled(False)
+            self.install_btn.setStyleSheet(SUCCESS_BUTTON_STYLE)
         else:
             self.status_label.setText(STATUS_MISSING.get(lang, STATUS_MISSING["en"]))
-            self.status_label.setStyleSheet("color: #cc0000; font-weight: bold;")
 
             os_type = _get_os()
             if os_type == "linux":
-                btn_text = ">>Install now!" if lang == "en" else ">>Встановити зараз!"
+                btn_text = "Install now!" if lang == "en" else "Встановити зараз!"
             else:
-                btn_text = ">>Download" if lang == "en" else ">>Завантажити"
+                btn_text = "Download" if lang == "en" else "Завантажити"
 
             self.install_btn.setText(btn_text)
             self.install_btn.setEnabled(True)
-            self.install_btn.setStyleSheet(
-                "font-size: 13px; padding: 6px 16px; font-weight: bold; "
-                "background: #ff4444; color: white; border: 2px outset #ff8888;"
-            )
+            self.install_btn.setStyleSheet(DANGER_BUTTON_STYLE)
 
     def set_installing(self):
         lang = get_language()
         self.status_label.setText(STATUS_INSTALLING.get(lang, STATUS_INSTALLING["en"]))
-        self.status_label.setStyleSheet("color: #cc8800; font-weight: bold;")
         self.install_btn.setEnabled(False)
         self.install_btn.setText(
-            ">>Hasselhoff is swimming..." if lang == "en"
-            else ">>Хасселхофф пливе..."
+            "Hasselhoff is swimming..." if lang == "en"
+            else "Хасселхофф пливе..."
         )
-        self.install_btn.setStyleSheet(
-            "font-size: 13px; padding: 6px 16px; font-weight: bold; "
-            "background: #ffcc00; color: #333; border: 2px outset #ffdd66;"
-        )
+        self.install_btn.setStyleSheet(BUTTON_STYLE)
 
 
 class HasselhoffWizardPage(QWidget):
@@ -423,71 +458,87 @@ class HasselhoffWizardPage(QWidget):
         self._install_thread = None
 
         layout = QVBoxLayout(self)
+        layout.setContentsMargins(8, 8, 8, 8)
 
-        # ─── HEADER: ASCII ART ────────────────────────────────────
+        # ─── HEADER: ASCII ART in a Win95 "About" window frame ───
+        # Outer raised frame mimics the chrome of a dialog window;
+        # inside sits a gradient title strip ("VIBECODE WIZARD") and
+        # a sunken white body holding the ASCII art, like an icon
+        # area inside an About box.
+        header_frame = QFrame()
+        header_frame.setStyleSheet(
+            f"QFrame {{ border: 2px outset {GRAY}; background: {GRAY}; }}"
+        )
+        hf_layout = QVBoxLayout(header_frame)
+        hf_layout.setContentsMargins(0, 0, 0, 0)
+        hf_layout.setSpacing(0)
+
+        self.title_strip = QLabel("")
+        self.title_strip.setStyleSheet(SECTION_HEADER_STYLE)
+        hf_layout.addWidget(self.title_strip)
+
         self.header = QLabel(HOFF_ASCII)
         self.header.setFont(QFont("Courier New", 8))
         self.header.setAlignment(Qt.AlignCenter)
         self.header.setStyleSheet(
-            "background: #1a0033; color: #ff00ff; padding: 8px; "
-            "border: 3px outset #800080; margin-bottom: 8px;"
+            f"background: {WINDOW_BG}; color: {TITLE_DARK}; padding: 8px; "
+            f"border: 2px inset {SHADOW}; margin: 4px;"
         )
         self.header.setTextInteractionFlags(Qt.TextSelectableByMouse)
         # Easter egg: double-click for special Hoff moment
         self.header.mouseDoubleClickEvent = self._easter_egg
-        layout.addWidget(self.header)
+        hf_layout.addWidget(self.header)
 
-        # ─── SUBTITLE ─────────────────────────────────────────────
+        layout.addWidget(header_frame)
+
+        # ─── SUBTITLE ─── Tahoma, navy, plain text on the page. ──
         self.subtitle = QLabel("")
         self.subtitle.setAlignment(Qt.AlignCenter)
         self.subtitle.setStyleSheet(
-            "font-size: 14px; font-weight: bold; color: #800080; padding: 4px;"
+            f"font-size: 13px; font-weight: bold; color: {TITLE_DARK}; "
+            f"padding: 8px 4px; font-family: {FONT_UI};"
         )
         layout.addWidget(self.subtitle)
         self._update_subtitle()
 
-        # ─── INSTALL ALL BUTTON ───────────────────────────────────
+        # ─── INSTALL ALL BUTTON ─── Win95 primary (navy) / success green
         self.install_all_btn = QPushButton("")
-        self.install_all_btn.setStyleSheet(
-            "font-size: 16px; padding: 12px 32px; font-weight: bold; "
-            "background: #ff0066; color: white; border: 3px outset #ff66aa; "
-            "margin: 8px 40px;"
-        )
         self.install_all_btn.clicked.connect(self._install_all_missing)
         layout.addWidget(self.install_all_btn)
         self._update_install_all_btn()
 
-        # ─── PROGRESS BAR ─────────────────────────────────────────
+        # ─── PROGRESS BAR ─── classic Win95 chunky blue progress
         self.progress_bar = QProgressBar()
         self.progress_bar.setMaximum(100)
         self.progress_bar.setTextVisible(True)
         self.progress_bar.setFormat("")
-        self.progress_bar.setStyleSheet(
-            "QProgressBar { border: 2px inset #808080; background: #1a0033; "
-            "text-align: center; height: 24px; color: #ff00ff; font-weight: bold; } "
-            "QProgressBar::chunk { background: qlineargradient("
-            "x1:0, y1:0, x2:1, y2:0, stop:0 #ff0066, stop:0.5 #ff00ff, stop:1 #6600ff); }"
-        )
+        self.progress_bar.setStyleSheet(PROGRESS_BAR_STYLE)
         self.progress_bar.hide()
         layout.addWidget(self.progress_bar)
 
-        # Progress phrase label
+        # Progress phrase label — neutral gray italic like a status line.
         self.progress_label = QLabel("")
         self.progress_label.setAlignment(Qt.AlignCenter)
         self.progress_label.setStyleSheet(
-            "color: #800080; font-weight: bold; font-style: italic; padding: 4px;"
+            f"color: {SHADOW}; font-style: italic; padding: 4px; "
+            f"font-family: {FONT_UI}; font-size: 11px;"
         )
         self.progress_label.hide()
         layout.addWidget(self.progress_label)
 
-        # ─── TOOL CARDS (scrollable) ──────────────────────────────
+        # ─── TOOL CARDS (scrollable sunken list) ──────────────────
         scroll = QScrollArea()
         scroll.setWidgetResizable(True)
-        scroll.setStyleSheet("QScrollArea { border: none; }")
+        scroll.setStyleSheet(
+            f"QScrollArea {{ border: 2px inset {SHADOW}; "
+            f"background: {GRAY}; }}"
+        )
 
         self.cards_container = QWidget()
+        self.cards_container.setStyleSheet(f"background: {GRAY};")
         self.cards_layout = QVBoxLayout(self.cards_container)
         self.cards_layout.setAlignment(Qt.AlignTop)
+        self.cards_layout.setSpacing(4)
         scroll.setWidget(self.cards_container)
         layout.addWidget(scroll)
 
@@ -504,46 +555,54 @@ class HasselhoffWizardPage(QWidget):
     def _update_subtitle(self):
         lang = get_language()
         if lang == "ua":
+            self.title_strip.setText("Hasselhoff Vibecode Wizard")
             self.subtitle.setText(
-                ">>Хасселхофф допоможе тобі стати вайбкодером! "
-                "Перевір що встановлено і постав що потрібно. \ud83c\udfca\u200d\u2642\ufe0f"
+                "Хасселхофф допоможе тобі стати вайбкодером! "
+                "Перевір що встановлено і постав що потрібно."
             )
         else:
+            self.title_strip.setText("Hasselhoff Vibecode Wizard")
             self.subtitle.setText(
-                ">>Hasselhoff will help you become a vibecoder! "
-                "Check what's installed and set up what's missing. \ud83c\udfca\u200d\u2642\ufe0f"
+                "Hasselhoff will help you become a vibecoder! "
+                "Check what's installed and set up what's missing."
             )
 
     def _update_install_all_btn(self):
         lang = get_language()
         missing = [k for k, t in self._tools_data.items() if not _check_installed(t)]
+        # Oversized variant of the Win95 token — primary (navy) when
+        # there's work to do, success (green) when everything's ready.
+        bigger = "padding: 12px 32px"
         if missing:
             n = len(missing)
             if lang == "ua":
                 self.install_all_btn.setText(
-                    f"[!]РЕЖИМ BAYWATCH — Встановити все ({n} відсутніх) [!]"
+                    f"BAYWATCH MODE — Встановити все ({n} відсутніх)"
                 )
             else:
                 self.install_all_btn.setText(
-                    f"[!]BAYWATCH MODE — Install ALL Missing ({n}) [!]"
+                    f"BAYWATCH MODE — Install ALL Missing ({n})"
                 )
+            self.install_all_btn.setStyleSheet(
+                PRIMARY_BUTTON_STYLE.replace("padding: 6px 14px", bigger)
+                + " QPushButton { font-size: 13px; }"
+            )
             self.install_all_btn.setEnabled(True)
             self.install_all_btn.show()
         else:
             if lang == "ua":
                 self.install_all_btn.setText(
-                    "[*]ВСЕ ВСТАНОВЛЕНО — Хофф пишається тобою! [*]"
+                    "ВСЕ ВСТАНОВЛЕНО — Хофф пишається тобою!"
                 )
             else:
                 self.install_all_btn.setText(
-                    "[*]ALL INSTALLED — The Hoff is proud of you! [*]"
+                    "ALL INSTALLED — The Hoff is proud of you!"
                 )
-            self.install_all_btn.setEnabled(False)
             self.install_all_btn.setStyleSheet(
-                "font-size: 16px; padding: 12px 32px; font-weight: bold; "
-                "background: #00cc66; color: white; border: 3px outset #66ff99; "
-                "margin: 8px 40px;"
+                SUCCESS_BUTTON_STYLE.replace("padding: 4px 12px", bigger)
+                + " QPushButton { font-size: 13px; }"
             )
+            self.install_all_btn.setEnabled(False)
 
     def _load_tools_local(self):
         """Load tools.json from local repo."""
@@ -555,7 +614,10 @@ class HasselhoffWizardPage(QWidget):
             self._build_cards()
         except (OSError, json.JSONDecodeError) as e:
             err = QLabel(f"Failed to load tools.json: {e}")
-            err.setStyleSheet("color: #cc0000; padding: 16px; font-weight: bold;")
+            err.setStyleSheet(
+                f"color: {ERROR}; padding: 16px; font-weight: bold; "
+                f"font-family: {FONT_UI};"
+            )
             self.cards_layout.addWidget(err)
 
     def _build_cards(self):
@@ -694,7 +756,8 @@ class HasselhoffWizardPage(QWidget):
         tool_name = self._tools_data.get(tool_key, {}).get("name", tool_key)
         self.progress_label.setText(f"[ERR]{tool_name}: {phrase}")
         self.progress_label.setStyleSheet(
-            "color: #cc0000; font-weight: bold; font-style: italic; padding: 4px;"
+            f"color: {ERROR}; font-weight: bold; font-style: italic; "
+            f"padding: 4px; font-family: {FONT_UI}; font-size: 11px;"
         )
         self.progress_label.show()
 
@@ -707,9 +770,10 @@ class HasselhoffWizardPage(QWidget):
             "Try installing manually or check your internet connection.",
         )
 
-        # Reset label style after delay
+        # Reset label style after delay — back to neutral Win95 gray.
         QTimer.singleShot(5000, lambda: self.progress_label.setStyleSheet(
-            "color: #800080; font-weight: bold; font-style: italic; padding: 4px;"
+            f"color: {SHADOW}; font-style: italic; padding: 4px; "
+            f"font-family: {FONT_UI}; font-size: 11px;"
         ))
 
         # Process queue
