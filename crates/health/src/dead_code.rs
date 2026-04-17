@@ -237,6 +237,26 @@ fn has_noqa_unused_import(line_text: &str, lang: Lang) -> bool {
     }
 }
 
+/// Return true if the given node sits inside an `if TYPE_CHECKING:` block.
+/// Imports in such blocks are used only for type annotations and should NOT
+/// be reported as unused.
+fn is_inside_type_checking(node: tree_sitter::Node, source: &str) -> bool {
+    let mut current = node;
+    while let Some(parent) = current.parent() {
+        if parent.kind() == "if_statement" {
+            if let Some(cond) = parent.child_by_field_name("condition") {
+                if let Ok(text) = cond.utf8_text(source.as_bytes()) {
+                    if text == "TYPE_CHECKING" {
+                        return true;
+                    }
+                }
+            }
+        }
+        current = parent;
+    }
+    false
+}
+
 /// Return true if this identifier is the name being declared (function,
 /// class, method) or lives inside an import statement's name list.
 /// False for every usage site, including type hints and decorator targets.
@@ -340,6 +360,12 @@ fn parse_file(content: &str, rel_path: &str, lang: Lang) -> FileData {
         match lang {
             Lang::Python => {
                 if node.kind() == "import_from_statement" {
+                    // Skip imports inside `if TYPE_CHECKING:` blocks —
+                    // they exist only for type annotations, not runtime usage.
+                    if is_inside_type_checking(node, content) {
+                        return;
+                    }
+
                     let stmt_text = node
                         .utf8_text(content.as_bytes())
                         .unwrap_or("")
