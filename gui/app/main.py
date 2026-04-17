@@ -34,8 +34,6 @@ from gui.pages.prompt_helper import PromptHelperPage
 from gui.pages.save_points_page import SavePointsPage
 from gui.pages.security import SecurityPage, SecurityScanThread
 from gui.pages.settings import SettingsPage
-from gui.pages.tips import TipsPage
-from gui.pages.usage import UsagePage
 from gui.sidebar import Sidebar, SidebarItem
 from gui.statusbar import ClaudeStatusBar
 from gui.widgets.project_selector import ProjectSelector
@@ -75,9 +73,7 @@ class MonitorApp(QMainWindow):
             SidebarItem(_t("side_prompt_helper"), "prompt_helper"),
             SidebarItem(_t("side_health"), "health"),
             SidebarItem(_t("side_security"), "security"),
-            SidebarItem(_t("side_usage"), "usage"),
             SidebarItem("", "", is_separator=True),
-            SidebarItem(_t("side_tips"), "tips"),
             SidebarItem(_t("side_discover"), "discover"),
             SidebarItem(_t("side_settings"), "settings"),
             SidebarItem("", "", is_separator=True),
@@ -94,9 +90,7 @@ class MonitorApp(QMainWindow):
         # Create pages (no Docker/Ports pages)
         self.page_overview = OverviewPage()
         self.page_security = SecurityPage()
-        self.page_usage = UsagePage()
         self.page_hoff_wizard = HasselhoffWizardPage()
-        self.page_tips = TipsPage()
         self.page_discover = DiscoverTab()
         self.page_activity = ActivityPage()
         self.page_activity.set_config(config)
@@ -115,9 +109,7 @@ class MonitorApp(QMainWindow):
             ("prompt_helper", self.page_prompt_helper),
             ("health", self.page_health),
             ("security", self.page_security),
-            ("usage", self.page_usage),
             ("hoff_wizard", self.page_hoff_wizard),
-            ("tips", self.page_tips),
             ("discover", self.page_discover),
             ("settings", self.page_settings),
         ]:
@@ -145,6 +137,11 @@ class MonitorApp(QMainWindow):
         self._claude_statusbar = ClaudeStatusBar(self)
         self.setStatusBar(self._claude_statusbar)
         self._claude_statusbar.clicked.connect(lambda: self._on_page_selected("overview"))
+
+        # Wire save-point trigger → health test runner
+        self.page_save_points.save_point_created.connect(
+            self.page_health._on_save_point_created
+        )
 
         # Connect signals
         self.page_overview.refresh_requested.connect(self._refresh_all)
@@ -186,7 +183,6 @@ class MonitorApp(QMainWindow):
                 system_state.docker_error or "Docker not available")
         if not system_state.claude_dir:
             self.page_overview.set_no_claude()
-            self.page_usage.set_no_claude()
 
         # Unified refresh timer
         refresh_interval = config["general"]["refresh_interval"] * 1000
@@ -307,9 +303,10 @@ class MonitorApp(QMainWindow):
 
                 sub = parser.get_subscription()
                 self.page_overview.set_subscription(sub)
-                self.page_overview.update_data(stats, cost, cache_eff, savings, nag_msg)
-                self.page_usage.update_data(stats, cost, sub, cache_eff, savings, comparison, projects)
-                self.page_tips.update_tips(stats, cost, sub)
+                self.page_overview.update_data(
+                    stats, cost, cache_eff, savings, nag_msg,
+                    sub=sub, comparison=comparison, projects=projects,
+                )
 
                 if self._is_alert_enabled("usage"):
                     self._check_usage_alerts(stats, sub)
@@ -329,7 +326,7 @@ class MonitorApp(QMainWindow):
                         security_score=self._last_security_score,
                     )
                     history = self._history_db.get_daily_stats(7)
-                    self.page_usage.update_trends(history)
+                    self.page_overview.update_trends(history)
                 except Exception as e:
                     log.error("History save error: %s", e)
 

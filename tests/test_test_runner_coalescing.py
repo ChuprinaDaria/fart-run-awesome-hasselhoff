@@ -86,3 +86,39 @@ def test_coalescing_two_triggers_one_pending(qapp, tmp_path, monkeypatch):
     # Coalesced re-run must have started.
     assert started_count["n"] == 2
     assert page._needs_rerun is False
+
+
+def test_save_point_trigger_runs_when_enabled(qapp, tmp_path, monkeypatch):
+    from gui.pages.health import page as page_mod
+
+    page = page_mod.HealthPage()
+    page._project_dir = str(tmp_path)
+    page._config = {"tests": {"trigger_on_save_point": True, "command": "", "timeout_s": 600}}
+    started = {"n": 0}
+    monkeypatch.setattr(page, "_on_run_tests", lambda: started.update(n=started["n"] + 1))
+    page._on_save_point_created(str(tmp_path))
+    assert started["n"] == 1
+
+
+def test_save_point_trigger_silent_when_disabled(qapp, tmp_path, monkeypatch):
+    from gui.pages.health import page as page_mod
+
+    page = page_mod.HealthPage()
+    page._project_dir = str(tmp_path)
+    page._config = {"tests": {"trigger_on_save_point": False}}
+    started = {"n": 0}
+    monkeypatch.setattr(page, "_on_run_tests", lambda: started.update(n=started["n"] + 1))
+    page._on_save_point_created(str(tmp_path))
+    assert started["n"] == 0
+
+
+def test_save_point_trigger_ignores_other_projects(qapp, tmp_path, monkeypatch):
+    from gui.pages.health import page as page_mod
+
+    page = page_mod.HealthPage()
+    page._project_dir = str(tmp_path)
+    page._config = {"tests": {"trigger_on_save_point": True}}
+    started = {"n": 0}
+    monkeypatch.setattr(page, "_on_run_tests", lambda: started.update(n=started["n"] + 1))
+    page._on_save_point_created("/some/other/project")
+    assert started["n"] == 0

@@ -615,6 +615,13 @@ class HealthPage(QWidget):
         )
         popup.exec_()
 
+    def _on_save_point_created(self, project_dir: str) -> None:
+        if not (self._config.get("tests", {}) or {}).get("trigger_on_save_point"):
+            return
+        if project_dir != self._project_dir:
+            return
+        self._on_run_tests()
+
 
 def _format_duration(seconds: float | None) -> str:
     if not seconds:
