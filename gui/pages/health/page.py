@@ -5,6 +5,7 @@ import logging
 from pathlib import Path
 
 from PyQt5.QtCore import Qt, pyqtSignal
+from PyQt5.QtCore import QTimer
 from PyQt5.QtGui import QFont
 from PyQt5.QtWidgets import (
     QFileDialog, QFrame, QGroupBox, QHBoxLayout, QLabel, QPushButton,
@@ -12,8 +13,18 @@ from PyQt5.QtWidgets import (
 )
 
 from core.health.models import HealthFinding, HealthReport
+from core.health.test_detector import detect_framework
+from core.health.test_runner import TestRunner
+from core.health.test_parsers import for_framework
+from core.history import HistoryDB
 from gui.copyable_widgets import make_copy_all_button
+from gui.pages.health.test_runner_thread import TestRunnerThread
 from gui.pages.health.threads import HaikuHealthThread, HealthScanThread
+from gui.win95 import (
+    BUTTON_STYLE, FONT_MONO, FONT_UI, GROUP_STYLE, NOTIFICATION_BG,
+    NOTIFICATION_BORDER, PAGE_TITLE_STYLE, PRIMARY_BUTTON_STYLE, SHADOW,
+    TITLE_DARK, severity_color,
+)
 from i18n import get_language, get_string as _t
 
 log = logging.getLogger("fartrun.health_page")
@@ -29,6 +40,13 @@ class HealthPage(QWidget):
         self._haiku_thread: HaikuHealthThread | None = None
         self._config: dict = {}
         self._all_texts: list[str] = []
+        # Test runner state
+        self._test_thread: TestRunnerThread | None = None
+        self._needs_rerun: bool = False
+        self._test_status_label = None
+        self._test_run_button = None
+        self._test_elapsed_timer: QTimer | None = None
+        self._test_run_started_monotonic: float | None = None
         self._build_ui()
 
     _haiku_error_callback = None
@@ -54,28 +72,24 @@ class HealthPage(QWidget):
         # Header
         header = QHBoxLayout()
         title = QLabel(_t("health_header"))
-        title.setFont(QFont("MS Sans Serif", 14, QFont.Bold))
-        title.setStyleSheet("color: #000080;")
+        title.setFont(QFont("Tahoma", 14, QFont.Bold))
+        title.setStyleSheet(PAGE_TITLE_STYLE)
         header.addWidget(title)
         header.addStretch()
 
         self._dir_label = QLabel(_t("health_no_dir"))
-        self._dir_label.setStyleSheet("color: #808080;")
+        self._dir_label.setStyleSheet(f"color: {SHADOW};")
         header.addWidget(self._dir_label)
 
         self._btn_select = QPushButton(_t("health_btn_select"))
+        self._btn_select.setStyleSheet(BUTTON_STYLE)
         self._btn_select.clicked.connect(self._on_select_dir)
         header.addWidget(self._btn_select)
 
         self._btn_scan = QPushButton(_t("health_btn_scan"))
         self._btn_scan.clicked.connect(self._on_scan)
         self._btn_scan.setEnabled(False)
-        self._btn_scan.setStyleSheet(
-            "QPushButton { background: #000080; color: white; padding: 6px 16px; "
-            "border: 2px outset #4040c0; font-weight: bold; font-size: 13px; }"
-            "QPushButton:pressed { border: 2px inset #000080; }"
-            "QPushButton:disabled { background: #c0c0c0; color: #808080; }"
-        )
+        self._btn_scan.setStyleSheet(PRIMARY_BUTTON_STYLE)
         header.addWidget(self._btn_scan)
         header.addWidget(make_copy_all_button(lambda: "\n".join(self._all_texts)))
 
@@ -84,7 +98,9 @@ class HealthPage(QWidget):
         # Scroll area
         scroll = QScrollArea()
         scroll.setWidgetResizable(True)
-        scroll.setStyleSheet("QScrollArea { border: 2px inset #808080; background: white; }")
+        scroll.setStyleSheet(
+            f"QScrollArea {{ border: 2px inset {SHADOW}; background: white; }}"
+        )
 
         self._content_widget = QWidget()
         self._content_layout = QVBoxLayout(self._content_widget)
@@ -92,6 +108,8 @@ class HealthPage(QWidget):
         scroll.setWidget(self._content_widget)
 
         layout.addWidget(scroll)
+
+        layout.addWidget(self._build_tests_section())
 
         self._show_placeholder(_t("health_select_dir"))
 
@@ -107,6 +125,119 @@ class HealthPage(QWidget):
             child = self._content_layout.takeAt(0)
             if child.widget():
                 child.widget().deleteLater()
+
+    def _build_tests_section(self) -> QGroupBox:
+        from PyQt5.QtWidgets import QGroupBox, QHBoxLayout, QVBoxLayout
+        box = QGroupBox(_t("tests_section_title"))
+        box.setStyleSheet(GROUP_STYLE)
+        v = QVBoxLayout(box)
+
+        row = QHBoxLayout()
+        self._test_status_label = QLabel(_t("tests_status_idle"))
+        self._test_status_label.setStyleSheet(f"font-family: {FONT_UI};")
+        row.addWidget(self._test_status_label, stretch=1)
+
+        self._test_run_button = QPushButton(_t("tests_btn_run"))
+        self._test_run_button.setStyleSheet(PRIMARY_BUTTON_STYLE)
+        self._test_run_button.clicked.connect(self._on_run_tests)
+        row.addWidget(self._test_run_button)
+
+        v.addLayout(row)
+        return box
+
+    def _on_run_tests(self) -> None:
+        if self._test_thread is not None and self._test_thread.isRunning():
+            self._needs_rerun = True
+            self._update_test_status_running()
+            return
+        if not self._project_dir:
+            return
+        framework, default_cmd = detect_framework(Path(self._project_dir))
+        override = (self._config.get("tests", {}) or {}).get("command", "") or ""
+        cmd = override.split() if override.strip() else default_cmd
+        if not cmd:
+            self._test_status_label.setText(_t("tests_no_framework"))
+            return
+
+        timeout = int((self._config.get("tests", {}) or {}).get("timeout_s", 600))
+        runner = TestRunner(parser=for_framework(framework),
+                            timeout_s=timeout, framework=framework)
+        thread = TestRunnerThread(runner, Path(self._project_dir), cmd)
+        thread.finished_run.connect(self._on_test_finished)
+        self._test_thread = thread
+        self._test_run_button.setEnabled(False)
+        self._needs_rerun = False
+        import time as _time
+        self._test_run_started_monotonic = _time.monotonic()
+        self._update_test_status_running()
+        if self._test_elapsed_timer is None:
+            self._test_elapsed_timer = QTimer(self)
+            self._test_elapsed_timer.timeout.connect(self._update_test_status_running)
+        self._test_elapsed_timer.start(1000)
+        thread.start()
+
+    def _update_test_status_running(self) -> None:
+        if self._test_status_label is None or self._test_run_started_monotonic is None:
+            return
+        import time as _time
+        elapsed = int(_time.monotonic() - self._test_run_started_monotonic)
+        key = "tests_status_running_queued" if self._needs_rerun else "tests_status_running"
+        self._test_status_label.setText(_t(key).format(seconds=elapsed))
+
+    def _on_test_finished(self, run) -> None:
+        if self._test_elapsed_timer is not None:
+            self._test_elapsed_timer.stop()
+        try:
+            HistoryDB().save_test_run(self._test_run_to_dict(run))
+        except Exception as e:
+            log.warning("save_test_run failed: %s", e)
+
+        self._test_thread = None
+        self._test_run_started_monotonic = None
+        self._test_run_button.setEnabled(True)
+        self._render_test_status_for(run)
+
+        if self._needs_rerun:
+            self._needs_rerun = False
+            self._on_run_tests()
+
+    @staticmethod
+    def _test_run_to_dict(run) -> dict:
+        return {
+            "project_dir": run.project_dir, "framework": run.framework,
+            "command": run.command, "started_at": run.started_at,
+            "finished_at": run.finished_at, "duration_s": run.duration_s,
+            "exit_code": run.exit_code, "timed_out": run.timed_out,
+            "passed": run.passed, "failed": run.failed,
+            "errors": run.errors, "skipped": run.skipped,
+            "output_tail": run.output_tail,
+        }
+
+    def _render_test_status_for(self, run) -> None:
+        if self._test_status_label is None:
+            return
+        if run.timed_out:
+            self._test_status_label.setText(
+                _t("tests_status_timed_out").format(duration=_format_duration(run.duration_s))
+            )
+            return
+        if run.exit_code in (0, None) and not run.timed_out and run.exit_code != -1:
+            self._test_status_label.setText(
+                _t("tests_status_passed").format(duration=_format_duration(run.duration_s))
+            )
+            return
+        if run.exit_code == -1:
+            self._test_status_label.setText(
+                _t("tests_status_error").format(message=run.output_tail.splitlines()[0] if run.output_tail else "error")
+            )
+            return
+        if run.passed is None:
+            self._test_status_label.setText(_t("tests_status_failed_unknown"))
+            return
+        total = (run.passed or 0) + (run.failed or 0) + (run.errors or 0)
+        self._test_status_label.setText(
+            _t("tests_status_failed_counts").format(failed=run.failed or 0, total=total)
+        )
 
     def _on_select_dir(self) -> None:
         dir_path = QFileDialog.getExistingDirectory(
@@ -149,21 +280,26 @@ class HealthPage(QWidget):
 
         box = QFrame()
         box.setStyleSheet(
-            "QFrame { border: 2px solid #cccc00; background: #ffffcc; "
-            "border-radius: 4px; padding: 6px; margin-bottom: 4px; }"
+            f"QFrame {{ border: 2px solid {NOTIFICATION_BORDER}; "
+            f"background: {NOTIFICATION_BG}; padding: 6px; margin-bottom: 4px; }}"
         )
         box_layout = QVBoxLayout(box)
         box_layout.setContentsMargins(8, 6, 8, 6)
         box_layout.setSpacing(4)
 
         title = QLabel(f"-- {_t('health_ai_summary')} --")
-        title.setStyleSheet("font-weight: bold; color: #806600; font-size: 12px;")
+        title.setStyleSheet(
+            f"font-weight: bold; color: #806600; font-size: 12px; "
+            f"font-family: {FONT_UI};"
+        )
         box_layout.addWidget(title)
 
         if summary:
             lbl = QLabel(summary)
             lbl.setWordWrap(True)
-            lbl.setStyleSheet("color: #333; font-size: 12px; padding: 4px;")
+            lbl.setStyleSheet(
+                f"color: #333; font-size: 12px; padding: 4px; font-family: {FONT_UI};"
+            )
             box_layout.addWidget(lbl)
             self._all_texts.insert(0, f"[AI] {summary}")
 
@@ -171,7 +307,10 @@ class HealthPage(QWidget):
             for expl in explanations.values():
                 expl_lbl = QLabel(f"  {expl}")
                 expl_lbl.setWordWrap(True)
-                expl_lbl.setStyleSheet("color: #555; font-size: 11px; padding: 1px 4px;")
+                expl_lbl.setStyleSheet(
+                    f"color: #555; font-size: 11px; padding: 1px 4px; "
+                    f"font-family: {FONT_UI};"
+                )
                 box_layout.addWidget(expl_lbl)
                 self._all_texts.append(f"  [AI] {expl}")
 
@@ -393,19 +532,15 @@ class HealthPage(QWidget):
         if parts:
             summary = QLabel("  " + " | ".join(parts))
             summary.setStyleSheet(
-                "background: #e0e0e0; border: 2px groove #808080; "
-                "padding: 6px; font-weight: bold; margin-top: 8px;"
+                f"background: #e0e0e0; border: 2px groove {SHADOW}; "
+                f"padding: 6px; font-weight: bold; margin-top: 8px; "
+                f"font-family: {FONT_UI};"
             )
             self._content_layout.addWidget(summary)
 
     def _make_group(self, title: str) -> QGroupBox:
         group = QGroupBox(title)
-        group.setStyleSheet(
-            "QGroupBox { border: 2px groove #808080; margin-top: 12px; "
-            "padding-top: 16px; font-weight: bold; background: white; }"
-            "QGroupBox::title { subcontrol-origin: margin; left: 10px; "
-            "padding: 0 4px; }"
-        )
+        group.setStyleSheet(GROUP_STYLE)
         layout = QVBoxLayout(group)
         layout.setSpacing(2)
         return group
@@ -479,3 +614,12 @@ class HealthPage(QWidget):
             parent=self,
         )
         popup.exec_()
+
+
+def _format_duration(seconds: float | None) -> str:
+    if not seconds:
+        return "0s"
+    s = int(seconds)
+    if s < 60:
+        return f"{s}s"
+    return f"{s // 60}m {s % 60}s"

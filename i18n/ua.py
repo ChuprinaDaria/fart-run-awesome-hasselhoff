@@ -270,6 +270,20 @@ STRINGS = {
     "health_depth_label": "глибина",
     "health_orphan_label": "файлів-сиріт",
 
+    # Tests (test runner plugin)
+    "tests_section_title": "Тести",
+    "tests_status_idle": "Тести ще не запускалися",
+    "tests_status_running": "виконуються {seconds}с…",
+    "tests_status_running_queued": "виконуються {seconds}с… (в черзі: повторний запуск)",
+    "tests_status_passed": "успішно за {duration} ✅",
+    "tests_status_failed_counts": "впали: {failed} з {total} ❌",
+    "tests_status_failed_unknown": "впали (лічильники невідомі) ❌",
+    "tests_status_timed_out": "таймаут після {duration} ⏱",
+    "tests_status_error": "{message}",
+    "tests_btn_run": "Запустити тести",
+    "tests_btn_history": "Показати історію",
+    "tests_no_framework": "Не виявлено тестового фреймворку. Вкажи команду [tests] у config.toml.",
+
     # Hasselhoff mode — Dev Health
     "hoff_health_header": "Хофф перевіряє здоров'я",
     "hoff_health_monster": "Навіть Хассельхофф не врятує файл на 3000 рядків",

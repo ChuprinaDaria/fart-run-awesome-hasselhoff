@@ -270,6 +270,20 @@ STRINGS = {
     "health_depth_label": "depth",
     "health_orphan_label": "orphan files",
 
+    # Tests (test runner plugin)
+    "tests_section_title": "Tests",
+    "tests_status_idle": "No tests run yet",
+    "tests_status_running": "running {seconds}s…",
+    "tests_status_running_queued": "running {seconds}s… (queued: re-run)",
+    "tests_status_passed": "passed in {duration} ✅",
+    "tests_status_failed_counts": "failed: {failed} of {total} ❌",
+    "tests_status_failed_unknown": "failed (counts unknown) ❌",
+    "tests_status_timed_out": "timed out after {duration} ⏱",
+    "tests_status_error": "{message}",
+    "tests_btn_run": "Run tests",
+    "tests_btn_history": "Show history",
+    "tests_no_framework": "No test framework detected. Set [tests] command in config.toml.",
+
     # Hasselhoff mode — Dev Health
     "hoff_health_header": "The Hoff's Health Check",
     "hoff_health_monster": "Even Hasselhoff can't save a 3000-line file",
