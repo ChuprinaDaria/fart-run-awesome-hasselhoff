@@ -84,6 +84,7 @@ enum Lang {
     Python,
     JavaScript,
     TypeScript,
+    Tsx,
 }
 
 /// Names that pytest (and unittest-via-pytest) call automatically in any
@@ -229,7 +230,7 @@ fn has_noqa_unused_import(line_text: &str, lang: Lang) -> bool {
                 .split(|c: char| c == ',' || c.is_whitespace())
                 .any(|tok| tok.trim() == "f401")
         }
-        Lang::JavaScript | Lang::TypeScript => {
+        Lang::JavaScript | Lang::TypeScript | Lang::Tsx => {
             // `// eslint-disable-line no-unused-vars` (or next-line, or bare disable-line)
             lower.contains("eslint-disable-line")
                 || lower.contains("eslint-disable-next-line")
@@ -320,6 +321,7 @@ fn parse_file(content: &str, rel_path: &str, lang: Lang) -> FileData {
         Lang::Python => tree_sitter_python::LANGUAGE.into(),
         Lang::JavaScript => tree_sitter_javascript::LANGUAGE.into(),
         Lang::TypeScript => tree_sitter_typescript::LANGUAGE_TYPESCRIPT.into(),
+        Lang::Tsx => tree_sitter_typescript::LANGUAGE_TSX.into(),
     };
     let empty = FileData {
         rel_path: rel_path.to_string(),
@@ -499,7 +501,7 @@ fn parse_file(content: &str, rel_path: &str, lang: Lang) -> FileData {
                     decorated_lines.insert(end_line);
                 }
             }
-            Lang::JavaScript | Lang::TypeScript => {
+            Lang::JavaScript | Lang::TypeScript | Lang::Tsx => {
                 if node.kind() == "import_statement" {
                     let stmt_text = node
                         .utf8_text(content.as_bytes())
@@ -695,7 +697,7 @@ fn collect_js_import_names(
 fn find_commented_blocks(content: &str, rel_path: &str, lang: Lang) -> Vec<CommentedBlock> {
     let comment_prefix = match lang {
         Lang::Python => "#",
-        Lang::JavaScript | Lang::TypeScript => "//",
+        Lang::JavaScript | Lang::TypeScript | Lang::Tsx => "//",
     };
 
     let mut blocks: Vec<CommentedBlock> = Vec::new();
@@ -737,7 +739,7 @@ fn find_commented_blocks(content: &str, rel_path: &str, lang: Lang) -> Vec<Comme
 fn strip_comment_prefix(line: &str, lang: Lang) -> String {
     let marker = match lang {
         Lang::Python => "#",
-        Lang::JavaScript | Lang::TypeScript => "//",
+        Lang::JavaScript | Lang::TypeScript | Lang::Tsx => "//",
     };
     let trimmed = line.trim_start();
     if let Some(rest) = trimmed.strip_prefix(marker) {
@@ -811,7 +813,7 @@ fn looks_like_prose(stripped_lines: &[String], lang: Lang) -> bool {
             "await ", "elif ", "else:", "finally:", "pass", "break", "continue",
             "lambda ", "assert ",
         ],
-        Lang::JavaScript | Lang::TypeScript => &[
+        Lang::JavaScript | Lang::TypeScript | Lang::Tsx => &[
             "function ", "const ", "let ", "var ", "return ", "if ", "for ",
             "while ", "import ", "export ", "class ", "async ", "await ",
             "try ", "catch ", "throw ", "switch ", "case ",
@@ -868,6 +870,7 @@ fn maybe_emit_block(
         Lang::Python => tree_sitter_python::LANGUAGE.into(),
         Lang::JavaScript => tree_sitter_javascript::LANGUAGE.into(),
         Lang::TypeScript => tree_sitter_typescript::LANGUAGE_TYPESCRIPT.into(),
+        Lang::Tsx => tree_sitter_typescript::LANGUAGE_TSX.into(),
     };
     let mut parser = tree_sitter::Parser::new();
     if parser.set_language(&ts_lang).is_err() {
@@ -947,8 +950,9 @@ pub fn scan_dead_code(path: &str, _entry_point_paths: Vec<String>) -> PyResult<D
         }
         let lang = match ext {
             "py" => Lang::Python,
-            "ts" | "tsx" | "mts" | "cts" => Lang::TypeScript,
-            "js" | "jsx" | "mjs" | "cjs" => Lang::JavaScript,
+            "ts" | "mts" | "cts" => Lang::TypeScript,
+            "tsx" | "jsx" => Lang::Tsx,
+            "js" | "mjs" | "cjs" => Lang::JavaScript,
             // Skip languages we don't have tree-sitter analysis for yet.
             // They'll still be counted in file_tree but won't produce
             // false dead-code results.

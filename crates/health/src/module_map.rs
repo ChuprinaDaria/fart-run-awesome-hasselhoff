@@ -79,12 +79,12 @@ fn extract_python_imports(content: &str) -> Vec<ImportEntry> {
 }
 
 /// Extract import sources from JS/TS file using tree-sitter.
-fn extract_js_imports(content: &str, is_ts: bool) -> Vec<ImportEntry> {
+fn extract_js_imports(content: &str, ext: &str) -> Vec<ImportEntry> {
     let mut parser = tree_sitter::Parser::new();
-    let lang = if is_ts {
-        tree_sitter_typescript::LANGUAGE_TYPESCRIPT.into()
-    } else {
-        tree_sitter_javascript::LANGUAGE.into()
+    let lang = match ext {
+        "ts" | "mts" | "cts" => tree_sitter_typescript::LANGUAGE_TYPESCRIPT.into(),
+        "tsx" | "jsx" => tree_sitter_typescript::LANGUAGE_TSX.into(),
+        _ => tree_sitter_javascript::LANGUAGE.into(),
     };
     if parser.set_language(&lang).is_err() {
         return vec![];
@@ -355,7 +355,16 @@ fn resolve_js_import(
 ) -> Option<String> {
     let source_dir = source_file.parent()?;
     let target = source_dir.join(imp);
-    let rel = try_rel(&target, root)?;
+    // Normalize away `..` components so `strip_prefix` works correctly.
+    // We use canonicalize if the path exists on disk, otherwise fall back to
+    // a manual component-level normalization (the file may not exist yet or
+    // we may be inside a temp directory during tests).
+    let normalized = if target.exists() {
+        target.canonicalize().unwrap_or(target.clone())
+    } else {
+        normalize_path_components(&target)
+    };
+    let rel = try_rel(&normalized, root)?;
     if all_files.contains(&rel) {
         return Some(rel);
     }
@@ -370,6 +379,29 @@ fn resolve_js_import(
         }
     }
     None
+}
+
+/// Normalize path components, resolving `..` and `.` without hitting the
+/// filesystem (unlike `canonicalize`).
+fn normalize_path_components(path: &Path) -> PathBuf {
+    let mut components: Vec<std::path::Component> = Vec::new();
+    for component in path.components() {
+        match component {
+            std::path::Component::ParentDir => {
+                // Pop the last normal component if possible.
+                if matches!(components.last(), Some(std::path::Component::Normal(_))) {
+                    components.pop();
+                } else {
+                    components.push(component);
+                }
+            }
+            std::path::Component::CurDir => {
+                // Skip `.` components.
+            }
+            other => components.push(other),
+        }
+    }
+    components.iter().collect()
 }
 
 fn try_rel(p: &Path, root: &Path) -> Option<String> {
@@ -457,19 +489,17 @@ pub fn scan_module_map(path: &str, entry_point_paths: Vec<String>) -> PyResult<M
             // Skip languages without import resolution support.
             _ => continue,
         };
-        let is_ts = ext == "ts" || ext == "tsx" || ext == "mts" || ext == "cts";
-
         let raw_imports = if ext == "py" {
             extract_python_imports(&content)
         } else {
-            extract_js_imports(&content, is_ts)
+            extract_js_imports(&content, ext)
         };
 
         let mut resolved = Vec::new();
         for entry in &raw_imports {
             if is_local_import(&entry.module, lang, &package_roots) {
-                if let Some(resolved_path) =
-                    resolve_local_import(&entry.module, abs_path, root, &all_files, lang)
+                let resolved_opt = resolve_local_import(&entry.module, abs_path, root, &all_files, lang);
+                if let Some(resolved_path) = resolved_opt
                 {
                     if &resolved_path != rel_path {
                         resolved.push(resolved_path.clone());

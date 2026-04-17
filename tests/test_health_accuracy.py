@@ -191,3 +191,40 @@ class TestTestFileCounting:
         assert "2 test files" in test_findings[0].message, (
             f"Should count 2 test files (excluding fixture). Got: {test_findings[0].message}"
         )
+
+
+class TestJsxImports:
+    """Bug 1: JSX import resolution must work — components must not be orphans."""
+
+    def test_jsx_imports_resolved(self, tmp_path):
+        """App.jsx imports Home.jsx imports Header.jsx — none should be orphans."""
+        import shutil
+        src = FIXTURES_DIR / "jsx_imports"
+        dst = tmp_path / "project"
+        shutil.copytree(src, dst)
+
+        import health as h
+        result = h.scan_module_map(str(dst), [])
+        orphans = result.orphan_candidates
+        assert "src/components/Header.jsx" not in orphans, (
+            f"Header.jsx is imported by Home.jsx, should not be orphan. Orphans: {orphans}"
+        )
+        assert "src/pages/Home.jsx" not in orphans, (
+            f"Home.jsx is imported by App.jsx, should not be orphan. Orphans: {orphans}"
+        )
+
+    def test_jsx_hub_counting(self, tmp_path):
+        """Imports from JSX files must be counted in hub modules."""
+        import shutil
+        src = FIXTURES_DIR / "jsx_imports"
+        dst = tmp_path / "project"
+        shutil.copytree(src, dst)
+
+        import health as h
+        result = h.scan_module_map(str(dst), [])
+        # Header.jsx is imported by Home.jsx → imported_by >= 1
+        modules_dict = {m.path: m.imported_by_count for m in result.modules}
+        header_count = modules_dict.get("src/components/Header.jsx", 0)
+        assert header_count >= 1, (
+            f"Header.jsx should have >= 1 importer, got {header_count}. Modules: {modules_dict}"
+        )
