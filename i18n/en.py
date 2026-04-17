@@ -77,7 +77,6 @@ STRINGS = {
     "side_ports": "Ports",
     "side_security": "Security",
     "side_usage": "Usage",
-    "side_tips": "Tips",
     "side_discover": "Discover",
     "side_settings": "Settings",
 
@@ -149,11 +148,6 @@ STRINGS = {
     "cache_saved_usd": "Cache saved: ~${}",
     "no_analytics": "Claude not found — no analytics",
 
-    # Tips page
-    "tips_header": "Tips & Recommendations",
-    "no_tips": "No tips yet — use Claude to get recommendations!",
-    "tips_require": "Tips require core module",
-
     # Settings page — HaikuHoff
     "haiku_hint": "Claude API key — Haiku will explain everything in human language",
     "haiku_test": "Test",
@@ -174,6 +168,13 @@ STRINGS = {
     "alert_ports": "Port conflict alerts",
     "alert_usage": "High usage alerts",
     "alert_cooldown": "Alert cooldown:",
+    "settings_tests_group": "Tests",
+    "settings_tests_save_point": "Run tests after each save-point",
+    "settings_tests_watch": "Watch files and re-run automatically",
+    "settings_tests_watch_disabled": "Install `watchdog` to enable: pip install watchdog",
+    "settings_tests_command": "Override command",
+    "settings_tests_command_placeholder": "auto-detected (pytest / cargo test / npm test)",
+    "settings_tests_timeout": "Timeout (seconds)",
     "apply_save": "Apply & Save",
     "saved_ok": "Saved! Changes apply immediately.",
     "save_error": "Error: {}",
@@ -323,14 +324,9 @@ STRINGS = {
     "frozen_add_title": "Lock a file",
     "frozen_add_prompt": "File path (relative to project):",
     "frozen_note_prompt": "Why is it locked? (optional note)",
-    "frozen_hook_on": "Tool-level block: ON (Claude Code hook active)",
-    "frozen_hook_off": "Tool-level block: OFF (documentation only)",
-    "frozen_hook_toggle_on": "Turn tool-level block ON",
-    "frozen_hook_toggle_off": "Turn tool-level block OFF",
-    "frozen_hook_installed": "Claude Code hook installed. Edits to locked "
-                              "files are now blocked at the tool level.",
-    "frozen_hook_removed": "Claude Code hook removed. AI is still told about "
-                            "locked files via CLAUDE.md.",
+    "frozen_hook_install_failed": "Failed to install the Claude Code hook. "
+                                    "File was added to CLAUDE.md but there's "
+                                    "no hard block.",
     # Activity Log — prompts section
     "prompts_header": "What you asked Claude (last {})",
     "prompts_empty": "No prompts found for this project yet.",
@@ -366,8 +362,19 @@ STRINGS = {
     "sp_tab_env": "Environment",
     "sp_hint": "Before AI rewrites your project — click the button.\n"
                "It remembers your code AND your environment (Docker, ports, configs).\n"
-               "If AI breaks something — pick 'Rollback' on the Code tab, or compare environments.\n"
+               "If AI breaks something — there's 'Rollback' for code and "
+               "'Compare' for environment below.\n"
                "Nothing gets lost.",
+    "sp_section_code_title": "CODE — git snapshots",
+    "sp_section_code_hint": "Saves code state via git. Full rollback or "
+                              "cherry-pick individual files.",
+    "sp_section_env_title": "ENVIRONMENT — Docker / ports / configs",
+    "sp_section_env_hint": "Captures external state — which containers, which "
+                             "ports, contents of .env. Compare against a previous snapshot.",
+    "sp_section_frozen_title": "FROZEN FILES — AI must not touch",
+    "sp_section_frozen_hint": "Files AI is not allowed to edit. Adding one "
+                                "writes it into CLAUDE.md AND installs a Claude "
+                                "Code hook (tool-level block).",
     "snap_header": "Snapshots",
     "snap_no_dir": "No project directory selected",
     "snap_select_dir": "Select project directory",

@@ -13,6 +13,9 @@ quiet_hours_end = "07:00"
 cooldown_seconds = 300
 desktop_notifications = true
 
+[plugins]
+test_runner = true
+
 [plugins.docker_monitor]
 enabled = true
 cpu_threshold = 80
@@ -51,3 +54,13 @@ docker = true
 security = true
 ports = true
 usage = true
+
+[tests]
+command = ""
+timeout_s = 600
+trigger_on_save_point = false
+watch = false
+watch_paths = ["."]
+watch_exclude = [".git", "node_modules", "target", "__pycache__", ".venv", "dist"]
+debounce_ms = 2000
+history_limit = 100

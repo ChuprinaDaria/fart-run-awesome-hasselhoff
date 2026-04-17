@@ -77,7 +77,6 @@ STRINGS = {
     "side_ports": "Порти",
     "side_security": "Безпека",
     "side_usage": "Витрати",
-    "side_tips": "Поради",
     "side_discover": "Знахідки",
     "side_settings": "Налаштування",
 
@@ -149,11 +148,6 @@ STRINGS = {
     "cache_saved_usd": "Кеш зекономив: ~${}",
     "no_analytics": "Claude не знайдено — аналітика недоступна",
 
-    # Поради
-    "tips_header": "Поради та рекомендації",
-    "no_tips": "Порад ще немає — попрацюйте з Claude!",
-    "tips_require": "Для порад потрібен модуль core",
-
     # Налаштування — HaikuHoff
     "haiku_hint": "Ключ від Claude API — Haiku буде пояснювати все людською мовою",
     "haiku_test": "Тест",
@@ -174,6 +168,13 @@ STRINGS = {
     "alert_ports": "Алерти конфліктів портів",
     "alert_usage": "Алерти перевитрат токенів",
     "alert_cooldown": "Пауза між алертами:",
+    "settings_tests_group": "Тести",
+    "settings_tests_save_point": "Запускати тести після кожного save-point",
+    "settings_tests_watch": "Спостерігати за файлами і перезапускати автоматично",
+    "settings_tests_watch_disabled": "Встанови `watchdog` для активації: pip install watchdog",
+    "settings_tests_command": "Своя команда",
+    "settings_tests_command_placeholder": "авто-визначення (pytest / cargo test / npm test)",
+    "settings_tests_timeout": "Таймаут (секунди)",
     "apply_save": "Застосувати і зберегти",
     "saved_ok": "Збережено! Зміни діють одразу.",
     "save_error": "Помилка: {}",
@@ -323,14 +324,9 @@ STRINGS = {
     "frozen_add_title": "Заморозити файл",
     "frozen_add_prompt": "Шлях до файлу (відносно проєкту):",
     "frozen_note_prompt": "Чому заморожений? (необов'язкова нотатка)",
-    "frozen_hook_on": "Блокування на рівні інструментів: УВІМК (Claude Code hook)",
-    "frozen_hook_off": "Блокування на рівні інструментів: ВИМК (тільки документація)",
-    "frozen_hook_toggle_on": "Увімкнути жорстке блокування",
-    "frozen_hook_toggle_off": "Вимкнути жорстке блокування",
-    "frozen_hook_installed": "Claude Code hook встановлено. Редагування "
-                              "заморожених файлів тепер блокується.",
-    "frozen_hook_removed": "Claude Code hook прибрано. AI дізнається про "
-                            "заморожені файли тільки через CLAUDE.md.",
+    "frozen_hook_install_failed": "Не вдалося встановити Claude Code hook. "
+                                    "Файл додано в CLAUDE.md, але жорсткого "
+                                    "блокування не буде.",
     # Activity Log — секція промптів
     "prompts_header": "Що ти просив у Claude (останні {})",
     "prompts_empty": "Промптів для цього проєкту ще немає.",
@@ -366,9 +362,19 @@ STRINGS = {
     "sp_tab_env": "Середовище",
     "sp_hint": "Перед тим як AI почне переписувати твій проєкт — натисни кнопку.\n"
                "Воно запам'ятає і код, і середовище (Docker, порти, конфіги).\n"
-               "Як AI щось зламає — натисни 'Відкотити назад' у вкладці 'Код', "
-               "або порівняй середовище.\n"
+               "Як AI щось зламає — нижче є 'Відкотити' для коду "
+               "і 'Порівняти' для середовища.\n"
                "Нічого не загубиться.",
+    "sp_section_code_title": "КОД — git знімки",
+    "sp_section_code_hint": "Зберігає стан коду через git. Можна повністю "
+                              "відкотити або вибрати окремі файли.",
+    "sp_section_env_title": "СЕРЕДОВИЩЕ — Docker / порти / конфіги",
+    "sp_section_env_hint": "Фіксує зовнішнє середовище — які контейнери, "
+                             "які порти, вміст .env. Порівнює з попереднім знімком.",
+    "sp_section_frozen_title": "ЗАМОРОЖЕНІ ФАЙЛИ — AI не чіпає",
+    "sp_section_frozen_hint": "Файли, які AI не має права редагувати. "
+                                "Додавання = запис в CLAUDE.md + Claude Code hook "
+                                "(блокує на рівні інструментів).",
     "snap_header": "Знімки середовища",
     "snap_no_dir": "Директорію проєкту не обрано",
     "snap_select_dir": "Оберіть директорію проєкту",
