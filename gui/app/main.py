@@ -21,7 +21,9 @@ from core.changelog_watcher import (
     _ensure_version_table, check_for_update, dismiss_version,
 )
 from core.history import HistoryDB
+from core.platform import get_platform
 from core.plugin import Alert
+from core.plugin_loader import PluginRegistry
 from core.status_checker import StatusChecker
 from gui.app.styles import WIN95_STYLE
 from gui.app.threads import DataCollectorThread, StatusCheckThread
@@ -152,6 +154,16 @@ class MonitorApp(QMainWindow):
         self.page_activity.refresh_requested.connect(self._refresh_all)
         self.page_settings.settings_changed.connect(self._on_settings_changed)
 
+        # Plugin registry — loads enabled plugins (test_runner etc.)
+        self._plugin_registry = PluginRegistry(
+            config=self._config,
+            db_path=get_platform().data_dir() / "history.db",
+        )
+        try:
+            self._plugin_registry.start()
+        except Exception as e:
+            log.warning("Plugin registry start failed: %s", e)
+
         # Collector thread state (must init before any refresh calls)
         self._collector_thread = None
         self._collecting = False
@@ -254,10 +266,17 @@ class MonitorApp(QMainWindow):
         self._claude_statusbar.showMessage("Settings applied", 3000)
 
     def _on_project_changed(self, path: str) -> None:
-        """Sync selected project to Activity, Snapshots, and Health pages."""
+        """Sync selected project to Activity, Snapshots, Health, and plugins."""
         self.page_activity.set_project_dir(path)
         self.page_save_points.set_project_dir(path)
         self.page_prompt_helper.set_project_dir(path)
+        # Propagate project dir to test_runner plugin
+        try:
+            for p in self._plugin_registry._plugins:
+                if type(p).__name__ == "TestRunnerPlugin":
+                    p._project_dir = path
+        except Exception:
+            pass
         # Health: set dir + enable scan button + update label
         self.page_health._project_dir = path
         display = path if len(path) <= 50 else "..." + path[-47:]
@@ -354,6 +373,15 @@ class MonitorApp(QMainWindow):
                         title=f"Port {p['port']} conflict",
                         message=f"Port {p['port']} used by multiple processes",
                     ))
+
+        # Plugin registry alerts (test_runner etc.)
+        try:
+            plugin_alerts = self._plugin_registry.collect_all()
+            for alert in plugin_alerts:
+                if self._is_alert_enabled(alert.source):
+                    self._alert_manager.process(alert)
+        except Exception as e:
+            log.warning("Plugin collect_all error: %s", e)
 
         # Activity Log — feed docker + port data
         self.page_activity.update_data(
