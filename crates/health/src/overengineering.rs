@@ -86,30 +86,48 @@ const FRAMEWORK_BASE_CLASSES: &[&str] = &[
 ];
 
 /// Extract base class names from a Python class_definition node.
+///
+/// In tree-sitter-python the base-class list has field name "superclasses"
+/// and node kind "argument_list". We look it up by field name first; if that
+/// fails (older grammar versions) we fall back to scanning children for an
+/// "argument_list" node.
 fn extract_base_classes(node: tree_sitter::Node, content: &str) -> Vec<String> {
     let mut bases = Vec::new();
-    // Look for argument_list child (the parenthesized base classes).
-    for i in 0..node.child_count() {
-        if let Some(child) = node.child(i as u32) {
-            if child.kind() == "argument_list" {
-                for j in 0..child.child_count() {
-                    if let Some(base) = child.child(j as u32) {
-                        if let Ok(text) = base.utf8_text(content.as_bytes()) {
-                            // Handle `module.ClassName` — take last segment.
-                            let name = text.rsplit('.').next().unwrap_or(text).trim();
-                            if !name.is_empty()
-                                && !name.starts_with('(')
-                                && !name.starts_with(')')
-                                && name != ","
-                            {
-                                bases.push(name.to_string());
-                            }
-                        }
+
+    let collect = |container: tree_sitter::Node, out: &mut Vec<String>| {
+        for j in 0..container.child_count() {
+            if let Some(base) = container.child(j as u32) {
+                if let Ok(text) = base.utf8_text(content.as_bytes()) {
+                    // Handle `module.ClassName` — take last segment.
+                    let name = text.rsplit('.').next().unwrap_or(text).trim();
+                    if !name.is_empty()
+                        && !name.starts_with('(')
+                        && !name.starts_with(')')
+                        && name != ","
+                    {
+                        out.push(name.to_string());
                     }
                 }
             }
         }
+    };
+
+    // tree-sitter-python uses field name "superclasses" for the base-class list.
+    if let Some(superclasses) = node.child_by_field_name("superclasses") {
+        collect(superclasses, &mut bases);
     }
+
+    // Fallback: scan all children for an "argument_list" node.
+    if bases.is_empty() {
+        for i in 0..node.child_count() {
+            if let Some(child) = node.child(i as u32) {
+                if child.kind() == "argument_list" {
+                    collect(child, &mut bases);
+                }
+            }
+        }
+    }
+
     bases
 }
 

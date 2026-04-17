@@ -49,3 +49,37 @@ class TestTypeCheckingImports:
         assert not any("PathLike" in t for t in unused), (
             f"TYPE_CHECKING import 'PathLike' should not be flagged. Got: {unused}"
         )
+
+
+class TestSingleMethodClass:
+    """Bug 4: QThread/QDialog subclasses with __init__+run should not be flagged."""
+
+    def test_qthread_subclass_not_flagged(self, tmp_path):
+        (tmp_path / "threads.py").write_text(
+            "from PyQt5.QtCore import QThread, pyqtSignal\n\n"
+            "class WorkerThread(QThread):\n"
+            "    done = pyqtSignal(object)\n\n"
+            "    def __init__(self, parent=None):\n"
+            "        super().__init__(parent)\n\n"
+            "    def run(self):\n"
+            "        self.done.emit(42)\n"
+        )
+        import health as h
+        result = h.scan_overengineering(str(tmp_path))
+        flagged = [i.description for i in result.issues if i.kind == "single_method_class"]
+        assert not any("WorkerThread" in d for d in flagged), (
+            f"QThread subclass should not be flagged. Got: {flagged}"
+        )
+
+    def test_real_single_method_still_caught(self, tmp_path):
+        (tmp_path / "utils.py").write_text(
+            "class Wrapper:\n"
+            "    def do_thing(self):\n"
+            "        return 42\n"
+        )
+        import health as h
+        result = h.scan_overengineering(str(tmp_path))
+        flagged = [i.description for i in result.issues if i.kind == "single_method_class"]
+        assert any("Wrapper" in d for d in flagged), (
+            f"Real single-method class should be flagged. Got: {flagged}"
+        )
