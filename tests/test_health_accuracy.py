@@ -85,6 +85,48 @@ class TestSingleMethodClass:
         )
 
 
+class TestHubCounting:
+    """Bug 1: hub counting must show real number of importers."""
+
+    def test_hub_module_count(self, tmp_path):
+        """5 files import core/models.py — hub count must be 5."""
+        import shutil
+        src = FIXTURES_DIR / "hub_counting"
+        dst = tmp_path / "project"
+        shutil.copytree(src, dst)
+
+        import health as h
+        result = h.scan_module_map(str(dst), [])
+        hub_dict = {path: count for path, count in result.hub_modules}
+        models_count = hub_dict.get("core/models.py", 0)
+        assert models_count == 5, (
+            f"core/models.py should have 5 importers, got {models_count}. "
+            f"Hub modules: {result.hub_modules}"
+        )
+
+
+class TestOrphanReexports:
+    """Bug 3: files re-exported via __init__.py must not be flagged orphan."""
+
+    def test_init_reexport_not_orphan(self, tmp_path):
+        import shutil
+        src = FIXTURES_DIR / "init_reexports"
+        dst = tmp_path / "project"
+        shutil.copytree(src, dst)
+
+        import health as h
+        result = h.scan_module_map(str(dst), [])
+        orphans = result.orphan_candidates
+        assert "pkg/submodule.py" not in orphans, (
+            f"pkg/submodule.py re-exported via __init__.py should not be orphan. "
+            f"Orphans: {orphans}"
+        )
+        assert "pkg/internal.py" not in orphans, (
+            f"pkg/internal.py re-exported via __init__.py should not be orphan. "
+            f"Orphans: {orphans}"
+        )
+
+
 class TestCommentedCode:
     """Bug 5: doc comments / prose must not be flagged as commented-out code."""
 
