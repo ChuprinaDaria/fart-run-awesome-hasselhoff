@@ -1,19 +1,20 @@
 """Phase 7 — UI/UX Design Quality scanning.
 
-Wraps external CLI tools via npx (auto-downloads on first run):
-  - impeccable  → AI slop detection + design quality
-  - stylelint   → CSS linting (170+ rules)
-  - lighthouse  → accessibility + performance + SEO
-  - pa11y       → WCAG compliance
-
-Only requirement: Node.js installed (npx comes with it).
-If the project has frontend files, Node.js is almost certainly already there.
+Two layers:
+  1. QSS scanner (built-in) — parses setStyleSheet() strings in Python/Qt
+     projects, detects AI slop patterns and design quality issues.
+  2. Web scanners (via npx, auto-download):
+     - impeccable  → AI slop detection for web projects
+     - stylelint   → CSS linting (170+ rules)
+     - lighthouse  → accessibility + performance + SEO (manual)
+     - pa11y       → WCAG compliance (manual)
 """
 
 from __future__ import annotations
 
 import json
 import logging
+import re
 import shutil
 import subprocess
 from pathlib import Path
@@ -44,8 +45,8 @@ def _run_json(cmd: list[str], cwd: str, timeout: int = 120) -> dict | list | Non
     return None
 
 
-def _has_frontend_files(project_dir: str) -> bool:
-    """Quick check: does this project have CSS/HTML/JSX/TSX files?"""
+def _has_web_frontend(project_dir: str) -> bool:
+    """Does this project have web CSS/HTML/JSX/TSX files?"""
     root = Path(project_dir)
     for ext in ("*.css", "*.scss", "*.html", "*.jsx", "*.tsx", "*.vue", "*.svelte"):
         if any(root.rglob(ext)):
@@ -53,8 +54,22 @@ def _has_frontend_files(project_dir: str) -> bool:
     return False
 
 
+def _has_qt_styles(project_dir: str) -> bool:
+    """Does this project have PyQt/PySide with setStyleSheet calls?"""
+    root = Path(project_dir)
+    for py_file in root.rglob("*.py"):
+        if ".venv" in py_file.parts or "node_modules" in py_file.parts:
+            continue
+        try:
+            text = py_file.read_text(encoding="utf-8", errors="replace")
+            if "setStyleSheet" in text or "StyleSheet" in text:
+                return True
+        except OSError:
+            continue
+    return False
+
+
 def _no_node_finding(check_id: str) -> HealthFinding:
-    """Common finding when Node.js/npx is not installed."""
     return HealthFinding(
         check_id=check_id,
         title="Node.js not found",
@@ -64,7 +79,174 @@ def _no_node_finding(check_id: str) -> HealthFinding:
 
 
 # ---------------------------------------------------------------------------
-# Scanner: impeccable (AI slop detection)
+# QSS Scanner — built-in, no external tools needed
+# ---------------------------------------------------------------------------
+
+# AI slop patterns in CSS/QSS — things every LLM generates
+_SLOP_PATTERNS: list[tuple[str, str, str]] = [
+    # (regex, rule_id, human description)
+    (r"#[89a-f][0-9a-f]00[89a-f][89a-f]|purple|#800080|#9b59b6|#6c5ce7|#a855f7",
+     "purple-gradient", "Purple/violet color — the #1 AI-generated color choice"),
+    (r"font-family:.*\bInter\b", "inter-font",
+     "Inter font — every LLM defaults to it"),
+    (r"font-family:.*\bRoboto\b", "roboto-font",
+     "Roboto font — second most common AI default"),
+    (r"border-radius:\s*(16|20|24|28|32)\s*px", "huge-radius",
+     "Oversized border-radius — AI loves making everything a pill"),
+    (r"box-shadow:.*0\s+0\s+\d+px\s+\d+px.*rgba\(", "glow-shadow",
+     "Glow/bloom shadow — dark glow effect AI adds to everything"),
+    (r"backdrop-filter:\s*blur", "backdrop-blur",
+     "Backdrop blur (glassmorphism) — AI's favorite 'modern' effect"),
+    (r"linear-gradient.*(?:#[89a-f]|purple|violet|indigo)", "purple-gradient-bg",
+     "Purple gradient background — classic AI slop"),
+]
+
+# Design quality issues
+_QUALITY_PATTERNS: list[tuple[str, str, str]] = [
+    (r"padding:\s*[0-3]px", "cramped-padding",
+     "Padding under 4px — too cramped, looks amateur"),
+    (r"font-size:\s*[0-9]px\b", "tiny-font",
+     "Font under 10px — too small to read comfortably"),
+    (r"font-size:\s*(8|9)px", "tiny-font-critical",
+     "Font 8-9px — almost unreadable"),
+    (r"color:\s*#[0-9a-f]{3,6}.*background:\s*#[0-9a-f]{3,6}|"
+     r"background:\s*#[0-9a-f]{3,6}.*color:\s*#[0-9a-f]{3,6}",
+     "contrast-check", "Check text/background contrast ratio"),
+    (r"!important", "important-abuse",
+     "!important in styles — sign of specificity war or lazy override"),
+    (r"margin:\s*-\d+px", "negative-margin",
+     "Negative margin — fragile layout hack, breaks on resize"),
+]
+
+# Compiled for performance
+_SLOP_RE = [(re.compile(p, re.IGNORECASE), rid, desc) for p, rid, desc in _SLOP_PATTERNS]
+_QUALITY_RE = [(re.compile(p, re.IGNORECASE), rid, desc) for p, rid, desc in _QUALITY_PATTERNS]
+
+# Extract strings from setStyleSheet(...) calls — handles f-strings, concatenation
+_STYLESHEET_RE = re.compile(
+    r'setStyleSheet\s*\(\s*'
+    r'(?:'
+    r'f?"([^"]*)"'    # double-quoted
+    r"|f?'([^']*)'"   # single-quoted
+    r')',
+    re.DOTALL,
+)
+
+# Also catch module-level style constants (X_STYLE = "...")
+_STYLE_CONST_RE = re.compile(
+    r'^[A-Z_]+STYLE[A-Z_]*\s*=\s*\(\s*$',
+    re.MULTILINE,
+)
+
+
+def _extract_qss_blocks(file_path: Path) -> list[tuple[int, str]]:
+    """Extract (line_number, css_text) from setStyleSheet calls and STYLE constants."""
+    try:
+        text = file_path.read_text(encoding="utf-8", errors="replace")
+    except OSError:
+        return []
+
+    blocks: list[tuple[int, str]] = []
+
+    # setStyleSheet("...") inline calls
+    for m in _STYLESHEET_RE.finditer(text):
+        css = m.group(1) or m.group(2) or ""
+        if css.strip():
+            line_no = text[:m.start()].count("\n") + 1
+            blocks.append((line_no, css))
+
+    # Module-level style strings — scan all string literals in lines with CSS properties
+    for i, line in enumerate(text.splitlines(), 1):
+        if any(kw in line for kw in ("background:", "color:", "border:", "font-",
+                                      "padding:", "margin:", "border-radius:")):
+            # Extract the string content
+            for m in re.finditer(r'[f]?"([^"]{10,})"', line):
+                css = m.group(1)
+                if any(p in css for p in ("background", "color", "border", "font", "padding")):
+                    blocks.append((i, css))
+
+    return blocks
+
+
+def _scan_qss(project_dir: str) -> list[HealthFinding]:
+    """Scan Python/Qt files for AI slop and design quality issues in QSS."""
+    root = Path(project_dir)
+    findings: list[HealthFinding] = []
+    slop_count = 0
+    quality_count = 0
+    seen: set[tuple[str, str]] = set()  # (file:line, rule_id) dedup
+
+    skip_dirs = {".venv", "venv", "node_modules", "__pycache__", ".git", ".tox"}
+
+    for py_file in root.rglob("*.py"):
+        if any(part in skip_dirs for part in py_file.parts):
+            continue
+
+        blocks = _extract_qss_blocks(py_file)
+        if not blocks:
+            continue
+
+        try:
+            rel = str(py_file.relative_to(root))
+        except ValueError:
+            rel = str(py_file)
+
+        for line_no, css_text in blocks:
+            # Check AI slop patterns
+            for pattern, rule_id, description in _SLOP_RE:
+                if pattern.search(css_text):
+                    key = (f"{rel}:{line_no}", rule_id)
+                    if key in seen:
+                        continue
+                    seen.add(key)
+                    slop_count += 1
+                    findings.append(HealthFinding(
+                        check_id="uiux.qss_slop",
+                        title=f"AI Slop: {rule_id} ({rel}:{line_no})",
+                        severity="medium",
+                        message=tips.tip_qss_slop(rule_id, description, rel, line_no),
+                        details={"file": rel, "line": line_no, "rule": rule_id,
+                                 "css": css_text[:200]},
+                    ))
+
+            # Check design quality patterns
+            for pattern, rule_id, description in _QUALITY_RE:
+                if pattern.search(css_text):
+                    key = (f"{rel}:{line_no}", rule_id)
+                    if key in seen:
+                        continue
+                    seen.add(key)
+                    quality_count += 1
+                    findings.append(HealthFinding(
+                        check_id="uiux.qss_quality",
+                        title=f"Design: {rule_id} ({rel}:{line_no})",
+                        severity="low",
+                        message=tips.tip_qss_quality(rule_id, description, rel, line_no),
+                        details={"file": rel, "line": line_no, "rule": rule_id,
+                                 "css": css_text[:200]},
+                    ))
+
+    # Summary finding
+    if slop_count == 0 and quality_count == 0 and findings == []:
+        findings.append(HealthFinding(
+            check_id="uiux.qss_slop",
+            title="QSS Style Check",
+            severity="info",
+            message="No AI slop or design issues in your Qt styles. Clean.",
+        ))
+    elif slop_count > 0 or quality_count > 0:
+        findings.insert(0, HealthFinding(
+            check_id="uiux.qss_slop",
+            title=f"Style Scan: {slop_count} AI slop, {quality_count} quality issues",
+            severity="medium" if slop_count > 0 else "low",
+            message=tips.tip_qss_summary(slop_count, quality_count),
+        ))
+
+    return findings
+
+
+# ---------------------------------------------------------------------------
+# Web scanners (npx-based, for web projects only)
 # ---------------------------------------------------------------------------
 
 def _scan_impeccable(project_dir: str) -> list[HealthFinding]:
@@ -72,7 +254,6 @@ def _scan_impeccable(project_dir: str) -> list[HealthFinding]:
     if not _has_npx():
         return [_no_node_finding("uiux.impeccable")]
 
-    # npx auto-downloads impeccable if not cached yet
     data = _run_json(
         ["npx", "--yes", "impeccable", "detect", "--fast", "--json", "."],
         cwd=project_dir, timeout=120,
@@ -115,10 +296,6 @@ def _scan_impeccable(project_dir: str) -> list[HealthFinding]:
 
     return findings
 
-
-# ---------------------------------------------------------------------------
-# Scanner: stylelint (CSS quality)
-# ---------------------------------------------------------------------------
 
 def _scan_stylelint(project_dir: str) -> list[HealthFinding]:
     """Run npx stylelint — auto-downloads on first run."""
@@ -197,10 +374,6 @@ def _scan_stylelint(project_dir: str) -> list[HealthFinding]:
     return findings
 
 
-# ---------------------------------------------------------------------------
-# Scanner: lighthouse (accessibility + performance)
-# ---------------------------------------------------------------------------
-
 def _scan_lighthouse(project_dir: str) -> list[HealthFinding]:
     """Lighthouse needs a running dev server — hint to run manually."""
     if not _has_npx():
@@ -218,10 +391,6 @@ def _scan_lighthouse(project_dir: str) -> list[HealthFinding]:
         details={"hint": "npx lighthouse http://localhost:3000 --output=json"},
     )]
 
-
-# ---------------------------------------------------------------------------
-# Scanner: pa11y (WCAG accessibility)
-# ---------------------------------------------------------------------------
 
 def _scan_pa11y(project_dir: str) -> list[HealthFinding]:
     """pa11y needs a running dev server — hint to run manually."""
@@ -247,12 +416,24 @@ def _scan_pa11y(project_dir: str) -> list[HealthFinding]:
 
 def run_ui_ux_checks(report: HealthReport, project_dir: str) -> None:
     """Phase 7 — UI/UX Design Quality checks."""
-    if not _has_frontend_files(project_dir):
-        log.debug("No frontend files found, skipping UI/UX checks")
+    has_web = _has_web_frontend(project_dir)
+    has_qt = _has_qt_styles(project_dir)
+
+    if not has_web and not has_qt:
+        log.debug("No frontend/UI files found, skipping UI/UX checks")
         return
 
-    for scanner in (_scan_impeccable, _scan_stylelint, _scan_lighthouse, _scan_pa11y):
+    # QSS scanner — always runs for Qt projects (built-in, no deps)
+    if has_qt:
         try:
-            report.findings.extend(scanner(project_dir))
+            report.findings.extend(_scan_qss(project_dir))
         except Exception as e:
-            log.error("%s scan error: %s", scanner.__name__, e)
+            log.error("qss scan error: %s", e)
+
+    # Web scanners — only for web projects
+    if has_web:
+        for scanner in (_scan_impeccable, _scan_stylelint, _scan_lighthouse, _scan_pa11y):
+            try:
+                report.findings.extend(scanner(project_dir))
+            except Exception as e:
+                log.error("%s scan error: %s", scanner.__name__, e)

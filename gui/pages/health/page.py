@@ -369,7 +369,9 @@ class HealthPage(QWidget):
             "docs.llm_context": (_t("health_section_llm_context"), []),
             "docs.ui_dictionary": (_t("health_section_ui_dict"), []),
             "docs.sdk_context": (_t("health_section_sdk_context"), []),
-            "uiux.impeccable": (_t("health_section_ai_slop"), []),
+            "uiux.qss_slop": (_t("health_section_ai_slop"), []),
+            "uiux.qss_quality": (_t("health_section_qss_quality"), []),
+            "uiux.impeccable": (_t("health_section_ai_slop_web"), []),
             "uiux.stylelint": (_t("health_section_css_quality"), []),
             "uiux.lighthouse": (_t("health_section_lighthouse"), []),
             "uiux.pa11y": (_t("health_section_pa11y"), []),
@@ -483,6 +485,7 @@ class HealthPage(QWidget):
             "git.status", "git.commits", "git.branches", "git.gitignore", "git.cheatsheet",
             "docs.readme", "docs.deps", "docs.devtools", "docs.llm_context",
             "docs.ui_dictionary", "docs.sdk_context",
+            "uiux.qss_slop", "uiux.qss_quality",
             "uiux.impeccable", "uiux.stylelint", "uiux.lighthouse", "uiux.pa11y",
         ]:
             dead_findings = sections.get(dead_key, ("", []))[1]

@@ -452,6 +452,8 @@ STRINGS = {
     # SDK Context
     "health_section_sdk_context": "Контекст SDK",
     "health_section_ai_slop": "Детекція AI Slop",
+    "health_section_qss_quality": "Якість Qt стилів",
+    "health_section_ai_slop_web": "Детекція AI Slop (Web)",
     "health_section_css_quality": "Якість CSS",
     "health_section_lighthouse": "Lighthouse (Перформанс & A11y)",
     "health_section_pa11y": "Accessibility (pa11y)",

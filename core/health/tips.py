@@ -151,3 +151,36 @@ def tip_pa11y_available() -> str:
         "pa11y checks WCAG accessibility — blind users, screen readers, keyboard nav. "
         "Start your dev server and run: npx pa11y http://localhost:3000 --reporter json"
     )
+
+
+# QSS (Qt StyleSheet) scanner tips
+
+def tip_qss_slop(rule_id: str, description: str, file: str, line: int) -> str:
+    return (
+        f"{description}. "
+        f"In {file}:{line}. "
+        f"AI loves generating this — your users will notice."
+    )
+
+
+def tip_qss_quality(rule_id: str, description: str, file: str, line: int) -> str:
+    return (
+        f"{description}. "
+        f"In {file}:{line}. "
+        f"Small detail, but adds up — polished UI wins trust."
+    )
+
+
+def tip_qss_summary(slop_count: int, quality_count: int) -> str:
+    parts = []
+    if slop_count:
+        parts.append(
+            f"{slop_count} AI slop pattern{'s' if slop_count != 1 else ''} — "
+            f"things every LLM generates the same way"
+        )
+    if quality_count:
+        parts.append(
+            f"{quality_count} design quality issue{'s' if quality_count != 1 else ''} — "
+            f"cramped padding, tiny fonts, !important abuse"
+        )
+    return ". ".join(parts) + "."

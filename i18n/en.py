@@ -452,6 +452,8 @@ STRINGS = {
     # SDK Context
     "health_section_sdk_context": "SDK Context",
     "health_section_ai_slop": "AI Slop Detection",
+    "health_section_qss_quality": "Qt Style Quality",
+    "health_section_ai_slop_web": "AI Slop Detection (Web)",
     "health_section_css_quality": "CSS Quality",
     "health_section_lighthouse": "Lighthouse (Performance & A11y)",
     "health_section_pa11y": "Accessibility (pa11y)",
