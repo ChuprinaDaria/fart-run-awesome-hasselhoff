@@ -228,3 +228,49 @@ class TestJsxImports:
         assert header_count >= 1, (
             f"Header.jsx should have >= 1 importer, got {header_count}. Modules: {modules_dict}"
         )
+
+
+class TestOrphanWhitelist:
+    """Bugs 7+8: config files and Django conventional files must not be orphans."""
+
+    def test_config_files_not_orphan(self, tmp_path):
+        """vite.config.js and similar build configs should not be orphans."""
+        (tmp_path / "vite.config.js").write_text("export default { plugins: [] };\n")
+        (tmp_path / "tailwind.config.js").write_text("module.exports = {};\n")
+        (tmp_path / "postcss.config.js").write_text("module.exports = {};\n")
+        (tmp_path / "eslint.config.mjs").write_text("export default [];\n")
+        (tmp_path / "src").mkdir()
+        (tmp_path / "src" / "app.js").write_text("console.log('hi');\n")
+
+        import health as h
+        result = h.scan_module_map(str(tmp_path), [])
+        orphans = result.orphan_candidates
+        assert "vite.config.js" not in orphans, f"vite.config.js should not be orphan. {orphans}"
+        assert "tailwind.config.js" not in orphans, f"tailwind.config.js should not be orphan. {orphans}"
+        assert "postcss.config.js" not in orphans, f"postcss.config.js should not be orphan. {orphans}"
+        assert "eslint.config.mjs" not in orphans, f"eslint.config.mjs should not be orphan. {orphans}"
+
+    def test_django_conventional_files_not_orphan(self, tmp_path):
+        """Django auto-discovered files should not be orphans."""
+        app = tmp_path / "myapp"
+        app.mkdir()
+        (app / "__init__.py").write_text("")
+        (app / "admin.py").write_text("from django.contrib import admin\n")
+        (app / "apps.py").write_text("from django.apps import AppConfig\nclass MyConfig(AppConfig): pass\n")
+        (app / "urls.py").write_text("urlpatterns = []\n")
+        (app / "models.py").write_text("class Foo: pass\n")
+        (tmp_path / "settings.py").write_text("INSTALLED_APPS = []\n")
+        (app / "tasks.py").write_text("# celery tasks\n")
+        (app / "signals.py").write_text("from django.dispatch import receiver\n")
+        (app / "receivers.py").write_text("# signal receivers\n")
+
+        import health as h
+        result = h.scan_module_map(str(tmp_path), [])
+        orphans = result.orphan_candidates
+        assert "myapp/admin.py" not in orphans, f"admin.py should not be orphan. {orphans}"
+        assert "myapp/apps.py" not in orphans, f"apps.py should not be orphan. {orphans}"
+        assert "myapp/urls.py" not in orphans, f"urls.py should not be orphan. {orphans}"
+        assert "settings.py" not in orphans, f"settings.py should not be orphan. {orphans}"
+        assert "myapp/tasks.py" not in orphans, f"tasks.py should not be orphan. {orphans}"
+        assert "myapp/signals.py" not in orphans, f"signals.py should not be orphan. {orphans}"
+        assert "myapp/receivers.py" not in orphans, f"receivers.py should not be orphan. {orphans}"

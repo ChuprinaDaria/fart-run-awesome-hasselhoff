@@ -628,6 +628,19 @@ pub fn scan_module_map(path: &str, entry_point_paths: Vec<String>) -> PyResult<M
                 && !f.ends_with(".java")
                 && !f.ends_with(".kt")
                 && !f.ends_with(".kts")
+                // Build tool config files — used by tooling, not imported
+                && !f.ends_with(".config.js")
+                && !f.ends_with(".config.ts")
+                && !f.ends_with(".config.mjs")
+                && !f.ends_with(".config.cjs")
+                // Django/Flask auto-discovered modules
+                && !f.ends_with("/admin.py")
+                && !f.ends_with("/apps.py")
+                && !f.ends_with("/urls.py")
+                && !f.ends_with("settings.py")
+                && !f.ends_with("/signals.py")
+                && !f.ends_with("/receivers.py")
+                && !f.ends_with("/tasks.py")
         })
         .cloned()
         .collect();
