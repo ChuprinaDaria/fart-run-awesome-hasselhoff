@@ -5,7 +5,7 @@ language = "ua"
 
 [sounds]
 enabled = true
-mode = "fart"
+mode = "classic"
 quiet_hours_start = "23:00"
 quiet_hours_end = "07:00"
 
@@ -36,9 +36,7 @@ auto_interval_minutes = 30
 max_snapshots = 50
 
 [haiku]
-# Put your Anthropic API key here, or set ANTHROPIC_API_KEY in the env.
-# Never commit a real key — the previous value was revoked 2026-04.
-api_key = ""
+api_key = ""  # Set via ANTHROPIC_API_KEY env var or paste here (DO NOT commit!)
 
 [safety_net]
 max_save_points = 20
@@ -58,7 +56,7 @@ usage = true
 [tests]
 command = ""
 timeout_s = 600
-trigger_on_save_point = false
+trigger_on_save_point = true
 watch = false
 watch_paths = ["."]
 watch_exclude = [".git", "node_modules", "target", "__pycache__", ".venv", "dist"]

@@ -358,3 +358,36 @@ class TestDjangoDeadCodeWhitelist:
         unused = _finding_titles(report, "dead.unused_definitions")
         config_flags = [t for t in unused if "Config" in t]
         assert not config_flags, f"AppConfig should not be flagged. Got: {config_flags}"
+
+
+class TestDjangoModelSingleMethod:
+    """Bug 6: Django Model subclasses should not be flagged as single-method."""
+
+    def test_django_model_not_flagged(self, tmp_path):
+        (tmp_path / "models.py").write_text(
+            "from django.db import models\n\n"
+            "class Article(models.Model):\n"
+            "    title = models.CharField(max_length=200)\n\n"
+            "    def __str__(self):\n"
+            "        return self.title\n"
+        )
+        import health as h
+        result = h.scan_overengineering(str(tmp_path))
+        flagged = [i.description for i in result.issues if i.kind == "single_method_class"]
+        assert not any("Article" in d for d in flagged), (
+            f"Django Model subclass should not be flagged. Got: {flagged}"
+        )
+
+    def test_django_form_not_flagged(self, tmp_path):
+        (tmp_path / "forms.py").write_text(
+            "from django import forms\n\n"
+            "class ContactForm(forms.Form):\n"
+            "    def clean(self):\n"
+            "        return self.cleaned_data\n"
+        )
+        import health as h
+        result = h.scan_overengineering(str(tmp_path))
+        flagged = [i.description for i in result.issues if i.kind == "single_method_class"]
+        assert not any("ContactForm" in d for d in flagged), (
+            f"Django Form subclass should not be flagged. Got: {flagged}"
+        )

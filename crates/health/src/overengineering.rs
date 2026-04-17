@@ -69,6 +69,12 @@ const FRAMEWORK_BASE_CLASSES: &[&str] = &[
     "Migration",
     "AppConfig",
     "Middleware",
+    // Django ORM & forms
+    "Model",
+    "Manager",
+    "QuerySet",
+    "Form",
+    "ModelForm",
     // Flask / FastAPI
     "Resource",
     // Generic patterns
