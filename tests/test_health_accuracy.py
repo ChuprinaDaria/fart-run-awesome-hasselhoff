@@ -83,3 +83,41 @@ class TestSingleMethodClass:
         assert any("Wrapper" in d for d in flagged), (
             f"Real single-method class should be flagged. Got: {flagged}"
         )
+
+
+class TestCommentedCode:
+    """Bug 5: doc comments / prose must not be flagged as commented-out code."""
+
+    def test_prose_comments_not_flagged(self, tmp_path):
+        """English prose comments should not be flagged as commented code."""
+        (tmp_path / "app.py").write_text(
+            "x = 1\n"
+            "# The confirm=True execution path is already covered end-to-end by\n"
+            "# tests/test_safety_net.py::TestSmartRollback. Keeping a separate MCP\n"
+            "# integration test for it would re-open the same SQLite file across\n"
+            "# tool boundaries and hit locking issues, so we trust the underlying\n"
+            "# primitive and verify only the preview branch here.\n"
+            "y = 2\n"
+        )
+        report = run_all_checks(str(tmp_path))
+        commented = _findings_by_check(report, "dead.commented_code")
+        assert len(commented) == 0, (
+            f"Prose comments should not be flagged as code. Got: {commented}"
+        )
+
+    def test_real_commented_code_still_caught(self, tmp_path):
+        """Actually commented-out code should still be caught."""
+        (tmp_path / "app.py").write_text(
+            "x = 1\n"
+            "# def old_function():\n"
+            "#     x = 1\n"
+            "#     y = 2\n"
+            "#     z = x + y\n"
+            "#     return z\n"
+            "y = 2\n"
+        )
+        report = run_all_checks(str(tmp_path))
+        commented = _findings_by_check(report, "dead.commented_code")
+        assert len(commented) > 0, (
+            "Real commented-out code should be flagged"
+        )

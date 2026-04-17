@@ -800,6 +800,47 @@ fn only_trivial_identifiers(root: tree_sitter::Node, source: &str) -> bool {
     statement_count > 0 && trivial_count == statement_count
 }
 
+/// Return true if the stripped comment block looks like prose rather than code.
+/// Heuristic: count lines containing Python/JS keywords or operator characters.
+/// If fewer than 50% look like code, treat the whole block as prose.
+fn looks_like_prose(stripped_lines: &[String], lang: Lang) -> bool {
+    let keywords: &[&str] = match lang {
+        Lang::Python => &[
+            "def ", "class ", "import ", "from ", "return ", "if ", "for ",
+            "while ", "with ", "try:", "except", "raise ", "yield ", "async ",
+            "await ", "elif ", "else:", "finally:", "pass", "break", "continue",
+            "lambda ", "assert ",
+        ],
+        Lang::JavaScript | Lang::TypeScript => &[
+            "function ", "const ", "let ", "var ", "return ", "if ", "for ",
+            "while ", "import ", "export ", "class ", "async ", "await ",
+            "try ", "catch ", "throw ", "switch ", "case ",
+        ],
+    };
+    let operators = ['=', '(', ')', '[', ']', '{', '}'];
+
+    let mut code_lines = 0usize;
+    for line in stripped_lines {
+        let trimmed = line.trim();
+        if trimmed.is_empty() {
+            continue;
+        }
+        let has_keyword = keywords.iter().any(|kw| trimmed.contains(kw));
+        let has_operator = trimmed.chars().any(|c| operators.contains(&c));
+        if has_keyword || has_operator {
+            code_lines += 1;
+        }
+    }
+
+    let total_non_empty = stripped_lines.iter().filter(|l| !l.trim().is_empty()).count();
+    if total_non_empty == 0 {
+        return true;
+    }
+
+    // Less than 50% code-looking lines → prose
+    (code_lines as f64 / total_non_empty as f64) < 0.5
+}
+
 fn maybe_emit_block(
     blocks: &mut Vec<CommentedBlock>,
     current_block: &[(u32, String)],
@@ -810,12 +851,18 @@ fn maybe_emit_block(
         return;
     }
 
-    // Strip comment markers and feed the raw body to tree-sitter.
-    let stripped: String = current_block
+    let stripped_lines: Vec<String> = current_block
         .iter()
         .map(|(_, text)| strip_comment_prefix(text, lang))
-        .collect::<Vec<_>>()
-        .join("\n");
+        .collect();
+
+    // Pre-filter: if the block looks like prose (< 50% code-like lines),
+    // skip without parsing.
+    if looks_like_prose(&stripped_lines, lang) {
+        return;
+    }
+
+    let stripped = stripped_lines.join("\n");
 
     let ts_lang = match lang {
         Lang::Python => tree_sitter_python::LANGUAGE.into(),
@@ -832,18 +879,12 @@ fn maybe_emit_block(
     };
     let root = tree.root_node();
 
-    // Any syntax error → treat as prose.
     if tree_has_errors(root) {
         return;
     }
-
-    // An empty parse is not code.
     if root.named_child_count() == 0 {
         return;
     }
-
-    // TODO-list / single-identifier-per-line shapes are prose even
-    // though they parse cleanly (`os\nsys\njson\n` is valid Python).
     if only_trivial_identifiers(root, &stripped) {
         return;
     }
