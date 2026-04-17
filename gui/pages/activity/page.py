@@ -12,8 +12,8 @@ from datetime import datetime
 from PyQt5.QtCore import Qt, pyqtSignal
 from PyQt5.QtGui import QFont
 from PyQt5.QtWidgets import (
-    QFrame, QGroupBox, QHBoxLayout, QLabel, QPushButton, QScrollArea,
-    QVBoxLayout, QWidget,
+    QApplication, QFrame, QGroupBox, QHBoxLayout, QLabel, QPushButton,
+    QScrollArea, QTextEdit, QVBoxLayout, QWidget,
 )
 
 from core.activity_tracker import ActivityTracker, serialize_activity
@@ -32,6 +32,28 @@ from gui.win95 import (
 from i18n import get_string as _t
 
 log = logging.getLogger(__name__)
+
+
+class _NestedTextEdit(QTextEdit):
+    """QTextEdit that scrolls internally but forwards wheel events to the
+    parent QScrollArea when it reaches the top/bottom edge."""
+
+    def wheelEvent(self, event):
+        sb = self.verticalScrollBar()
+        at_top = sb.value() <= sb.minimum()
+        at_bottom = sb.value() >= sb.maximum()
+        scrolling_up = event.angleDelta().y() > 0
+        scrolling_down = event.angleDelta().y() < 0
+
+        if (at_top and scrolling_up) or (at_bottom and scrolling_down) or (at_top and at_bottom):
+            # Forward to parent QScrollArea
+            parent = self.parent()
+            while parent is not None:
+                if isinstance(parent, QScrollArea):
+                    QApplication.sendEvent(parent.verticalScrollBar(), event)
+                    return
+                parent = parent.parent()
+        super().wheelEvent(event)
 
 
 class ActivityPage(QWidget):
@@ -177,10 +199,10 @@ class ActivityPage(QWidget):
 
         # Restore cached Haiku context immediately (before new thread finishes)
         if self._last_haiku_context and self._where_stopped_label:
-            self._where_stopped_label.setText(self._last_haiku_context)
+            self._where_stopped_label.setPlainText(self._last_haiku_context)
             self._where_stopped_label.setStyleSheet(
-                f"color: black; font-size: 12px; padding: 8px; "
-                f"font-family: {FONT_UI};"
+                f"QTextEdit {{ color: black; font-size: 12px; padding: 8px; "
+                f"font-family: {FONT_UI}; background: transparent; border: none; }}"
             )
 
         # Save to SQLite
@@ -236,15 +258,21 @@ class ActivityPage(QWidget):
         if self._where_stopped_label is None:
             return
 
+        if not haiku_context:
+            self._where_stopped_label.setPlainText(_t("activity_haiku_unavailable"))
+            self._where_stopped_label.setStyleSheet(
+                f"QTextEdit {{ color: {SHADOW}; font-size: 11px; padding: 8px; "
+                f"font-style: italic; font-family: {FONT_UI}; "
+                f"background: transparent; border: none; }}"
+            )
+            return
+
         if haiku_context:
             self._last_haiku_context = haiku_context
-            self._where_stopped_label.setText(haiku_context)
-            # Clear "loading" gray and use readable dark text on the yellow
-            # notepad body so the transition from placeholder is obvious.
+            self._where_stopped_label.setPlainText(haiku_context)
             self._where_stopped_label.setStyleSheet(
-                f"color: black; font-size: 12px; padding: 8px; "
-                f"background: transparent; font-weight: normal; "
-                f"font-family: {FONT_UI};"
+                f"QTextEdit {{ color: black; font-size: 12px; padding: 8px; "
+                f"font-family: {FONT_UI}; background: transparent; border: none; }}"
             )
             # Update texts for copy-all
             if haiku_context not in self._all_texts:
@@ -289,13 +317,16 @@ class ActivityPage(QWidget):
         where_title.setStyleSheet(SECTION_HEADER_STYLE)
         where_layout.addWidget(where_title)
 
-        self._where_stopped_label = QLabel(_t("activity_haiku_loading"))
+        self._where_stopped_label = _NestedTextEdit()
+        self._where_stopped_label.setReadOnly(True)
+        self._where_stopped_label.setPlainText(_t("activity_haiku_loading"))
         self._where_stopped_label.setStyleSheet(
-            f"color: {SHADOW}; font-size: 11px; padding: 8px; "
-            f"font-style: italic; font-family: {FONT_UI};"
+            f"QTextEdit {{ color: {SHADOW}; font-size: 12px; padding: 8px; "
+            f"font-style: italic; font-family: {FONT_UI}; "
+            f"background: transparent; border: none; }}"
         )
-        self._where_stopped_label.setWordWrap(True)
-        self._where_stopped_label.setTextFormat(Qt.PlainText)
+        self._where_stopped_label.setMinimumHeight(60)
+        self._where_stopped_label.setMaximumHeight(250)
         where_layout.addWidget(self._where_stopped_label)
 
         self._content_layout.addWidget(where_box)
@@ -305,12 +336,12 @@ class ActivityPage(QWidget):
         self._render_prompts_section()
 
         if not self._tracker or not self._tracker.is_git_repo():
-            self._where_stopped_label.setText(_t("activity_no_git"))
+            self._where_stopped_label.setPlainText(_t("activity_no_git"))
             self._content_layout.addStretch()
             return
 
         if not has_content:
-            self._where_stopped_label.setText(_t("activity_no_changes"))
+            self._where_stopped_label.setPlainText(_t("activity_no_changes"))
             # Still show recent commits even with no uncommitted changes
             commits = self._tracker.get_recent_commits(limit=10)
             if commits:

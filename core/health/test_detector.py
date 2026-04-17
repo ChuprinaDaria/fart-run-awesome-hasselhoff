@@ -49,7 +49,13 @@ def detect_framework(project_dir: Path) -> tuple[str, list[str]]:
     project_dir = Path(project_dir)
 
     if _has_pytest_marker(project_dir):
-        return ("pytest", ["pytest", "-x", "--tb=short"])
+        cmd = ["pytest", "--tb=short"]
+        # Ignore common fixture/sample directories that may contain
+        # intentionally-failing tests (test data for parsers, etc.)
+        fixtures_dir = project_dir / "tests" / "fixtures"
+        if fixtures_dir.is_dir():
+            cmd.append(f"--ignore={fixtures_dir}")
+        return ("pytest", cmd)
 
     if (project_dir / "Cargo.toml").exists():
         return ("cargo", ["cargo", "test", "--all-features"])

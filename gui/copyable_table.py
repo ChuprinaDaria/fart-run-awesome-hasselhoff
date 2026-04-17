@@ -5,7 +5,22 @@ from PyQt5.QtCore import Qt
 
 
 class CopyableTableWidget(QTableWidget):
-    """QTableWidget that copies selected cells to clipboard on Ctrl+C."""
+    """QTableWidget that copies selected cells to clipboard on Ctrl+C.
+
+    Wheel events are forwarded to the parent scroll area (if any) so that
+    nested tables don't hijack page scrolling.
+    """
+
+    def wheelEvent(self, event):
+        # Forward to parent QScrollArea instead of scrolling inside the table
+        parent = self.parent()
+        while parent is not None:
+            from PyQt5.QtWidgets import QScrollArea
+            if isinstance(parent, QScrollArea):
+                QApplication.sendEvent(parent.verticalScrollBar(), event)
+                return
+            parent = parent.parent()
+        super().wheelEvent(event)
 
     def keyPressEvent(self, event):
         if event.key() == Qt.Key_C and event.modifiers() & Qt.ControlModifier:

@@ -267,4 +267,5 @@ class PromptHelperPage(QWidget):
 
     def _on_copy(self) -> None:
         QApplication.clipboard().setText(self._output.toPlainText())
-        self._status.setText(self._status.text() + "  ✓ copied")
+        base = self._status.text().split("  ✓")[0]
+        self._status.setText(base + "  ✓ copied")

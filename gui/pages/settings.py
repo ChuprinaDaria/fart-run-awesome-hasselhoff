@@ -3,6 +3,7 @@
 from PyQt5.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QGroupBox, QFormLayout,
     QComboBox, QCheckBox, QLabel, QPushButton, QSpinBox, QLineEdit,
+    QScrollArea,
 )
 from PyQt5.QtCore import pyqtSignal
 from gui.win95 import (
@@ -52,7 +53,17 @@ class SettingsPage(QWidget):
     def __init__(self, config: dict):
         super().__init__()
         self._config = config
-        layout = QVBoxLayout(self)
+
+        outer = QVBoxLayout(self)
+        outer.setContentsMargins(0, 0, 0, 0)
+
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        scroll.setFrameShape(QScrollArea.NoFrame)
+        container = QWidget()
+        layout = QVBoxLayout(container)
+        scroll.setWidget(container)
+        outer.addWidget(scroll)
 
         # --- HaikuHoff ---
         haiku_group = QGroupBox("HaikuHoff")
@@ -131,6 +142,7 @@ class SettingsPage(QWidget):
         alerts_group = QGroupBox(_t("alerts_group"))
         alerts_group.setStyleSheet(GROUP_STYLE)
         ag = QFormLayout()
+        ag.setFieldGrowthPolicy(QFormLayout.ExpandingFieldsGrow)
 
         filters = config.get("alert_filters", {})
 
@@ -210,7 +222,7 @@ class SettingsPage(QWidget):
         self._le_tests_cmd = QLineEdit(self._config.get("tests", {}).get("command", ""))
         self._le_tests_cmd.setPlaceholderText(_t("settings_tests_command_placeholder"))
         self._le_tests_cmd.setStyleSheet(FIELD_STYLE)
-        cmd_row.addWidget(self._le_tests_cmd)
+        cmd_row.addWidget(self._le_tests_cmd, 1)
         v.addLayout(cmd_row)
 
         timeout_row = QHBoxLayout()

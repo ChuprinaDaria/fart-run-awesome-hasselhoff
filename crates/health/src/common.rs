@@ -12,18 +12,52 @@ pub const ALWAYS_SKIP: &[&str] = &[
     "build",
     ".next",
     ".nuxt",
-    "target",
+    "target",           // Rust/Cargo, also general build output
     ".mypy_cache",
     ".pytest_cache",
     ".ruff_cache",
     "env",
     ".egg-info",
+    // Go / PHP (Composer)
+    "vendor",
+    // Java / Kotlin
+    ".gradle",
+    ".idea",
+    "out",
+    // C / C++
+    "cmake-build-debug",
+    "cmake-build-release",
+    // Ruby
+    ".bundle",
+    // General
+    ".cache",
+    "coverage",
+    ".coverage",
+    ".terraform",
 ];
 
 /// Source file extensions we care about for analysis.
 pub const SOURCE_EXTENSIONS: &[&str] = &[
-    "py", "js", "ts", "jsx", "tsx",
-    "mjs", "mts", "cjs", "cts",
+    // Python
+    "py",
+    // JavaScript / TypeScript
+    "js", "ts", "jsx", "tsx", "mjs", "mts", "cjs", "cts",
+    // Rust
+    "rs",
+    // Go
+    "go",
+    // C / C++
+    "c", "h", "cpp", "hpp", "cc", "cxx", "hxx",
+    // Java / Kotlin
+    "java", "kt", "kts",
+    // Ruby
+    "rb",
+    // PHP
+    "php",
+    // Swift
+    "swift",
+    // C#
+    "cs",
 ];
 
 /// Check if a path component should be skipped.

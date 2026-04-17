@@ -32,6 +32,87 @@ pub struct OverengineeringResult {
     pub issues: Vec<OverengineeringIssue>,
 }
 
+/// Base classes whose subclasses legitimately have few methods.
+/// QThread: __init__ + run() is the standard pattern.
+/// QDialog/QWidget: __init__ sets up UI, may have 1 accessor.
+/// Thread: same as QThread.
+/// Command (management commands, Click): __init__ + handle()/invoke().
+const FRAMEWORK_BASE_CLASSES: &[&str] = &[
+    // Qt
+    "QThread",
+    "QRunnable",
+    "QDialog",
+    "QWidget",
+    "QMainWindow",
+    "QFrame",
+    "QGroupBox",
+    "QAbstractTableModel",
+    "QAbstractItemModel",
+    "QStyledItemDelegate",
+    "QSortFilterProxyModel",
+    "QTextEdit",
+    "QPlainTextEdit",
+    "QLineEdit",
+    "QLabel",
+    "QGraphicsView",
+    // Python stdlib
+    "Thread",
+    "Process",
+    // Django
+    "BaseCommand",
+    "View",
+    "APIView",
+    "ViewSet",
+    "ModelViewSet",
+    "Serializer",
+    "ModelSerializer",
+    "Migration",
+    "AppConfig",
+    "Middleware",
+    // Flask / FastAPI
+    "Resource",
+    // Generic patterns
+    "Exception",
+    "Error",
+    "TestCase",
+    "Enum",
+    "IntEnum",
+    "StrEnum",
+    "Protocol",
+    "ABC",
+    "TypedDict",
+    "NamedTuple",
+    "BaseModel",
+];
+
+/// Extract base class names from a Python class_definition node.
+fn extract_base_classes(node: tree_sitter::Node, content: &str) -> Vec<String> {
+    let mut bases = Vec::new();
+    // Look for argument_list child (the parenthesized base classes).
+    for i in 0..node.child_count() {
+        if let Some(child) = node.child(i as u32) {
+            if child.kind() == "argument_list" {
+                for j in 0..child.child_count() {
+                    if let Some(base) = child.child(j as u32) {
+                        if let Ok(text) = base.utf8_text(content.as_bytes()) {
+                            // Handle `module.ClassName` — take last segment.
+                            let name = text.rsplit('.').next().unwrap_or(text).trim();
+                            if !name.is_empty()
+                                && !name.starts_with('(')
+                                && !name.starts_with(')')
+                                && name != ","
+                            {
+                                bases.push(name.to_string());
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+    bases
+}
+
 /// Check for single-method classes in Python.
 fn check_single_method_classes_python(
     content: &str,
@@ -52,7 +133,6 @@ fn check_single_method_classes_python(
     let mut issues = Vec::new();
     let root = tree.root_node();
 
-    // Iterate top-level class definitions
     for i in 0..root.child_count() {
         if let Some(node) = root.child(i as u32) {
             if node.kind() == "class_definition" {
@@ -61,6 +141,15 @@ fn check_single_method_classes_python(
                     .and_then(|n| n.utf8_text(content.as_bytes()).ok())
                     .unwrap_or("");
                 let line = node.start_position().row as u32 + 1;
+
+                // Skip classes that inherit from known framework bases.
+                let bases = extract_base_classes(node, content);
+                let is_framework_subclass = bases.iter().any(|b| {
+                    FRAMEWORK_BASE_CLASSES.contains(&b.as_str())
+                });
+                if is_framework_subclass {
+                    continue;
+                }
 
                 // Count methods (function_definition inside class body)
                 let mut method_count = 0;
@@ -101,6 +190,32 @@ fn check_single_method_classes_python(
     issues
 }
 
+/// JS/TS base class names that are valid single-method patterns.
+const JS_FRAMEWORK_BASES: &[&str] = &[
+    // React
+    "Component",
+    "PureComponent",
+    // Node.js
+    "EventEmitter",
+    "Transform",
+    "Readable",
+    "Writable",
+    "Duplex",
+    // Web Components
+    "HTMLElement",
+    // Testing
+    "Error",
+    "TypeError",
+    "RangeError",
+    // Nest.js / Angular
+    "Injectable",
+    "Controller",
+    "Module",
+    "Guard",
+    "Interceptor",
+    "Pipe",
+];
+
 /// Check for single-method classes in JS/TS.
 fn check_single_method_classes_js(
     content: &str,
@@ -132,6 +247,32 @@ fn check_single_method_classes_js(
                 .and_then(|n| n.utf8_text(content.as_bytes()).ok())
                 .unwrap_or("");
             let line = node.start_position().row as u32 + 1;
+
+            // Check `extends BaseClass` — skip if it's a known framework class.
+            let mut is_framework = false;
+            for i in 0..node.child_count() {
+                if let Some(child) = node.child(i as u32) {
+                    if child.kind() == "class_heritage" {
+                        if let Ok(text) = child.utf8_text(content.as_bytes()) {
+                            let base = text
+                                .trim_start_matches("extends")
+                                .trim()
+                                .split(|c: char| c.is_whitespace() || c == '<' || c == '{')
+                                .next()
+                                .unwrap_or("")
+                                .rsplit('.')
+                                .next()
+                                .unwrap_or("");
+                            if JS_FRAMEWORK_BASES.contains(&base) {
+                                is_framework = true;
+                            }
+                        }
+                    }
+                }
+            }
+            if is_framework {
+                return;
+            }
 
             if let Some(body) = node.child_by_field_name("body") {
                 let mut method_count = 0;

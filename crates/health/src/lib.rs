@@ -27,6 +27,7 @@ fn health(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(monsters::scan_monsters, m)?)?;
 
     m.add_class::<module_map::ModuleInfo>()?;
+    m.add_class::<module_map::CircularDep>()?;
     m.add_class::<module_map::ModuleMapResult>()?;
     m.add_function(wrap_pyfunction!(module_map::scan_module_map, m)?)?;
 

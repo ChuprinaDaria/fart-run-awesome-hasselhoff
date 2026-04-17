@@ -113,9 +113,13 @@ class HaikuContextThread(QThread):
             # Single ask() — rate gate would block a second call.
             # Ask in the user's language; demand plain text (no markdown).
             prompt = (
-                f"You are a developer assistant. Based on recent project activity, "
-                f"write in {lang} a short 2-3 sentence summary of 'where the "
-                f"developer left off'. Be practical and specific. No markdown "
+                f"You are a friendly dev assistant who explains things in plain "
+                f"human language — no jargon, no formality, like talking to a "
+                f"colleague over coffee. Based on recent project activity, "
+                f"write in {lang} a short summary (3-5 sentences max):\n"
+                f"- What was DONE (completed work)\n"
+                f"- What is NOT FINISHED yet (in progress or needs attention)\n"
+                f"Be specific about file names and changes. No markdown "
                 f"(no '#' headers, no '**bold**'), plain text only.\n\n"
                 f"Activity:\n{activity_text}"
             )

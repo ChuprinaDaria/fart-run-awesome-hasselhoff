@@ -4,7 +4,7 @@
 //! Cross-file: check if definitions are used anywhere.
 //! Commented-out code detection re-parses stripped comment blocks.
 
-use std::collections::{HashMap, HashSet};
+use std::collections::HashSet;
 use std::fs;
 use std::path::Path;
 
@@ -108,6 +108,76 @@ const PYTEST_LIFECYCLE_NAMES: &[&str] = &[
     "tearDownModule",
     "asyncSetUp",
     "asyncTearDown",
+];
+
+/// Method names that are called by frameworks (not by user code).
+/// These look dead but are event handlers, callbacks, or protocol methods
+/// that the framework invokes automatically.
+///
+/// IMPORTANT: Only include names that are distinctive enough to be
+/// unambiguous. Generic names like `invoke`, `event`, `dispatch` are
+/// excluded because they could be regular user functions.
+/// These are only checked for definitions INSIDE classes (see usage below).
+const FRAMEWORK_CALLBACK_NAMES: &[&str] = &[
+    // watchdog (FileSystemEventHandler)
+    "on_modified",
+    "on_created",
+    "on_deleted",
+    "on_moved",
+    "on_closed",
+    "on_any_event",
+    // Qt overrides (common in PyQt/PySide) — camelCase = distinctive
+    "paintEvent",
+    "resizeEvent",
+    "closeEvent",
+    "showEvent",
+    "hideEvent",
+    "keyPressEvent",
+    "keyReleaseEvent",
+    "mousePressEvent",
+    "mouseReleaseEvent",
+    "mouseMoveEvent",
+    "wheelEvent",
+    "dragEnterEvent",
+    "dragMoveEvent",
+    "dropEvent",
+    "focusInEvent",
+    "focusOutEvent",
+    "enterEvent",
+    "leaveEvent",
+    "timerEvent",
+    "changeEvent",
+    "contextMenuEvent",
+    "eventFilter",
+    "sizeHint",
+    "minimumSizeHint",
+    "retranslateUi",
+    "retranslate",
+    // Django — distinctive prefixed names only
+    "get_queryset",
+    "get_context_data",
+    "get_serializer_class",
+    "get_permissions",
+    "get_form_class",
+    "get_form_kwargs",
+    "get_success_url",
+    "get_redirect_url",
+    "get_object",
+    "perform_create",
+    "perform_update",
+    "perform_destroy",
+    "form_valid",
+    "form_invalid",
+    "add_arguments",
+    // Flask / FastAPI
+    "on_startup",
+    "on_shutdown",
+    // celery
+    "on_success",
+    "on_failure",
+    "on_retry",
+    // dataclass / pydantic
+    "model_post_init",
 ];
 
 /// Return true if this file lives in a scope where pytest will pick up
@@ -378,7 +448,12 @@ fn parse_file(content: &str, rel_path: &str, lang: Lang) -> FileData {
                             .unwrap_or("")
                             .to_string();
                         if !name.is_empty() {
-                            definitions.push((name, line, "function".to_string()));
+                            // Check if this function is a method inside a class.
+                            let is_method = node.parent()
+                                .map(|p| p.kind() == "block" && p.parent().map(|gp| gp.kind() == "class_definition").unwrap_or(false))
+                                .unwrap_or(false);
+                            let kind = if is_method { "method" } else { "function" };
+                            definitions.push((name, line, kind.to_string()));
                             def_lines.insert(line);
                         }
                     }
@@ -495,11 +570,16 @@ fn parse_file(content: &str, rel_path: &str, lang: Lang) -> FileData {
     if lang == Lang::Python {
         let is_test_file = is_pytest_scope(rel_path);
         definitions.retain(|(name, _, kind)| {
-            if kind == "function" {
+            if kind == "function" || kind == "method" {
                 if name.starts_with("__") || name.starts_with("test_") {
                     return false;
                 }
                 if is_test_file && PYTEST_LIFECYCLE_NAMES.contains(&name.as_str()) {
+                    return false;
+                }
+                // Skip known framework callbacks ONLY for methods inside classes.
+                // Top-level functions named `dispatch` or `invoke` are legitimate.
+                if kind == "method" && FRAMEWORK_CALLBACK_NAMES.contains(&name.as_str()) {
                     return false;
                 }
                 true
@@ -761,7 +841,7 @@ fn maybe_emit_block(
 }
 
 #[pyfunction]
-pub fn scan_dead_code(path: &str, entry_point_paths: Vec<String>) -> PyResult<DeadCodeResult> {
+pub fn scan_dead_code(path: &str, _entry_point_paths: Vec<String>) -> PyResult<DeadCodeResult> {
     let root = Path::new(path);
     if !root.is_dir() {
         return Err(pyo3::exceptions::PyValueError::new_err(
@@ -801,7 +881,11 @@ pub fn scan_dead_code(path: &str, entry_point_paths: Vec<String>) -> PyResult<De
         let lang = match ext {
             "py" => Lang::Python,
             "ts" | "tsx" | "mts" | "cts" => Lang::TypeScript,
-            _ => Lang::JavaScript,
+            "js" | "jsx" | "mjs" | "cjs" => Lang::JavaScript,
+            // Skip languages we don't have tree-sitter analysis for yet.
+            // They'll still be counted in file_tree but won't produce
+            // false dead-code results.
+            _ => continue,
         };
         let rel_path = match entry_path.strip_prefix(root) {
             Ok(r) => crate::common::normalize_path(&r.to_string_lossy()),
@@ -850,9 +934,30 @@ pub fn scan_dead_code(path: &str, entry_point_paths: Vec<String>) -> PyResult<De
         for id in &fd.used_identifiers {
             global_identifiers.insert(id.clone());
         }
+        // __init__.py re-exports: `from .module import Foo` or
+        // `from .module import Foo as _Foo` makes the original name used.
+        // Both the alias and the original name should be considered "used".
+        if fd.is_init {
+            for (name, _, stmt) in &fd.imports {
+                global_identifiers.insert(name.clone());
+                // For aliased imports like `reset_db_for_tests as _reset_db_for_tests`,
+                // find the pattern `<original> as <alias>` where alias matches `name`.
+                let search = format!(" as {}", name);
+                if let Some(pos) = stmt.find(&search) {
+                    // Walk backwards from the match to find the original name.
+                    let before = stmt[..pos].trim_end();
+                    let original = before
+                        .rsplit(|c: char| c == ' ' || c == ',' || c == '(')
+                        .next()
+                        .unwrap_or("")
+                        .trim();
+                    if !original.is_empty() {
+                        global_identifiers.insert(original.to_string());
+                    }
+                }
+            }
+        }
     }
-
-    let entry_set: HashSet<&str> = entry_point_paths.iter().map(|s| s.as_str()).collect();
 
     let mut unused_definitions: Vec<UnusedDefinition> = Vec::new();
     for fd in &file_data {
@@ -876,35 +981,15 @@ pub fn scan_dead_code(path: &str, entry_point_paths: Vec<String>) -> PyResult<De
     }
 
     // Phase 4: Orphan files
-    let all_rel_paths: HashSet<String> = file_data.iter().map(|fd| fd.rel_path.clone()).collect();
-    let mut imported_files: HashSet<String> = HashSet::new();
-    for fd in &file_data {
-        for id in &fd.used_identifiers {
-            for rel in &all_rel_paths {
-                let stem = Path::new(rel)
-                    .file_stem()
-                    .and_then(|s| s.to_str())
-                    .unwrap_or("");
-                if stem == id.as_str() {
-                    imported_files.insert(rel.clone());
-                }
-            }
-        }
-    }
-
-    let orphan_files: Vec<String> = all_rel_paths
-        .iter()
-        .filter(|f| {
-            !imported_files.contains(*f)
-                && !entry_set.contains(f.as_str())
-                && !f.ends_with("__init__.py")
-                && !f.ends_with("conftest.py")
-                && !f.contains("/test")
-                && !f.starts_with("test")
-                && !f.ends_with("setup.py")
-        })
-        .cloned()
-        .collect();
+    //
+    // Orphan detection is now handled entirely by module_map.rs which uses
+    // proper import resolution (including lazy/dynamic imports inside
+    // functions). The old stem-matching heuristic here produced many false
+    // positives (e.g. a file named "styles.py" was considered imported if
+    // ANY identifier "styles" appeared anywhere). We keep the field in the
+    // result for backwards compat but always return an empty vec — the
+    // Python orchestrator uses module_map orphan_candidates instead.
+    let orphan_files: Vec<String> = Vec::new();
 
     // Phase 5: Commented-out code (reuse stored content, no re-read)
     let mut commented_blocks: Vec<CommentedBlock> = Vec::new();

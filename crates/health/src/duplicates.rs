@@ -48,16 +48,15 @@ fn normalize_line(line: &str, lang: &str) -> Option<String> {
     }
 
     match lang {
-        "python" => {
+        "python" | "ruby" => {
             if trimmed.starts_with('#') {
                 return None;
             }
-            // Skip docstrings (rough: lines that are just triple quotes)
             if trimmed == "\"\"\"" || trimmed == "'''" {
                 return None;
             }
         }
-        "js" | "ts" => {
+        "js" | "ts" | "rust" | "go" | "c" | "java" | "swift" | "cs" | "php" => {
             if trimmed.starts_with("//") {
                 return None;
             }
@@ -68,12 +67,17 @@ fn normalize_line(line: &str, lang: &str) -> Option<String> {
         _ => {}
     }
 
-    // Skip import/require lines (too generic, many files have same imports)
+    // Skip import/use/include lines (too generic, many files have same imports)
     let lower = trimmed.to_lowercase();
     if lower.starts_with("import ")
         || lower.starts_with("from ")
         || lower.contains("require(")
         || lower.starts_with("export ")
+        || lower.starts_with("use ")       // Rust / PHP
+        || lower.starts_with("#include")   // C/C++
+        || lower.starts_with("package ")   // Go/Java
+        || lower.starts_with("using ")     // C#
+        || lower.starts_with("require ")   // Ruby
     {
         return None;
     }
@@ -182,6 +186,15 @@ pub fn scan_duplicates(path: &str) -> PyResult<DuplicatesResult> {
         let lang = match ext {
             "py" => "python",
             "ts" | "tsx" | "mts" | "cts" => "ts",
+            "js" | "jsx" | "mjs" | "cjs" => "js",
+            "rs" => "rust",
+            "go" => "go",
+            "c" | "h" | "cpp" | "hpp" | "cc" | "cxx" | "hxx" => "c",
+            "java" | "kt" | "kts" => "java",
+            "rb" => "ruby",
+            "php" => "php",
+            "swift" => "swift",
+            "cs" => "cs",
             _ => "js",
         };
 
@@ -282,11 +295,18 @@ pub fn scan_duplicates(path: &str) -> PyResult<DuplicatesResult> {
                     .collect::<Vec<_>>()
                     .join("\n");
 
+                // Normalize file order so merge can match overlapping pairs.
+                let (norm_file_a, norm_line_a, norm_file_b, norm_line_b) =
+                    if file_a.rel_path <= file_b.rel_path {
+                        (&file_a.rel_path, line_a, &file_b.rel_path, line_b)
+                    } else {
+                        (&file_b.rel_path, line_b, &file_a.rel_path, line_a)
+                    };
                 duplicates.push(DuplicateBlock {
-                    file_a: file_a.rel_path.clone(),
-                    line_a: line_a as u32,
-                    file_b: file_b.rel_path.clone(),
-                    line_b: line_b as u32,
+                    file_a: norm_file_a.clone(),
+                    line_a: norm_line_a as u32,
+                    file_b: norm_file_b.clone(),
+                    line_b: norm_line_b as u32,
                     line_count: match_len as u32,
                     preview,
                 });
@@ -294,11 +314,36 @@ pub fn scan_duplicates(path: &str) -> PyResult<DuplicatesResult> {
         }
     }
 
+    // Merge overlapping duplicates between the same file pair.
+    // When N-gram windows overlap, we get entries like:
+    //   (fileA:105, fileB:120, 15 lines)
+    //   (fileA:106, fileB:121, 14 lines)
+    //   (fileA:107, fileB:122, 13 lines)
+    // These are the same duplication — keep only the longest.
+    duplicates.sort_by(|a, b| {
+        (&a.file_a, &a.file_b, a.line_a).cmp(&(&b.file_a, &b.file_b, b.line_a))
+    });
+
+    let mut merged: Vec<DuplicateBlock> = Vec::new();
+    for dup in duplicates {
+        let dominated = merged.iter().any(|existing| {
+            existing.file_a == dup.file_a
+                && existing.file_b == dup.file_b
+                && dup.line_a >= existing.line_a
+                && dup.line_a <= existing.line_a + existing.line_count
+                && dup.line_b >= existing.line_b
+                && dup.line_b <= existing.line_b + existing.line_count
+        });
+        if !dominated {
+            merged.push(dup);
+        }
+    }
+
     // Sort by line count desc
-    duplicates.sort_by(|a, b| b.line_count.cmp(&a.line_count));
+    merged.sort_by(|a, b| b.line_count.cmp(&a.line_count));
 
     // Cap at 20
-    duplicates.truncate(20);
+    merged.truncate(20);
 
-    Ok(DuplicatesResult { duplicates })
+    Ok(DuplicatesResult { duplicates: merged })
 }
