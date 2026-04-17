@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import logging
+import shlex
 from pathlib import Path
 
 from PyQt5.QtCore import Qt, pyqtSignal
@@ -154,7 +155,7 @@ class HealthPage(QWidget):
             return
         framework, default_cmd = detect_framework(Path(self._project_dir))
         override = (self._config.get("tests", {}) or {}).get("command", "") or ""
-        cmd = override.split() if override.strip() else default_cmd
+        cmd = shlex.split(override) if override.strip() else default_cmd
         if not cmd:
             self._test_status_label.setText(_t("tests_no_framework"))
             return
@@ -221,7 +222,7 @@ class HealthPage(QWidget):
                 _t("tests_status_timed_out").format(duration=_format_duration(run.duration_s))
             )
             return
-        if run.exit_code in (0, None) and not run.timed_out and run.exit_code != -1:
+        if run.exit_code == 0 and not run.timed_out:
             self._test_status_label.setText(
                 _t("tests_status_passed").format(duration=_format_duration(run.duration_s))
             )
