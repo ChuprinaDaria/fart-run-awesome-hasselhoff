@@ -179,6 +179,22 @@ const FRAMEWORK_CALLBACK_NAMES: &[&str] = &[
     "on_retry",
     // dataclass / pydantic
     "model_post_init",
+    // Django admin hooks
+    "has_add_permission",
+    "has_change_permission",
+    "has_delete_permission",
+    "has_view_permission",
+    "has_module_permission",
+    "get_readonly_fields",
+    "get_list_display",
+    "get_list_filter",
+    "get_search_fields",
+    "get_fieldsets",
+    "get_inline_instances",
+    "get_urls",
+    "save_model",
+    "delete_model",
+    "get_changeform_initial_data",
 ];
 
 /// Return true if this file lives in a scope where pytest will pick up
@@ -610,8 +626,22 @@ fn parse_file(content: &str, rel_path: &str, lang: Lang) -> FileData {
                 if kind == "method" && FRAMEWORK_CALLBACK_NAMES.contains(&name.as_str()) {
                     return false;
                 }
+                // DRF validate_<field> / Django clean_<field> — framework auto-discovery
+                if kind == "method"
+                    && (name.starts_with("validate_") || name.starts_with("clean_"))
+                {
+                    return false;
+                }
                 true
             } else {
+                // Skip Meta inner classes — Django/DRF/Pydantic framework pattern
+                if name == "Meta" {
+                    return false;
+                }
+                // Skip AppConfig subclasses in apps.py — Django string-based discovery
+                if name.ends_with("Config") && rel_path.ends_with("apps.py") {
+                    return false;
+                }
                 !name.starts_with("Test")
             }
         });

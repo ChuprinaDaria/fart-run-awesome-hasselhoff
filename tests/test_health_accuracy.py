@@ -274,3 +274,87 @@ class TestOrphanWhitelist:
         assert "myapp/tasks.py" not in orphans, f"tasks.py should not be orphan. {orphans}"
         assert "myapp/signals.py" not in orphans, f"signals.py should not be orphan. {orphans}"
         assert "myapp/receivers.py" not in orphans, f"receivers.py should not be orphan. {orphans}"
+
+
+class TestDjangoDeadCodeWhitelist:
+    """Bugs 2-5: Django/DRF framework patterns must not be flagged as dead code."""
+
+    def test_meta_inner_class_not_flagged(self, tmp_path):
+        """Django Meta inner classes should not be flagged as unused."""
+        (tmp_path / "models.py").write_text(
+            "class Article:\n"
+            "    class Meta:\n"
+            "        ordering = ['-created']\n"
+            "        verbose_name = 'Article'\n"
+            "\n"
+            "    def __str__(self):\n"
+            "        return 'article'\n"
+        )
+        (tmp_path / "serializers.py").write_text(
+            "class ArticleSerializer:\n"
+            "    class Meta:\n"
+            "        model = 'Article'\n"
+            "        fields = '__all__'\n"
+        )
+        report = run_all_checks(str(tmp_path))
+        unused = _finding_titles(report, "dead.unused_definitions")
+        meta_flags = [t for t in unused if "Meta" in t]
+        assert not meta_flags, f"Meta inner classes should not be flagged. Got: {meta_flags}"
+
+    def test_admin_hooks_not_flagged(self, tmp_path):
+        """Django admin hooks should not be flagged as unused methods."""
+        (tmp_path / "admin.py").write_text(
+            "class ArticleAdmin:\n"
+            "    def has_add_permission(self, request):\n"
+            "        return False\n"
+            "\n"
+            "    def has_delete_permission(self, request, obj=None):\n"
+            "        return False\n"
+            "\n"
+            "    def save_model(self, request, obj, form, change):\n"
+            "        obj.save()\n"
+            "\n"
+            "    def get_readonly_fields(self, request, obj=None):\n"
+            "        return []\n"
+        )
+        report = run_all_checks(str(tmp_path))
+        unused = _finding_titles(report, "dead.unused_definitions")
+        admin_flags = [t for t in unused if any(hook in t for hook in [
+            "has_add_permission", "has_delete_permission", "save_model", "get_readonly_fields"
+        ])]
+        assert not admin_flags, f"Admin hooks should not be flagged. Got: {admin_flags}"
+
+    def test_drf_validators_not_flagged(self, tmp_path):
+        """DRF validate_<field> and Django clean_<field> should not be flagged."""
+        (tmp_path / "serializers.py").write_text(
+            "class ContactSerializer:\n"
+            "    def validate_email(self, value):\n"
+            "        return value\n"
+            "\n"
+            "    def validate_consent(self, value):\n"
+            "        if not value:\n"
+            "            raise ValueError('Required')\n"
+            "        return value\n"
+        )
+        (tmp_path / "forms.py").write_text(
+            "class ContactForm:\n"
+            "    def clean_email(self, value):\n"
+            "        return value\n"
+        )
+        report = run_all_checks(str(tmp_path))
+        unused = _finding_titles(report, "dead.unused_definitions")
+        validator_flags = [t for t in unused if "validate_" in t or "clean_" in t]
+        assert not validator_flags, f"Validators should not be flagged. Got: {validator_flags}"
+
+    def test_appconfig_not_flagged(self, tmp_path):
+        """Django AppConfig subclasses in apps.py should not be flagged."""
+        (tmp_path / "apps.py").write_text(
+            "from django.apps import AppConfig\n"
+            "\n"
+            "class WebsiteConfig(AppConfig):\n"
+            "    name = 'website'\n"
+        )
+        report = run_all_checks(str(tmp_path))
+        unused = _finding_titles(report, "dead.unused_definitions")
+        config_flags = [t for t in unused if "Config" in t]
+        assert not config_flags, f"AppConfig should not be flagged. Got: {config_flags}"
