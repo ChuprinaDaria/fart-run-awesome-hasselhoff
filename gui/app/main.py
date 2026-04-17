@@ -264,6 +264,7 @@ class MonitorApp(QMainWindow):
         self.page_health._dir_label.setText(display)
         self.page_health._dir_label.setStyleSheet("color: #000000;")
         self.page_health._btn_scan.setEnabled(True)
+        self.page_health._start_watch_observer()
 
     def _is_alert_enabled(self, source: str) -> bool:
         filters = self._config.get("alert_filters", {})

@@ -122,3 +122,24 @@ def test_save_point_trigger_ignores_other_projects(qapp, tmp_path, monkeypatch):
     monkeypatch.setattr(page, "_on_run_tests", lambda: started.update(n=started["n"] + 1))
     page._on_save_point_created("/some/other/project")
     assert started["n"] == 0
+
+
+def test_watch_debounce_collapses_burst(qapp, tmp_path, monkeypatch):
+    from gui.pages.health import page as page_mod
+
+    page = page_mod.HealthPage()
+    page._project_dir = str(tmp_path)
+    page._config = {"tests": {"watch": True, "debounce_ms": 50}}
+    started = {"n": 0}
+    monkeypatch.setattr(page, "_on_run_tests", lambda: started.update(n=started["n"] + 1))
+
+    # Fire 5 events back-to-back; only one run after debounce window.
+    for _ in range(5):
+        page._on_watch_event()
+
+    from PyQt5.QtCore import QEventLoop, QTimer
+    loop = QEventLoop()
+    QTimer.singleShot(200, loop.quit)
+    loop.exec_()
+
+    assert started["n"] == 1

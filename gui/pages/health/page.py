@@ -250,6 +250,7 @@ class HealthPage(QWidget):
             self._dir_label.setStyleSheet("color: #000000;")
             self._btn_scan.setEnabled(True)
             self._show_placeholder(_t("health_no_results"))
+            self._start_watch_observer()
 
     def _on_scan(self) -> None:
         if not self._project_dir:
@@ -614,6 +615,59 @@ class HealthPage(QWidget):
             parent=self,
         )
         popup.exec_()
+
+    def _on_watch_event(self) -> None:
+        if not (self._config.get("tests", {}) or {}).get("watch"):
+            return
+        debounce = int((self._config.get("tests", {}) or {}).get("debounce_ms", 2000))
+        if not hasattr(self, "_watch_debounce_timer") or self._watch_debounce_timer is None:
+            from PyQt5.QtCore import QTimer
+            self._watch_debounce_timer = QTimer(self)
+            self._watch_debounce_timer.setSingleShot(True)
+            self._watch_debounce_timer.timeout.connect(self._on_run_tests)
+        self._watch_debounce_timer.start(debounce)
+
+    def _start_watch_observer(self) -> None:
+        try:
+            from watchdog.observers import Observer
+            from watchdog.events import FileSystemEventHandler
+        except ImportError:
+            log.info("watchdog not installed; watch mode disabled")
+            return
+        if not self._project_dir:
+            return
+        cfg = self._config.get("tests", {}) or {}
+        if not cfg.get("watch"):
+            return
+        watch_paths = cfg.get("watch_paths") or ["."]
+        excludes = set(cfg.get("watch_exclude") or [])
+
+        page = self
+        class _Handler(FileSystemEventHandler):
+            def on_modified(self, event):
+                if event.is_directory:
+                    return
+                p = event.src_path
+                if any(part in excludes for part in Path(p).parts):
+                    return
+                from PyQt5.QtCore import QTimer
+                QTimer.singleShot(0, page._on_watch_event)
+
+        self._watch_observer = Observer()
+        for wp in watch_paths:
+            self._watch_observer.schedule(_Handler(), str(Path(self._project_dir) / wp), recursive=True)
+        self._watch_observer.start()
+
+    def _stop_watch_observer(self) -> None:
+        obs = getattr(self, "_watch_observer", None)
+        if obs is not None:
+            obs.stop()
+            obs.join(timeout=2)
+            self._watch_observer = None
+
+    def closeEvent(self, event):
+        self._stop_watch_observer()
+        super().closeEvent(event)
 
     def _on_save_point_created(self, project_dir: str) -> None:
         if not (self._config.get("tests", {}) or {}).get("trigger_on_save_point"):
