@@ -306,6 +306,13 @@ def run_all_checks(project_dir: str) -> HealthReport:
     except Exception as e:
         log.error("ui_ux_design scan error: %s", e)
 
+    # Phase 8: Framework & Infra checks (Django, Docker, frontend bundle)
+    try:
+        from core.health.framework_checks import run_framework_checks
+        run_framework_checks(report, project_dir)
+    except Exception as e:
+        log.error("framework_checks scan error: %s", e)
+
     # Check 1.5 — Config Inventory (always Python)
     try:
         config_result = scan_config_inventory(project_dir)

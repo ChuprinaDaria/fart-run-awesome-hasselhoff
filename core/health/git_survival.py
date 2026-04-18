@@ -279,7 +279,27 @@ def check_gitignore(report: HealthReport, project_dir: str) -> None:
     root = Path(project_dir)
     gitignore = root / ".gitignore"
 
-    if not gitignore.exists():
+    # Collect content from root .gitignore AND subdirectory .gitignore files
+    all_content_parts: list[str] = []
+    if gitignore.exists():
+        try:
+            all_content_parts.append(gitignore.read_text(encoding="utf-8", errors="replace"))
+        except OSError:
+            pass
+
+    # Check up to 2 levels deep for sub-gitignores (e.g. backend/.gitignore)
+    from core.health import _SKIP_DIRS
+    for child in root.iterdir():
+        if not child.is_dir() or child.name in _SKIP_DIRS:
+            continue
+        sub_gi = child / ".gitignore"
+        if sub_gi.exists():
+            try:
+                all_content_parts.append(sub_gi.read_text(encoding="utf-8", errors="replace"))
+            except OSError:
+                pass
+
+    if not all_content_parts:
         report.findings.append(HealthFinding(
             check_id="git.gitignore",
             title="No .gitignore file",
@@ -291,10 +311,7 @@ def check_gitignore(report: HealthReport, project_dir: str) -> None:
         ))
         return
 
-    try:
-        content = gitignore.read_text(encoding="utf-8", errors="replace")
-    except OSError:
-        return
+    content = "\n".join(all_content_parts)
 
     # Check for common missing patterns
     missing = []
