@@ -248,6 +248,13 @@ def run_all_checks(project_dir: str) -> HealthReport:
         except Exception as e:
             log.error("reusable scan error: %s", e)
 
+        # Phase 11: UX Sanity (JSX/TSX checks)
+        try:
+            from core.health.ux_sanity import run_ux_sanity_checks
+            run_ux_sanity_checks(report, health_rs, project_dir)
+        except Exception as e:
+            log.error("ux_sanity scan error: %s", e)
+
         # Phase 3: Tech Debt
         try:
             from core.health.tech_debt import run_tech_debt_checks

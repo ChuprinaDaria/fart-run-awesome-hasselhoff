@@ -10,6 +10,7 @@ mod monsters;
 mod overengineering;
 mod reusable;
 mod tech_debt;
+mod ux_sanity;
 
 use pyo3::prelude::*;
 
@@ -56,5 +57,14 @@ fn health(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<reusable::ReusableResult>()?;
     m.add_function(wrap_pyfunction!(reusable::scan_reusable, m)?)?;
 
+    m.add_function(wrap_pyfunction!(scan_ux_sanity, m)?)?;
+
     Ok(())
+}
+
+#[pyfunction]
+fn scan_ux_sanity(path: String) -> PyResult<String> {
+    let issues = ux_sanity::scan_directory(std::path::Path::new(&path));
+    serde_json::to_string(&issues)
+        .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))
 }
