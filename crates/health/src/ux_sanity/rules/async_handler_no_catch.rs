@@ -41,6 +41,32 @@ fn walk_stmt(stmt: &Statement, source: &str, file: &str, issues: &mut Vec<Issue>
             }
         }
         Statement::BlockStatement(bs) => walk_stmts(&bs.body, source, file, issues),
+        Statement::ExportNamedDeclaration(en) => {
+            if let Some(decl) = &en.declaration {
+                if let Declaration::FunctionDeclaration(fd) = decl {
+                    if let Some(body) = &fd.body {
+                        walk_stmts(&body.statements, source, file, issues);
+                    }
+                }
+                if let Declaration::VariableDeclaration(vd) = decl {
+                    for d in &vd.declarations {
+                        if let Some(init) = &d.init {
+                            walk_expr(init, source, file, issues);
+                        }
+                    }
+                }
+            }
+        }
+        Statement::ExportDefaultDeclaration(ed) => {
+            if let ExportDefaultDeclarationKind::FunctionDeclaration(fd) = &ed.declaration {
+                if let Some(body) = &fd.body {
+                    walk_stmts(&body.statements, source, file, issues);
+                }
+            }
+            if let Some(expr) = ed.declaration.as_expression() {
+                walk_expr(expr, source, file, issues);
+            }
+        }
         _ => {}
     }
 }
@@ -59,6 +85,22 @@ fn walk_expr(expr: &Expression, source: &str, file: &str, issues: &mut Vec<Issue
         Expression::FunctionExpression(fe) => {
             if let Some(b) = &fe.body {
                 walk_stmts(&b.statements, source, file, issues);
+            }
+        }
+        Expression::ParenthesizedExpression(pe) => walk_expr(&pe.expression, source, file, issues),
+        Expression::ConditionalExpression(ce) => {
+            walk_expr(&ce.consequent, source, file, issues);
+            walk_expr(&ce.alternate, source, file, issues);
+        }
+        Expression::LogicalExpression(le) => {
+            walk_expr(&le.left, source, file, issues);
+            walk_expr(&le.right, source, file, issues);
+        }
+        Expression::CallExpression(ce) => {
+            for arg in &ce.arguments {
+                if let Some(e) = arg.as_expression() {
+                    walk_expr(e, source, file, issues);
+                }
             }
         }
         _ => {}

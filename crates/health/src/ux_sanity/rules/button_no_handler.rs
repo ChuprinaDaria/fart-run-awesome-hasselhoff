@@ -58,6 +58,32 @@ fn walk_statement(
         Statement::BlockStatement(bs) => {
             walk_statements(&bs.body, inside_form, source, file, issues);
         }
+        Statement::ExportNamedDeclaration(en) => {
+            if let Some(decl) = &en.declaration {
+                if let Declaration::FunctionDeclaration(fd) = decl {
+                    if let Some(body) = &fd.body {
+                        walk_statements(&body.statements, inside_form, source, file, issues);
+                    }
+                }
+                if let Declaration::VariableDeclaration(vd) = decl {
+                    for d in &vd.declarations {
+                        if let Some(init) = &d.init {
+                            walk_expression(init, inside_form, source, file, issues);
+                        }
+                    }
+                }
+            }
+        }
+        Statement::ExportDefaultDeclaration(ed) => {
+            if let ExportDefaultDeclarationKind::FunctionDeclaration(fd) = &ed.declaration {
+                if let Some(body) = &fd.body {
+                    walk_statements(&body.statements, inside_form, source, file, issues);
+                }
+            }
+            if let Some(expr) = ed.declaration.as_expression() {
+                walk_expression(expr, inside_form, source, file, issues);
+            }
+        }
         _ => {}
     }
 }
@@ -146,10 +172,12 @@ fn check_jsx_element(
         let has_submit_type = attrs.iter().any(|a| is_attr_with_value(a, "type", "submit"));
         let has_form_action = attrs.iter().any(|a| is_attr_named(a, "formAction"));
         let has_on_keydown = attrs.iter().any(|a| is_attr_named(a, "onKeyDown"));
+        let has_spread = attrs.iter().any(|a| matches!(a, JSXAttributeItem::SpreadAttribute(_)));
 
         let is_broken = !has_onclick
             && !has_form_action
             && !has_on_keydown
+            && !has_spread
             && !(inside_form && has_submit_type);
 
         if is_broken {

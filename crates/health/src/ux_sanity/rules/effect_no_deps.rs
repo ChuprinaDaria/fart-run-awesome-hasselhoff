@@ -42,6 +42,32 @@ fn walk_stmt(stmt: &Statement, source: &str, file: &str, issues: &mut Vec<Issue>
                 walk_stmt(a, source, file, issues);
             }
         }
+        Statement::ExportNamedDeclaration(en) => {
+            if let Some(decl) = &en.declaration {
+                if let Declaration::FunctionDeclaration(fd) = decl {
+                    if let Some(body) = &fd.body {
+                        walk_stmts(&body.statements, source, file, issues);
+                    }
+                }
+                if let Declaration::VariableDeclaration(vd) = decl {
+                    for d in &vd.declarations {
+                        if let Some(init) = &d.init {
+                            walk_expr(init, source, file, issues);
+                        }
+                    }
+                }
+            }
+        }
+        Statement::ExportDefaultDeclaration(ed) => {
+            if let ExportDefaultDeclarationKind::FunctionDeclaration(fd) = &ed.declaration {
+                if let Some(body) = &fd.body {
+                    walk_stmts(&body.statements, source, file, issues);
+                }
+            }
+            if let Some(expr) = ed.declaration.as_expression() {
+                walk_expr(expr, source, file, issues);
+            }
+        }
         _ => {}
     }
 }
