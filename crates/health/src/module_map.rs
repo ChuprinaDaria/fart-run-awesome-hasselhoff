@@ -10,7 +10,7 @@ use std::path::{Path, PathBuf};
 use ignore::WalkBuilder;
 use pyo3::prelude::*;
 
-use crate::common::{should_skip, SOURCE_EXTENSIONS};
+use crate::common::{should_skip_entry, SOURCE_EXTENSIONS};
 
 #[pyclass]
 #[derive(Clone)]
@@ -427,13 +427,7 @@ pub fn scan_module_map(path: &str, entry_point_paths: Vec<String>) -> PyResult<M
         .git_ignore(true)
         .git_global(false)
         .git_exclude(true)
-        .filter_entry(|entry| {
-            if let Some(name) = entry.file_name().to_str() {
-                !should_skip(name)
-            } else {
-                true
-            }
-        })
+        .filter_entry(|entry| !should_skip_entry(entry))
         .build();
 
     for entry in walker.flatten() {
@@ -609,6 +603,7 @@ pub fn scan_module_map(path: &str, entry_point_paths: Vec<String>) -> PyResult<M
                 && !f.starts_with("test")
                 // Skip migration files — they're run by framework, not imported
                 && !f.contains("/migrations/")
+                && !f.contains("/alembic/")
                 // Skip common standalone scripts
                 && !f.ends_with("setup.py")
                 && !f.ends_with("manage.py")
@@ -641,6 +636,18 @@ pub fn scan_module_map(path: &str, entry_point_paths: Vec<String>) -> PyResult<M
                 && !f.ends_with("/signals.py")
                 && !f.ends_with("/receivers.py")
                 && !f.ends_with("/tasks.py")
+                // Next.js / Nuxt / SvelteKit convention files (auto-loaded by framework)
+                && !f.ends_with("/layout.tsx") && !f.ends_with("/layout.jsx") && !f.ends_with("/layout.js")
+                && !f.ends_with("/page.tsx") && !f.ends_with("/page.jsx") && !f.ends_with("/page.js")
+                && !f.ends_with("/loading.tsx") && !f.ends_with("/loading.jsx")
+                && !f.ends_with("/error.tsx") && !f.ends_with("/error.jsx")
+                && !f.ends_with("/not-found.tsx") && !f.ends_with("/not-found.jsx")
+                && !f.ends_with("/template.tsx") && !f.ends_with("/template.jsx")
+                && !f.ends_with("/default.tsx") && !f.ends_with("/default.jsx")
+                && !f.ends_with("robots.ts") && !f.ends_with("sitemap.ts")
+                && !f.ends_with("middleware.ts") && !f.ends_with("middleware.js")
+                // TypeScript declaration files — used by compiler, not imported
+                && !f.ends_with(".d.ts")
         })
         .cloned()
         .collect();

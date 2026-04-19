@@ -10,7 +10,7 @@ use std::path::Path;
 use ignore::WalkBuilder;
 use pyo3::prelude::*;
 
-use crate::common::should_skip;
+use crate::common::should_skip_entry;
 
 /// Extensions that may contain JSX.
 const JSX_EXTENSIONS: &[&str] = &["jsx", "tsx"];
@@ -101,9 +101,24 @@ fn extract_jsx_pattern(node: tree_sitter::Node, source: &str) -> Option<String> 
     }
 
     if class_name.is_empty() {
-        // Only track elements with className/variant — bare <div> is too generic
-        if ["div", "span", "p", "a", "li", "ul", "section", "header", "footer"]
-            .contains(&tag.as_str())
+        // Only track elements with className/variant — bare <div> is too generic.
+        // Also skip React Native core primitives — they're like HTML tags.
+        if [
+            // HTML primitives — too generic to suggest extraction
+            "div", "span", "p", "a", "li", "ul", "ol", "section", "header", "footer",
+            "nav", "main", "aside", "article", "h1", "h2", "h3", "h4", "h5", "h6",
+            "button", "input", "select", "option", "textarea", "form", "label",
+            "table", "thead", "tbody", "tr", "th", "td", "tfoot",
+            "img", "br", "hr", "strong", "em", "b", "i", "small", "sup", "sub",
+            "pre", "code", "blockquote", "details", "summary", "dialog",
+            "svg", "path", "circle", "rect", "line", "g", "defs", "clipPath",
+            "video", "audio", "source", "canvas", "iframe",
+            // React Native core primitives
+            "View", "Text", "Pressable", "TouchableOpacity", "TouchableHighlight",
+            "ScrollView", "FlatList", "SectionList", "SafeAreaView", "KeyboardAvoidingView",
+            "TextInput", "Image", "ImageBackground", "StatusBar", "ActivityIndicator",
+            "Modal", "Switch",
+        ].contains(&tag.as_str())
         {
             return None;
         }
@@ -130,13 +145,7 @@ pub fn scan_reusable(path: &str) -> PyResult<ReusableResult> {
         .git_ignore(true)
         .git_global(false)
         .git_exclude(true)
-        .filter_entry(|entry| {
-            if let Some(name) = entry.file_name().to_str() {
-                !should_skip(name)
-            } else {
-                true
-            }
-        })
+        .filter_entry(|entry| !should_skip_entry(entry))
         .build();
 
     for entry in walker.flatten() {
@@ -192,8 +201,9 @@ pub fn scan_reusable(path: &str) -> PyResult<ReusableResult> {
                         .take(2)
                         .collect::<Vec<_>>()
                         .join(" ");
-                    let short_preview = if preview.len() > 80 {
-                        format!("{}...", &preview[..77])
+                    let short_preview = if preview.chars().count() > 80 {
+                        let truncated: String = preview.chars().take(77).collect();
+                        format!("{}...", truncated)
                     } else {
                         preview
                     };

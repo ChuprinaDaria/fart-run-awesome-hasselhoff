@@ -10,7 +10,7 @@ use std::path::Path;
 use ignore::WalkBuilder;
 use pyo3::prelude::*;
 
-use crate::common::should_skip;
+use crate::common::should_skip_entry;
 
 /// Known entry point file names.
 const PYTHON_ENTRY_NAMES: &[&str] = &[
@@ -90,13 +90,7 @@ pub fn scan_entry_points(path: &str) -> PyResult<EntryPointsResult> {
         .git_global(false)
         .git_exclude(true)
         .max_depth(Some(6))
-        .filter_entry(|entry| {
-            if let Some(name) = entry.file_name().to_str() {
-                !should_skip(name)
-            } else {
-                true
-            }
-        })
+        .filter_entry(|entry| !should_skip_entry(entry))
         .build();
 
     for entry in walker.flatten() {

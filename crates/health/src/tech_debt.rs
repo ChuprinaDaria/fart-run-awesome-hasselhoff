@@ -9,7 +9,7 @@ use ignore::WalkBuilder;
 use pyo3::prelude::*;
 use regex::Regex;
 
-use crate::common::{should_skip, SOURCE_EXTENSIONS};
+use crate::common::{should_skip_entry, SOURCE_EXTENSIONS};
 
 // --- PyO3 result structs ---
 
@@ -111,6 +111,27 @@ fn check_missing_types_python(content: &str, rel_path: &str) -> Vec<MissingType>
         // Skip dunders, test funcs, private
         if func_name.starts_with("__") || func_name.starts_with("test_") {
             return;
+        }
+
+        // Skip FastAPI/Flask endpoint functions — return type is defined
+        // by the decorator (@router.get, @app.post, response_model=...).
+        if let Some(parent) = node.parent() {
+            if parent.kind() == "block" || parent.kind() == "decorated_definition" {
+                let check_node = if parent.kind() == "decorated_definition" {
+                    parent
+                } else {
+                    // Walk up from block to possible decorated_definition
+                    parent.parent().filter(|gp| gp.kind() == "decorated_definition")
+                        .unwrap_or(parent)
+                };
+                if check_node.kind() == "decorated_definition" {
+                    let dec_text = check_node.utf8_text(content.as_bytes()).unwrap_or("");
+                    let first_line = dec_text.lines().next().unwrap_or("");
+                    if first_line.contains("router.") || first_line.contains("app.") {
+                        return;
+                    }
+                }
+            }
         }
 
         // Check parameters
@@ -446,13 +467,7 @@ pub fn scan_tech_debt(path: &str) -> PyResult<TechDebtResult> {
         .git_ignore(true)
         .git_global(false)
         .git_exclude(true)
-        .filter_entry(|entry| {
-            if let Some(name) = entry.file_name().to_str() {
-                !should_skip(name)
-            } else {
-                true
-            }
-        })
+        .filter_entry(|entry| !should_skip_entry(entry))
         .build();
 
     for entry in walker.flatten() {

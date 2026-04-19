@@ -19,7 +19,7 @@ def run_dead_code_checks(
     """Run dead code checks and append findings to report."""
     try:
         result = health_rs.scan_dead_code(project_dir, entry_point_paths)
-    except Exception as e:
+    except BaseException as e:
         log.error("dead_code scan error: %s", e)
         return
 

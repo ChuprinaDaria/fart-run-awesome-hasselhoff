@@ -55,7 +55,7 @@ def run_tech_debt_checks(
     """Run tech debt checks and append findings to report."""
     try:
         result = health_rs.scan_tech_debt(project_dir)
-    except Exception as e:
+    except BaseException as e:
         log.error("tech_debt scan error: %s", e)
         return
 

@@ -8,7 +8,7 @@ use std::path::Path;
 use ignore::WalkBuilder;
 use pyo3::prelude::*;
 
-use crate::common::{should_skip, SOURCE_EXTENSIONS};
+use crate::common::{should_skip_entry, SOURCE_EXTENSIONS};
 
 #[pyclass]
 #[derive(Clone)]
@@ -114,13 +114,7 @@ pub fn scan_monsters(path: &str) -> PyResult<MonstersResult> {
         .git_ignore(true)
         .git_global(false)
         .git_exclude(true)
-        .filter_entry(|entry| {
-            if let Some(name) = entry.file_name().to_str() {
-                !should_skip(name)
-            } else {
-                true
-            }
-        })
+        .filter_entry(|entry| !should_skip_entry(entry))
         .build();
 
     for entry in walker.flatten() {

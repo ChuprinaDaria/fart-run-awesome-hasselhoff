@@ -58,25 +58,36 @@ def check_django_security(report: HealthReport, project_dir: str) -> None:
     rel = str(settings_path.relative_to(root))
 
     # 1. Hardcoded SECRET_KEY or insecure default
-    # Match: SECRET_KEY = 'xxx' or default='django-insecure-...'
-    insecure_key_patterns = [
-        re.compile(r"""SECRET_KEY\s*=\s*['"](?!%\()"""),  # direct assignment to string
-        re.compile(r"""default\s*=\s*['"]django-insecure-"""),  # decouple/env default
-    ]
-    for pat in insecure_key_patterns:
-        if pat.search(text):
-            report.findings.append(HealthFinding(
-                check_id="framework.django_secret_key",
-                title=f"Insecure SECRET_KEY in {rel}",
-                severity="critical",
-                message=(
-                    f"{rel} has a hardcoded or insecure default SECRET_KEY. "
-                    f"Anyone with this key can forge sessions, CSRF tokens, and signed cookies. "
-                    f"Generate a new one: python -c \"from django.core.management.utils import get_random_secret_key; print(get_random_secret_key())\" "
-                    f"and put it in an env var with NO default fallback."
-                ),
-            ))
-            break
+    # Distinguish: direct hardcoded string (critical) vs env-loaded with bad default (medium)
+    _env_loaded = re.search(
+        r"""SECRET_KEY\s*=\s*(?:config|env|os\.environ|os\.getenv)\s*\(""", text,
+    )
+    _hardcoded = re.search(r"""SECRET_KEY\s*=\s*['"](?!%\()""", text)
+    _insecure_default = re.search(r"""default\s*=\s*['"]django-insecure-""", text)
+
+    if _hardcoded and not _env_loaded:
+        report.findings.append(HealthFinding(
+            check_id="framework.django_secret_key",
+            title=f"Hardcoded SECRET_KEY in {rel}",
+            severity="critical",
+            message=(
+                f"{rel} has a hardcoded SECRET_KEY — not loaded from env. "
+                f"Anyone with this key can forge sessions, CSRF tokens, and signed cookies. "
+                f"Generate a new one: python -c \"from django.core.management.utils import get_random_secret_key; print(get_random_secret_key())\" "
+                f"and put it in an env var with NO default fallback."
+            ),
+        ))
+    elif _env_loaded and _insecure_default:
+        report.findings.append(HealthFinding(
+            check_id="framework.django_secret_key",
+            title=f"Insecure SECRET_KEY default in {rel}",
+            severity="medium",
+            message=(
+                f"{rel} loads SECRET_KEY from env but falls back to 'django-insecure-...' default. "
+                f"If .env is missing on production, anyone can forge sessions. "
+                f"Remove the default or make it crash without the env var."
+            ),
+        ))
 
     # 2. DEBUG = True as default
     debug_default = re.search(

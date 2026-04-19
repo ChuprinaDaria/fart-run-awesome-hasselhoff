@@ -11,7 +11,7 @@ use std::path::Path;
 use ignore::WalkBuilder;
 use pyo3::prelude::*;
 
-use crate::common::{should_skip, SOURCE_EXTENSIONS};
+use crate::common::{should_skip_entry, SOURCE_EXTENSIONS};
 
 #[pyclass]
 #[derive(Clone)]
@@ -77,6 +77,7 @@ struct FileData {
     used_identifiers: HashSet<String>,
     has_star_import: bool,
     is_init: bool,
+    is_route_file: bool,
 }
 
 #[derive(Clone, Copy, PartialEq)]
@@ -195,6 +196,24 @@ const FRAMEWORK_CALLBACK_NAMES: &[&str] = &[
     "save_model",
     "delete_model",
     "get_changeform_initial_data",
+    // Textual TUI framework
+    "compose",
+    "on_mount",
+    "on_unmount",
+    "on_show",
+    "on_hide",
+    "on_focus",
+    "on_blur",
+    "on_key",
+    "on_resize",
+    "on_idle",
+    "watch_dark",
+    "render",
+    // unittest / pytest class methods
+    "setUp",
+    "tearDown",
+    "setUpClass",
+    "tearDownClass",
 ];
 
 /// Return true if this file lives in a scope where pytest will pick up
@@ -329,8 +348,20 @@ fn is_decl_or_import_name(node: tree_sitter::Node) -> bool {
     false
 }
 
+/// File-based routing directories: default exports are route entry points.
+/// Matches both top-level (app/) and nested (myproject/app/) structures.
+const ROUTE_SEGMENTS: &[&str] = &["app/", "pages/", "routes/"];
+
+fn is_route_path(rel_path: &str) -> bool {
+    ROUTE_SEGMENTS.iter().any(|seg| {
+        rel_path.starts_with(seg) || rel_path.contains(&format!("/{}", seg))
+    })
+}
+
 fn parse_file(content: &str, rel_path: &str, lang: Lang) -> FileData {
     let is_init = rel_path.ends_with("__init__.py");
+    let is_route_file = is_route_path(rel_path)
+        && matches!(lang, Lang::JavaScript | Lang::TypeScript | Lang::Tsx);
 
     let mut parser = tree_sitter::Parser::new();
     let ts_lang = match lang {
@@ -348,6 +379,7 @@ fn parse_file(content: &str, rel_path: &str, lang: Lang) -> FileData {
         used_identifiers: HashSet::new(),
         has_star_import: false,
         is_init,
+        is_route_file,
     };
     if parser.set_language(&ts_lang).is_err() {
         return empty;
@@ -595,7 +627,9 @@ fn parse_file(content: &str, rel_path: &str, lang: Lang) -> FileData {
         // identifier that is itself the declared name (function/class)
         // or an imported name. Type hints on the same line as `def`
         // must still count as usages (Task 12).
-        if node.kind() == "identifier" || node.kind() == "property_identifier" {
+        if node.kind() == "identifier" || node.kind() == "property_identifier"
+            || node.kind() == "type_identifier"
+        {
             if !is_decl_or_import_name(node) {
                 if let Ok(text) = node.utf8_text(content.as_bytes()) {
                     used_identifiers.insert(text.to_string());
@@ -627,8 +661,11 @@ fn parse_file(content: &str, rel_path: &str, lang: Lang) -> FileData {
                     return false;
                 }
                 // DRF validate_<field> / Django clean_<field> — framework auto-discovery
+                // Textual action_<name> — auto-bound to key bindings
                 if kind == "method"
-                    && (name.starts_with("validate_") || name.starts_with("clean_"))
+                    && (name.starts_with("validate_") || name.starts_with("clean_")
+                        || name.starts_with("action_") || name.starts_with("watch_")
+                        || name.starts_with("on_"))
                 {
                     return false;
                 }
@@ -656,6 +693,7 @@ fn parse_file(content: &str, rel_path: &str, lang: Lang) -> FileData {
         used_identifiers,
         has_star_import,
         is_init,
+        is_route_file,
     }
 }
 
@@ -957,13 +995,7 @@ pub fn scan_dead_code(path: &str, _entry_point_paths: Vec<String>) -> PyResult<D
         .git_ignore(true)
         .git_global(false)
         .git_exclude(true)
-        .filter_entry(|entry| {
-            if let Some(name) = entry.file_name().to_str() {
-                !should_skip(name)
-            } else {
-                true
-            }
-        })
+        .filter_entry(|entry| !should_skip_entry(entry))
         .build();
 
     for entry in walker.flatten() {
@@ -1005,6 +1037,10 @@ pub fn scan_dead_code(path: &str, _entry_point_paths: Vec<String>) -> PyResult<D
         if fd.has_star_import || fd.is_init {
             continue;
         }
+        // SQLAlchemy pattern: `from models import X` + `Base.metadata.create_all()`
+        // Model imports are side-effects (register tables in metadata).
+        let has_create_all = fd.content.contains("create_all")
+            || fd.content.contains("metadata.create_all");
         // Pre-split file content into lines once per file so we can cheaply
         // look up the source line of each import to check for `# noqa`.
         let lines: Vec<&str> = fd.content.lines().collect();
@@ -1018,6 +1054,16 @@ pub fn scan_dead_code(path: &str, _entry_point_paths: Vec<String>) -> PyResult<D
                 .copied()
                 .unwrap_or("");
             if has_noqa_unused_import(line_text, fd.lang) {
+                continue;
+            }
+            // SQLAlchemy: model imports in files with create_all() are side-effects
+            if has_create_all && stmt.to_lowercase().contains("model") {
+                continue;
+            }
+            // Test framework imports: pytest/unittest are used implicitly
+            if (name == "pytest" || name == "unittest")
+                && is_pytest_scope(&fd.rel_path)
+            {
                 continue;
             }
             unused_imports.push(UnusedImport {
@@ -1063,6 +1109,15 @@ pub fn scan_dead_code(path: &str, _entry_point_paths: Vec<String>) -> PyResult<D
     let mut unused_definitions: Vec<UnusedDefinition> = Vec::new();
     for fd in &file_data {
         if fd.is_init {
+            continue;
+        }
+        // File-based routing (Expo/Next.js/Nuxt/SvelteKit): default exports
+        // in app/ or pages/ directories are route entry points, not dead code.
+        if fd.is_route_file && fd.content.contains("export default") {
+            continue;
+        }
+        // Alembic migration files: upgrade()/downgrade() are called by framework.
+        if fd.rel_path.contains("alembic/versions/") || fd.rel_path.contains("migrations/versions/") {
             continue;
         }
         for (name, line, kind) in &fd.definitions {

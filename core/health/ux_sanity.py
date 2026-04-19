@@ -14,7 +14,7 @@ def run_ux_sanity_checks(report: HealthReport, health_rs, project_dir: str) -> N
     """Run UX sanity checks via Rust scanner and append findings to report."""
     try:
         raw = health_rs.scan_ux_sanity(project_dir)
-    except Exception as e:
+    except BaseException as e:
         log.error("ux_sanity scan error: %s", e)
         return
 

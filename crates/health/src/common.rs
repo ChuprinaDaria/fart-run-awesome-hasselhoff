@@ -60,9 +60,29 @@ pub const SOURCE_EXTENSIONS: &[&str] = &[
     "cs",
 ];
 
-/// Check if a path component should be skipped.
+/// Check if a directory entry should be skipped.
+/// Checks both hardcoded names AND detects non-standard Python venvs
+/// (by looking for pyvenv.cfg inside the directory).
 pub fn should_skip(name: &str) -> bool {
     ALWAYS_SKIP.iter().any(|s| *s == name)
+}
+
+/// Extended skip check that also detects non-standard virtualenvs
+/// by looking for `pyvenv.cfg`. Use in filter_entry where you have
+/// access to the full path.
+pub fn should_skip_entry(entry: &ignore::DirEntry) -> bool {
+    if let Some(name) = entry.file_name().to_str() {
+        if should_skip(name) {
+            return true;
+        }
+    }
+    // Detect non-standard Python venvs (e.g. tg-session-env/)
+    if entry.file_type().map(|ft| ft.is_dir()).unwrap_or(false) {
+        if entry.path().join("pyvenv.cfg").exists() {
+            return true;
+        }
+    }
+    false
 }
 
 /// Recursively walk all nodes in a tree-sitter tree, calling f on each.

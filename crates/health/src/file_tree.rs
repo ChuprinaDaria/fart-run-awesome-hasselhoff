@@ -8,7 +8,7 @@ use std::path::Path;
 use ignore::WalkBuilder;
 use pyo3::prelude::*;
 
-use crate::common::should_skip;
+use crate::common::should_skip_entry;
 
 #[pyclass]
 #[derive(Clone)]
@@ -48,13 +48,7 @@ pub fn scan_file_tree(path: &str) -> PyResult<FileTreeResult> {
         .git_ignore(true)
         .git_global(false)
         .git_exclude(true)
-        .filter_entry(|entry| {
-            if let Some(name) = entry.file_name().to_str() {
-                !should_skip(name)
-            } else {
-                true
-            }
-        })
+        .filter_entry(|entry| !should_skip_entry(entry))
         .build();
 
     for entry in walker.flatten() {

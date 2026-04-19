@@ -125,7 +125,7 @@ def run_all_checks(project_dir: str) -> HealthReport:
                 message=tips.tip_file_tree(tree.total_files, top_ext, top_count),
                 details=report.file_tree,
             ))
-        except Exception as e:
+        except BaseException as e:
             log.error("file_tree scan error: %s", e)
 
         # Check 1.2 — Entry Points
@@ -144,7 +144,7 @@ def run_all_checks(project_dir: str) -> HealthReport:
                 message=tips.tip_entry_points(len(ep_list)),
                 details={"entry_points": ep_list},
             ))
-        except Exception as e:
+        except BaseException as e:
             log.error("entry_points scan error: %s", e)
 
         # Check 1.3 — Module Map
@@ -180,7 +180,7 @@ def run_all_checks(project_dir: str) -> HealthReport:
                     severity="low",
                     message=tips.tip_orphan(orphan),
                 ))
-        except Exception as e:
+        except BaseException as e:
             log.error("module_map scan error: %s", e)
 
         # Check 1.4 — Monsters
@@ -203,7 +203,7 @@ def run_all_checks(project_dir: str) -> HealthReport:
                     severity=m.severity,
                     message=tips.tip_monster(m.path, m.lines, m.functions),
                 ))
-        except Exception as e:
+        except BaseException as e:
             log.error("monsters scan error: %s", e)
 
         # Phase 2: Dead Code
@@ -211,7 +211,7 @@ def run_all_checks(project_dir: str) -> HealthReport:
             from core.health.dead_code import run_dead_code_checks
             entry_paths = [ep["path"] for ep in report.entry_points]
             run_dead_code_checks(report, health_rs, project_dir, entry_paths)
-        except Exception as e:
+        except BaseException as e:
             log.error("dead_code scan error: %s", e)
 
         # Check 2.5: Duplicate Code
@@ -228,7 +228,7 @@ def run_all_checks(project_dir: str) -> HealthReport:
                         f"Extract into a shared function, import from both."
                     ),
                 ))
-        except Exception as e:
+        except BaseException as e:
             log.error("duplicates scan error: %s", e)
 
         # Check 3.6: Reusable Components (frontend)
@@ -245,21 +245,21 @@ def run_all_checks(project_dir: str) -> HealthReport:
                         f"Extract into a reusable component. Write once, use everywhere."
                     ),
                 ))
-        except Exception as e:
+        except BaseException as e:
             log.error("reusable scan error: %s", e)
 
         # Phase 11: UX Sanity (JSX/TSX checks)
         try:
             from core.health.ux_sanity import run_ux_sanity_checks
             run_ux_sanity_checks(report, health_rs, project_dir)
-        except Exception as e:
+        except BaseException as e:
             log.error("ux_sanity scan error: %s", e)
 
         # Phase 3: Tech Debt
         try:
             from core.health.tech_debt import run_tech_debt_checks
             run_tech_debt_checks(report, health_rs, project_dir)
-        except Exception as e:
+        except BaseException as e:
             log.error("tech_debt scan error: %s", e)
 
         # Check 3.1: Outdated Dependencies (needs network)
@@ -350,5 +350,12 @@ def run_all_checks(project_dir: str) -> HealthReport:
             ))
     except Exception as e:
         log.error("config inventory error: %s", e)
+
+    # Phase 9: Context7 fix recommendations (enrich findings with real docs)
+    try:
+        from core.health.context7_recommendations import enrich_findings_with_context7
+        enrich_findings_with_context7(report, project_dir)
+    except Exception as e:
+        log.error("context7 recommendations error: %s", e)
 
     return report
