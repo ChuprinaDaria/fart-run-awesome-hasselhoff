@@ -94,9 +94,70 @@ Four escalation levels. Because gentle reminders don't work on developers.
 
 All messages available in English and Ukrainian. Because passive-aggression transcends language barriers.
 
-### 🔍 Scan Engine
+### 🏥 Health Scanner (the doctor you can't ignore)
 
-- **MCP Server** — use from Claude, Cursor, or any MCP-compatible assistant: `npx fartrun`
+9 phases of automated project analysis. Rust-powered for speed. Tested on 7 real projects with ~80% accuracy (and climbing):
+
+- **Phase 1: Project Map** — file tree, entry points, module graph (hubs, circular deps, orphans), monster files (>500 lines)
+- **Phase 2: Dead Code** — unused imports, unused functions/methods, commented-out code, duplicate code blocks
+- **Phase 3: Tech Debt** — missing type hints, hardcoded URLs/secrets, TODO archaeology ("from 104 days ago"), error handling smells (bare `except:`, empty `catch`)
+- **Phase 4: Brake System** — uncommitted work, test coverage (zero tests = high severity), scope creep detection
+- **Phase 5: Git Survival** — commit hygiene (3940-line commits get flagged), branch awareness, gitignore gaps
+- **Phase 6: Docs & Context** — README quality, dependency documentation, LLM context summary
+- **Phase 7: UI/UX Design** — JSX/TSX lint (buttons without handlers, setState in render)
+- **Phase 8: Framework Checks** — Django SECRET_KEY, DEBUG=True, DRF throttling, Docker best practices, npm lockfile
+- **Phase 9: Context7 Recommendations** — enriches critical/high findings with real library documentation via Context7 MCP. "No tests found" → actual pytest Getting Started example from official docs.
+
+**Smart false positive prevention:**
+- TypeScript `type_identifier` tracking (no more flagging `FormEvent` as unused)
+- File-based routing awareness (Expo Router, Next.js, Nuxt — `app/` and `pages/` conventions)
+- React Native / HTML primitives excluded from reusable pattern detection
+- Non-standard Python venv detection (`pyvenv.cfg`)
+- Framework method whitelist (Django, FastAPI, Textual TUI, Qt, pytest)
+- SQLAlchemy side-effect imports, alembic migrations, `import pytest`
+
+**Output: HEALTH-REPORT.md** — checklist with severity levels, file:line references, Context7 fix snippets, and "Possible false positives" section. Copy to Claude: *"Fix the issues in HEALTH-REPORT.md"*
+
+### 🔌 MCP Server (19 tools, two transports)
+
+Use from Claude Code, Cursor, Windsurf, or any MCP client:
+
+**stdio** (default — for Claude Code / settings.json):
+```bash
+fartrun mcp
+```
+
+**HTTP+SSE** (for Cursor, web integrations, any HTTP client):
+```bash
+fartrun mcp --http --port 3001
+```
+
+| Tool | Type | What it does |
+|------|------|-------------|
+| `run_health_scan` | READ | Full 9-phase project audit with Context7 recommendations |
+| `get_health_summary` | READ | Critical + high only — quick "what's broken" |
+| `get_unused_code` | READ | Dead imports, functions, orphans, duplicates |
+| `get_tech_debt` | READ | Missing types, hardcoded values, TODOs, error handling |
+| `get_security_issues` | READ | Secrets, misconfigs, gitignore gaps |
+| `generate_health_report` | WRITE | Save HEALTH-REPORT.md with checklist |
+| `get_status` | READ | Project overview (save points, frozen, stack) |
+| `get_activity` | READ | Uncommitted changes, recent commits |
+| `detect_project_stack` | READ | Parse manifests, detect libraries |
+| `search_code` | READ | Grep-style keyword search |
+| `build_prompt` | READ | Vibe one-liner → structured prompt |
+| `create_save_point` | WRITE | Git-based save point (commit+tag) |
+| `rollback_save_point` | WRITE | Hard-reset to save point (with backup) |
+| `freeze_file` / `unfreeze_file` | WRITE | Lock/unlock files in CLAUDE.md |
+| `list_save_points` / `list_frozen` / `list_prompts` | READ | History queries |
+| `install_context7` / `uninstall_context7` | WRITE | Manage Context7 MCP |
+
+**HTTP endpoints:**
+- `GET /health` — server status, version, tool count
+- `GET /sse` — Server-Sent Events stream for MCP clients
+- `POST /mcp` — JSON-RPC tool calls
+
+### 🔍 Security Scan Engine
+
 - **Security Score** — 0-100 on the Overview page. Critical finding? That's -20 points. You start at 100. Most vibe-coded projects end up somewhere around... let's not talk about it.
 - **Quick Fix buttons** — ".env in git? Click Fix. Firewall off? Click Fix. Docker running as root? Click Fix. Existential dread about your code quality? We're working on that one."
 - **SQLite History** — tracks your security score over time. The graph usually goes up. If it goes down, that means you installed something. Check what.
@@ -183,47 +244,74 @@ All user-facing strings are sanitized against command injection. We tested this.
 
 ## Quick Start
 
-### MCP (for the lazy — i.e. the target audience)
-
-```bash
-npx fartrun scan .
-```
-
-Or add to your Claude Desktop / Cursor config:
+### MCP — stdio (Claude Code / settings.json)
 
 ```json
 {
   "mcpServers": {
     "fartrun": {
-      "command": "npx",
-      "args": ["fartrun"]
+      "command": "fartrun-mcp"
     }
   }
 }
 ```
 
-Then just ask your AI: *"scan this project for security issues"*
+Then ask your AI: *"run a health scan on this project"* or *"generate a health report"*
 
-### Desktop GUI (for the aesthetes)
+### MCP — HTTP (Cursor / Windsurf / web)
+
+```bash
+fartrun mcp --http --port 3001
+```
+
+```json
+{
+  "mcpServers": {
+    "fartrun": {
+      "url": "http://localhost:3001/sse"
+    }
+  }
+}
+```
+
+Check it's alive: `curl http://localhost:3001/health`
+
+### CLI (for humans)
 
 ```bash
 git clone https://github.com/ChuprinaDaria/fart-run-awesome-hasselhoff.git
 cd fart-run-awesome-hasselhoff
-pip install -e .
+pip install -e ".[http]"
+```
+
+```bash
+# Health scan → MD report
+fartrun scan /path/to/project
+
+# Save point before risky changes
+fartrun save "before refactoring auth"
+
+# Rollback if everything breaks
+fartrun rollback 1
+```
+
+### Desktop GUI (for the aesthetes)
+
+```bash
 python -m gui.app
 ```
 
 A Win95 window will appear. Hasselhoff may or may not greet you. Click "Scan". Listen.
 
-### Rust Sentinel (for the fast)
+### Rust Health Modules (for the fast)
 
 ```bash
-cd crates/sentinel
-maturin build --release
-pip install target/wheels/sentinel-*.whl
+cd crates/health
+pip install maturin
+maturin develop --release
 ```
 
-Now your Python scanners use compiled Rust modules. 10x faster than regex in Python. Because your time is valuable. (Your code might not be. Run the scan.)
+Now your health scanner uses compiled Rust modules for file tree, dead code, module map, duplicates, and more. 10-50x faster than pure Python AST parsing.
 
 -----
 
@@ -239,44 +327,85 @@ Now your Python scanners use compiled Rust modules. 10x faster than regex in Pyt
 
 -----
 
+## Stack
+
+| Layer | Technology | Why |
+|-------|-----------|-----|
+| Health scanner (AST) | **Rust** + tree-sitter + oxc | Fast parsing of Python/JS/TS/TSX across thousands of files |
+| Health scanner (logic) | **Python 3.11+** | Framework checks, Context7 integration, report generation |
+| MCP server | **Python** + mcp SDK | stdio + HTTP/SSE transports, 19 tools |
+| HTTP transport | **Starlette** + **Uvicorn** | ASGI server for Cursor/web MCP clients |
+| Documentation enrichment | **Context7 MCP** | Real-time library docs for fix recommendations |
+| GUI | **PyQt5** | Win95 aesthetic. Peak design. |
+| Security scanner | **Rust** (sentinel modules) | Process/network/filesystem/secrets scanning |
+| Database | **SQLite** | Save points, history, frozen files |
+| Build | **maturin** | Rust → Python wheel via PyO3 |
+
 ## Architecture (for people who actually read this section)
 
 ```
 fartrun/
 ├── core/                          # The brain. Doesn't fart. Just thinks.
+│   ├── health/                    # 🏥 Health scanner — 9 phases of project analysis
+│   │   ├── project_map.py         # Orchestrator. Runs all phases. Returns HealthReport.
+│   │   ├── dead_code.py           # Phase 2: unused imports/functions (wraps Rust)
+│   │   ├── tech_debt.py           # Phase 3: missing types, error handling (wraps Rust)
+│   │   ├── brake_system.py        # Phase 4: uncommitted work, test health, scope creep
+│   │   ├── git_survival.py        # Phase 5: commit hygiene, branches, gitignore
+│   │   ├── docs_context.py        # Phase 6: README quality, dependency docs
+│   │   ├── ui_ux_design.py        # Phase 7: JSX/TSX lint
+│   │   ├── framework_checks.py    # Phase 8: Django, Docker, frontend best practices
+│   │   ├── context7_recommendations.py  # Phase 9: Context7 docs for fix suggestions
+│   │   ├── report_md.py           # Markdown report generator (checklist + FP warnings)
+│   │   ├── models.py              # HealthReport, HealthFinding dataclasses
+│   │   └── tips.py                # Human-friendly messages. "This isn't a file, it's a novel."
+│   ├── mcp/                       # 🔌 MCP server — 19 tools, stdio + HTTP
+│   │   ├── server.py              # Server instance, stdio_server + HTTP/SSE transport
+│   │   ├── tools/                 # Tool modules (self-registering via @register)
+│   │   │   ├── health.py          # run_health_scan, get_health_summary, generate_health_report
+│   │   │   ├── status.py          # get_status, get_activity, search_code, detect_stack
+│   │   │   ├── save_points.py     # create_save_point, rollback_save_point
+│   │   │   ├── frozen.py          # freeze_file, unfreeze_file
+│   │   │   ├── prompt.py          # build_prompt (vibe text → structured prompt)
+│   │   │   └── context7_install.py # install/uninstall Context7 MCP
+│   │   ├── helpers.py             # ok(), err(), json_block(), resolve_project_dir()
+│   │   └── state.py               # SQLite singleton shared across tool calls
 │   ├── platform.py                # "What OS am I on?" → dispatch
 │   ├── platform_backends/         # Linux, macOS, Windows. All equally vulnerable.
-│   ├── alerts.py                  # Deduplication, cooldown. Prevents fart storms.
+│   ├── stack_detector.py          # Parse package.json/pyproject.toml → detected libraries
+│   ├── context7_mcp.py            # Context7 registration + directive generation
+│   ├── prompt_builder.py          # Vibe text → structured prompt with Context7 directives
+│   ├── safety_net/                # Save points: git commit+tag, rollback with backup
+│   ├── frozen_manager.py          # Don't Touch list → CLAUDE.md sync
 │   ├── calculator.py              # Token cost math. The bad news machine.
 │   ├── usage_analyzer.py          # Cache efficiency. The "I told you so" module.
-│   ├── tips.py                    # 15+ tips. Optional Haiku AI. Unsolicited advice.
 │   ├── haiku_client.py            # Claude Haiku API. ~$0.001/call. Cheapest therapist.
 │   ├── history.py                 # SQLite. Remembers everything. Forgives nothing.
 │   ├── token_parser.py            # Reads your Claude JSONL diaries. Judges silently.
-│   ├── md_fetcher.py              # Fetches MD from GitHub. Caches 24h. Self-updating.
-│   ├── mcp_installer.py           # Installs MCP servers. Atomically. Unlike your decisions.
-│   ├── repo_scanner.py            # Scans repos before install. Trust but verify.
 │   └── nagger/                    # Nag messages + Hasselhoff. The emotional core.
+├── crates/health/                 # 🦀 Rust health modules (PyO3 → Python)
+│   └── src/
+│       ├── dead_code.rs           # Unused imports/definitions via tree-sitter AST
+│       ├── file_tree.rs           # File count, extensions, directory sizes
+│       ├── module_map.rs          # Import graph, hub modules, circular deps, orphans
+│       ├── monsters.rs            # Large files (>500 lines)
+│       ├── duplicates.rs          # Code duplication detection
+│       ├── reusable.rs            # Repeated JSX patterns (extract into components)
+│       ├── tech_debt.rs           # Missing types, error handling, hardcoded values
+│       ├── overengineering.rs     # Single-method classes, deep nesting
+│       ├── common.rs              # Shared: skip dirs, venv detection, source extensions
+│       └── lib.rs                 # PyO3 module exports
+├── crates/sentinel/               # 🦀 Rust security scanner
+│   └── src/                       # 10 modules: processes, network, secrets, supply_chain...
 ├── gui/                           # Win95 PyQt5. Peak aesthetic.
-│   ├── app.py                     # Main window. Sidebar. Refresh loop. God object (forgive us).
-│   ├── win95_popup.py             # ✖ ⚠ ℹ — the holy trinity of 1995.
-│   ├── fmt_utils.py               # "1234567" → "1.2M". Shared. DRY. We learned.
-│   └── pages/                     # 8 pages. Each a unique flavor of "you should fix this."
-├── plugins/                       # Plugin system. Enterprise word for "folders with code."
-│   ├── docker_monitor/            # Watches your containers. They're running as root, aren't they.
-│   ├── port_map/                  # Finds open ports. 0.0.0.0 is not a security strategy.
-│   └── security_scan/             # Python wrappers around Rust modules. The diplomatic layer.
-├── crates/sentinel/               # 🦀 Rust. Fast. Compiled. Doesn't need pip install.
-│   └── src/                       # 10 modules. Each finds a different way you messed up.
-├── data/                          # MD files. Edit here, not in Python. We learned this the hard way.
-│   ├── curated.md                 # MCP servers + Skills we semi-trust
-│   ├── resources.md               # Links you'll bookmark and never click
-│   └── education.md               # Courses in EN + UA. Knowledge is power. Ignorance is 0.0.0.0.
-├── sounds/
-│   ├── classic/                   # Beeps your manager approves of
-│   └── fart/                      # Beeps your manager does not approve of
+│   ├── app.py                     # Main window + sidebar
+│   ├── pages/                     # 8 pages + health scan page
+│   └── win95_popup.py             # ✖ ⚠ ℹ — the holy trinity of 1995
+├── plugins/                       # Docker monitor, port map, security scan
+├── data/                          # MD files for education/resources/curated MCP
+├── sounds/                        # classic/ + fart/ — your manager's opinion varies
 ├── i18n/                          # EN + UA. Passive-aggression is multilingual.
-└── tests/                         # 118 tests. More tests than some projects have lines of code.
+└── tests/                         # Tests. More tests than some projects have lines of code.
 ```
 
 -----
@@ -331,13 +460,18 @@ The Hasselhoff is there because every project needs a spiritual guardian. David 
 |Feature                                    |ScanVibe|Vibeship|Aikido |**Fartrun**|
 |-------------------------------------------|--------|--------|-------|-----------|
 |Scans locally (no code leaves your machine)|❌       |❌       |❌      |✅          |
+|Full project health scan (9 phases)        |❌       |❌       |partial|✅          |
+|Dead code detection (AST-based)            |❌       |❌       |❌      |✅          |
+|Fix recommendations from real docs (Context7)|❌    |❌       |❌      |✅          |
+|MD report with checklist for AI            |❌       |❌       |❌      |✅          |
+|MCP server (19 tools, stdio + HTTP)        |❌       |✅       |❌      |✅          |
 |Custom Rust security modules               |❌       |❌       |❌      |✅          |
+|Framework-aware (Django, Next.js, Expo, FastAPI)|❌  |❌       |partial|✅          |
 |Tells you how much money you're burning    |❌       |❌       |❌      |✅          |
 |AI tips that cost less than a gumball      |❌       |❌       |❌      |✅          |
 |Insults you in Ukrainian                   |❌       |❌       |❌      |✅          |
 |Fart sounds                                |❌       |❌       |❌      |✅          |
 |Hasselhoff                                 |❌       |❌       |❌      |✅          |
-|MCP integration                            |❌       |✅       |❌      |✅          |
 |Win95 GUI                                  |❌       |❌       |❌      |✅          |
 |Teaches you security (UA + EN)             |❌       |❌       |❌      |✅          |
 |Free                                       |partial |partial |partial|**forever**|
