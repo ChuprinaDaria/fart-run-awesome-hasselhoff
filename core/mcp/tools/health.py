@@ -247,3 +247,43 @@ async def get_security_issues(args):
         "total": len(security),
         "findings": [_serialize_finding(f) for f in security],
     })
+
+
+@register(mcp_types.Tool(
+    name="generate_health_report",
+    description=(
+        "Run full health scan and generate a Markdown report file with "
+        "checklist of fixes, Context7 documentation snippets, and warnings "
+        "about possible false positives. Save the .md file in the project "
+        "directory. Give this file to Claude to fix your project."
+    ),
+    inputSchema={
+        "type": "object",
+        "properties": {
+            "project_dir": {
+                "type": "string",
+                "description": "Absolute path to project. Defaults to CWD.",
+            },
+            "output_path": {
+                "type": "string",
+                "description": "Where to save the .md file. Default: HEALTH-REPORT-{date}.md in project root.",
+            },
+        },
+    },
+))
+async def generate_health_report(args):
+    from core.mcp.helpers import ok
+    project_dir = resolve_project_dir(args.get("project_dir"))
+    output_path = args.get("output_path")
+
+    from core.health.project_map import run_all_checks
+    from core.health.report_md import save_report_md
+    report = run_all_checks(project_dir)
+    saved_path = save_report_md(report, output_path)
+
+    actionable = [f for f in report.findings if f.severity != "info"]
+    return ok(
+        f"Health report saved to {saved_path}\n"
+        f"Total: {len(report.findings)} findings, {len(actionable)} actionable.\n"
+        f"Give this file to Claude with: 'Fix the issues in HEALTH-REPORT.md'"
+    )
