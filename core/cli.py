@@ -149,9 +149,13 @@ def cmd_status(args) -> int:
 
 
 def cmd_mcp(args) -> int:
-    """Don't print the logo — stdio is used for JSON-RPC."""
-    from core.mcp import main as mcp_main
-    mcp_main()
+    """Run MCP server. Default: stdio. --http for HTTP+SSE transport."""
+    if getattr(args, "http", False):
+        from core.mcp.server import main_http
+        main_http()
+    else:
+        from core.mcp import main as mcp_main
+        mcp_main()
     return 0
 
 
@@ -387,7 +391,11 @@ def build_parser() -> argparse.ArgumentParser:
     with_dir(sp_status)
     sp_status.set_defaults(func=cmd_status)
 
-    sp_mcp = sub.add_parser("mcp", help="run fartrun as MCP stdio server")
+    sp_mcp = sub.add_parser("mcp", help="run fartrun as MCP server")
+    sp_mcp.add_argument("--http", action="store_true",
+                        help="HTTP+SSE transport (default: stdio)")
+    sp_mcp.add_argument("--port", type=int, default=3001,
+                        help="HTTP port (default: 3001)")
     sp_mcp.set_defaults(func=cmd_mcp)
 
     sp_save = sub.add_parser("save", help="create a Save Point")

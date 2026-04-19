@@ -7,6 +7,7 @@ to the import list below.
 from core.mcp.tools import (  # noqa: F401
     context7_install,
     frozen,
+    health,
     prompt,
     save_points,
     status,
@@ -15,6 +16,7 @@ from core.mcp.tools import (  # noqa: F401
 __all__ = [
     "context7_install",
     "frozen",
+    "health",
     "prompt",
     "save_points",
     "status",
